@@ -1,20 +1,32 @@
 const { Router } = require('express');
-const { PrismaClient } = require('@prisma/client');
-const { getAvailableSlots } = require('../../lib/booking/availability');
+const { PrismaClient, Prisma } = require('@prisma/client');
 const { isCustomer, optionalCustomer } = require('../../middleware/auth');
 const { sendAppointmentConfirmation } = require('../../lib/notifications/email');
 const { appointmentWhatsAppLink } = require('../../lib/notifications/whatsapp');
+const { getAvailableSlots } = require('../../lib/booking/availability');
 
 const prisma = new PrismaClient();
 const router = Router();
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TIME_RE = /^\d{2}:\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 // GET /api/appointments/availability — slots disponibles
 router.get('/availability', async (req, res, next) => {
   try {
     const { staffId, serviceId, date } = req.query;
+
     if (!staffId || !serviceId || !date) {
       return res.status(400).json({ error: 'staffId, serviceId y date son requeridos' });
     }
+    if (!UUID_RE.test(staffId) || !UUID_RE.test(serviceId)) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+    if (!DATE_RE.test(date)) {
+      return res.status(400).json({ error: 'Formato de fecha inválido (YYYY-MM-DD)' });
+    }
+
     const slots = await getAvailableSlots(staffId, serviceId, date);
     res.json(slots);
   } catch (err) {
@@ -33,35 +45,75 @@ router.post('/', optionalCustomer, async (req, res, next) => {
     if (!staffId || !serviceId || !date || !startTime || !endTime) {
       return res.status(400).json({ error: 'Faltan datos obligatorios' });
     }
-
-    // Verificar disponibilidad del slot solicitado
-    const slots = await getAvailableSlots(staffId, serviceId, date);
-    const available = slots.some(s => s.start === startTime && s.end === endTime);
-    if (!available) {
-      return res.status(409).json({ error: 'El horario seleccionado no está disponible' });
+    if (!UUID_RE.test(staffId) || !UUID_RE.test(serviceId)) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+    if (!DATE_RE.test(date) || !TIME_RE.test(startTime) || !TIME_RE.test(endTime)) {
+      return res.status(400).json({ error: 'Formato de fecha u hora inválido' });
+    }
+    if (!req.user && !guestName) {
+      return res.status(400).json({ error: 'Nombre es requerido para reservas como invitado' });
     }
 
-    const service = await prisma.service.findUnique({ where: { id: serviceId } });
+    const appointmentDate = new Date(date + 'T00:00:00Z');
 
-    const appointment = await prisma.appointment.create({
-      data: {
-        staffId,
-        serviceId,
-        date: new Date(date + 'T00:00:00Z'),
-        startTime,
-        endTime,
-        status: 'pending',
-        totalPen: service.pricePen,
-        notes: notes || null,
-        customerId: req.user?.id || null,
-        guestName: guestName || null,
-        guestPhone: guestPhone || null,
-        guestEmail: guestEmail || null,
-      },
-      include: { service: true, staff: true },
-    });
+    // Verificar que la fecha no sea en el pasado
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (appointmentDate < today) {
+      return res.status(400).json({ error: 'No se pueden crear citas en el pasado' });
+    }
 
-    // Notificación por email
+    // Verificar disponibilidad y crear en transacción serializable — previene double-booking
+    let appointment;
+    try {
+      appointment = await prisma.$transaction(async (tx) => {
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            staffId,
+            date: appointmentDate,
+            status: { in: ['pending', 'confirmed'] },
+            startTime: { lt: endTime },
+            endTime: { gt: startTime },
+          },
+        });
+
+        if (conflict) {
+          const err = new Error('El horario seleccionado no está disponible');
+          err.status = 409;
+          throw err;
+        }
+
+        const service = await tx.service.findUnique({ where: { id: serviceId } });
+        if (!service || !service.isActive) {
+          const err = new Error('Servicio no disponible');
+          err.status = 404;
+          throw err;
+        }
+
+        return tx.appointment.create({
+          data: {
+            staffId,
+            serviceId,
+            date: appointmentDate,
+            startTime,
+            endTime,
+            status: 'pending',
+            totalPen: service.pricePen,
+            notes: notes ? String(notes).slice(0, 500) : null,
+            customerId: req.user?.id || null,
+            guestName: guestName ? String(guestName).slice(0, 100) : null,
+            guestPhone: guestPhone ? String(guestPhone).slice(0, 20) : null,
+            guestEmail: guestEmail ? String(guestEmail).slice(0, 100) : null,
+          },
+          include: { service: true, staff: true },
+        });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (err) {
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+
     const contactEmail = req.user?.email || guestEmail;
     const contactName = guestName || 'Cliente';
     if (contactEmail) {
@@ -95,6 +147,10 @@ router.get('/me', isCustomer, async (req, res, next) => {
 // PATCH /api/appointments/:id/cancel — cancelar cita propia
 router.patch('/:id/cancel', isCustomer, async (req, res, next) => {
   try {
+    if (!UUID_RE.test(req.params.id)) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
     const appointment = await prisma.appointment.findUnique({
       where: { id: req.params.id },
     });
