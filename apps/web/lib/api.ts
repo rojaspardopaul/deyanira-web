@@ -121,5 +121,31 @@ export function adminApi(token: string) {
     },
     upload: (file: string, folder?: string) =>
       apiFetch<unknown>('/admin/upload', opts('POST', { file, folder })),
+    accounting: {
+      summary: (from: string, to: string) =>
+        apiFetch<unknown>(`/admin/accounting/summary?from=${from}&to=${to}`, { token }),
+      monthly: (year: number) =>
+        apiFetch<unknown[]>(`/admin/accounting/monthly?year=${year}`, { token }),
+      expenses: {
+        list: (params?: string) =>
+          apiFetch<unknown[]>(`/admin/accounting/expenses${params ? `?${params}` : ''}`, { token }),
+        create: (data: unknown) =>
+          apiFetch<unknown>('/admin/accounting/expenses', opts('POST', data)),
+        update: (id: string, data: unknown) =>
+          apiFetch<unknown>(`/admin/accounting/expenses/${id}`, opts('PATCH', data)),
+        delete: (id: string) =>
+          apiFetch<unknown>(`/admin/accounting/expenses/${id}`, opts('DELETE')),
+      },
+      otherIncome: {
+        list: (params?: string) =>
+          apiFetch<unknown[]>(`/admin/accounting/other-income${params ? `?${params}` : ''}`, { token }),
+        create: (data: unknown) =>
+          apiFetch<unknown>('/admin/accounting/other-income', opts('POST', data)),
+        update: (id: string, data: unknown) =>
+          apiFetch<unknown>(`/admin/accounting/other-income/${id}`, opts('PATCH', data)),
+        delete: (id: string) =>
+          apiFetch<unknown>(`/admin/accounting/other-income/${id}`, opts('DELETE')),
+      },
+    },
   };
 }

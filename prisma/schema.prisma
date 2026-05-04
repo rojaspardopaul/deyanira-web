@@ -297,3 +297,37 @@ model Admin {
 
   @@map("admins")
 }
+
+// ─── CONTABILIDAD ─────────────────────────────────────────
+
+model Expense {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date          DateTime @db.Date
+  category      String
+  // alquiler | salarios | productos | servicios_pub | marketing
+  // equipos | mantenimiento | transporte | impuestos | otro
+  description   String
+  amountPen     Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  paymentMethod String   @default("efectivo") @map("payment_method")
+  // efectivo | transferencia | tarjeta | yape
+  receiptUrl    String?  @map("receipt_url")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("expenses")
+}
+
+model OtherIncome {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date        DateTime @db.Date
+  category    String
+  // servicios_externos | cursos | alquiler_espacio | otro
+  description String
+  amountPen   Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("other_income")
+}

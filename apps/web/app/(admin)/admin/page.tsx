@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api';
-import { Calendar, ShoppingBag, Users } from 'lucide-react';
+import Link from 'next/link';
+import { Calendar, ShoppingBag, Users, BarChart3 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -47,6 +48,24 @@ export default function AdminDashboard() {
               <p className="text-3xl font-bold mb-1">{value as number}</p>
               <p className="text-gray-600 text-sm">{label}</p>
             </div>
+          ))}
+        </div>
+
+        {/* Accesos rápidos */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
+          {[
+            { href: '/admin/citas', label: 'Citas', icon: Calendar, color: 'bg-pink-50 text-pink-600 border-pink-100' },
+            { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingBag, color: 'bg-orange-50 text-orange-600 border-orange-100' },
+            { href: '/admin/clientes', label: 'Clientes', icon: Users, color: 'bg-blue-50 text-blue-600 border-blue-100' },
+            { href: '/admin/contabilidad', label: 'Contabilidad', icon: BarChart3, color: 'bg-emerald-50 text-emerald-600 border-emerald-100' },
+          ].map(({ href, label, icon: Icon, color }) => (
+            <Link key={href} href={href}
+              className={`flex flex-col items-center gap-2 p-4 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-shadow ${color.split(' ').slice(2).join(' ')}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${color.split(' ').slice(0, 2).join(' ')}`}>
+                <Icon className="w-5 h-5" />
+              </div>
+              <span className="text-sm font-medium text-gray-700">{label}</span>
+            </Link>
           ))}
         </div>
 

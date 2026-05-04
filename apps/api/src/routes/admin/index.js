@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { isAdmin } = require('../../middleware/auth');
 const { uploadImage } = require('../../lib/cloudinary');
 const { PrismaClient } = require('@prisma/client');
+const accountingRouter = require('./accounting');
 
 const prisma = new PrismaClient();
 const router = Router();
@@ -443,5 +444,8 @@ router.post('/upload', async (req, res, next) => {
     res.json(result);
   } catch (err) { next(err); }
 });
+
+// ── Contabilidad ──────────────────────────────────────────
+router.use('/accounting', accountingRouter);
 
 module.exports = router;
