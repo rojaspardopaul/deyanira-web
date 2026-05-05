@@ -463,7 +463,7 @@ export default function ContabilidadPage() {
     if (!t) return;
     setLoadingExpenses(true);
     try {
-      const data = await adminApi(t).accounting.expenses(`from=${p.from}&to=${p.to}`) as Expense[];
+      const data = await adminApi(t).accounting.expenses.list(`from=${p.from}&to=${p.to}`) as Expense[];
       setExpenses(data);
     } catch { /* ignore */ } finally { setLoadingExpenses(false); }
   }, []);
@@ -472,7 +472,7 @@ export default function ContabilidadPage() {
     if (!t) return;
     setLoadingOther(true);
     try {
-      const data = await adminApi(t).accounting.otherIncome(`from=${p.from}&to=${p.to}`) as OtherIncome[];
+      const data = await adminApi(t).accounting.otherIncome.list(`from=${p.from}&to=${p.to}`) as OtherIncome[];
       setOtherIncome(data);
     } catch { /* ignore */ } finally { setLoadingOther(false); }
   }, []);
