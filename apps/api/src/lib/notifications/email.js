@@ -1,10 +1,19 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM = process.env.EMAIL_FROM || 'hola@deyanira.pe';
 const SALON_NAME = 'Deyanira Makeup Beauty';
 
+function getResend() {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn('[email] RESEND_API_KEY not set — emails disabled');
+    return null;
+  }
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
 async function sendAppointmentConfirmation({ appointment, email, name }) {
+  const resend = getResend();
+  if (!resend) return;
   const date = new Date(appointment.date).toLocaleDateString('es-PE', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
   });
@@ -37,6 +46,8 @@ async function sendAppointmentConfirmation({ appointment, email, name }) {
 }
 
 async function sendAppointmentReminder({ appointment, email, name, hoursBefor }) {
+  const resend = getResend();
+  if (!resend) return;
   const date = new Date(appointment.date).toLocaleDateString('es-PE', {
     weekday: 'long', month: 'long', day: 'numeric',
   });
@@ -60,6 +71,8 @@ async function sendAppointmentReminder({ appointment, email, name, hoursBefor })
 }
 
 async function sendOrderConfirmation({ order, email }) {
+  const resend = getResend();
+  if (!resend) return;
   await resend.emails.send({
     from: FROM,
     to: email,
