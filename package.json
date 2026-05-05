@@ -11,10 +11,10 @@
     "dev:api": "npm run dev --workspace=apps/api",
     "build": "npm run build --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "db:generate": "npx prisma generate",
-    "db:migrate": "npx prisma migrate dev",
-    "db:push": "npx prisma db push",
-    "db:studio": "npx prisma studio"
+    "db:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "db:push": "npx prisma db push --schema apps/api/prisma/schema.prisma",
+    "db:studio": "npx prisma studio --schema apps/api/prisma/schema.prisma"
   },
   "devDependencies": {
     "prisma": "^5.22.0"

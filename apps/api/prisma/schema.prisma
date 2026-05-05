@@ -1,0 +1,333 @@
+// Deyanira Makeup Beauty — Prisma Schema
+// Conecta con Supabase (PostgreSQL)
+// Ejecutar: npx prisma db push (para sync con Supabase)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── CATÁLOGO DE SERVICIOS ────────────────────────────────
+
+model ServiceCategory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  slug      String    @unique
+  icon      String?
+  sortOrder Int       @default(0) @map("sort_order")
+  isActive  Boolean   @default(true) @map("is_active")
+  services  Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String          @unique
+  description  String?
+  categoryId   String?         @map("category_id") @db.Uuid
+  category     ServiceCategory? @relation(fields: [categoryId], references: [id])
+  pricePen     Decimal         @map("price_pen") @db.Decimal(10, 2)
+  duration     Int
+  imageUrl     String?         @map("image_url")
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  staffServices StaffService[]
+  appointments Appointment[]
+
+  @@map("services")
+}
+
+// ─── PERSONAL ────────────────────────────────────────────
+
+model Staff {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  role          String?
+  photoUrl      String?        @map("photo_url")
+  bio           String?
+  isActive      Boolean        @default(true) @map("is_active")
+  staffServices StaffService[]
+  schedules     StaffSchedule[]
+  appointments  Appointment[]
+
+  @@map("staff")
+}
+
+model StaffService {
+  staffId   String @map("staff_id") @db.Uuid
+  serviceId String @map("service_id") @db.Uuid
+  staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@id([staffId, serviceId])
+  @@map("staff_services")
+}
+
+model StaffSchedule {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId    String @map("staff_id") @db.Uuid
+  staff      Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int    @map("day_of_week") // 0=Dom, 1=Lun, ..., 6=Sáb
+  startTime  String @map("start_time") // "09:00"
+  endTime    String @map("end_time")   // "19:00"
+
+  @@map("staff_schedules")
+}
+
+// ─── CLIENTES ─────────────────────────────────────────────
+// Supabase Auth maneja auth.users — esta tabla extiende el perfil
+
+model Customer {
+  id             String        @id @db.Uuid // mismo UUID de auth.users
+  name           String
+  phone          String?
+  loyaltyPoints  Int           @default(0) @map("loyalty_points")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  appointments   Appointment[]
+  orders         Order[]
+
+  @@map("customers")
+}
+
+// ─── CITAS ────────────────────────────────────────────────
+
+model Appointment {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId  String?  @map("customer_id") @db.Uuid
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  staffId     String   @map("staff_id") @db.Uuid
+  staff       Staff    @relation(fields: [staffId], references: [id])
+  serviceId   String   @map("service_id") @db.Uuid
+  service     Service  @relation(fields: [serviceId], references: [id])
+  date        DateTime @db.Date
+  startTime   String   @map("start_time") // "10:00"
+  endTime     String   @map("end_time")   // "11:00"
+  status      String   @default("pending")
+  // pending | confirmed | cancelled | completed | no_show
+  notes       String?
+  totalPen    Decimal  @map("total_pen") @db.Decimal(10, 2)
+  reminder24h Boolean  @default(false) @map("reminder_24h")
+  reminder2h  Boolean  @default(false) @map("reminder_2h")
+  // Datos del cliente invitado (sin cuenta)
+  guestName   String?  @map("guest_name")
+  guestPhone  String?  @map("guest_phone")
+  guestEmail  String?  @map("guest_email")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([staffId, date, status])
+  @@map("appointments")
+}
+
+// ─── PRODUCTOS ────────────────────────────────────────────
+
+model ProductCategory {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0) @map("sort_order")
+  products  Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  slug         String          @unique
+  description  String?
+  categoryId   String?         @map("category_id") @db.Uuid
+  category     ProductCategory? @relation(fields: [categoryId], references: [id])
+  brand        String?
+  pricePen     Decimal         @map("price_pen") @db.Decimal(10, 2)
+  comparePrice Decimal?        @map("compare_price") @db.Decimal(10, 2)
+  stock        Int             @default(0)
+  images       String[]        // Cloudinary URLs
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  orderItems   OrderItem[]
+
+  @@map("products")
+}
+
+// ─── PEDIDOS ──────────────────────────────────────────────
+
+model Order {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId    String?     @map("customer_id") @db.Uuid
+  customer      Customer?   @relation(fields: [customerId], references: [id])
+  status        String      @default("pending")
+  // pending | processing | shipped | delivered | cancelled
+  subtotalPen   Decimal     @map("subtotal_pen") @db.Decimal(10, 2)
+  shippingPen   Decimal     @default(0) @map("shipping_pen") @db.Decimal(10, 2)
+  discountPen   Decimal     @default(0) @map("discount_pen") @db.Decimal(10, 2)
+  totalPen      Decimal     @map("total_pen") @db.Decimal(10, 2)
+  paymentMethod String?     @map("payment_method") // culqi | yape
+  paymentStatus String      @default("pending") @map("payment_status")
+  paymentRef    String?     @map("payment_ref")
+  shipName      String?     @map("ship_name")
+  shipPhone     String?     @map("ship_phone")
+  shipAddress   String?     @map("ship_address")
+  shipDistrict  String?     @map("ship_district")
+  shipCity      String      @default("Lima") @map("ship_city")
+  couponCode    String?     @map("coupon_code")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  items         OrderItem[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String  @map("order_id") @db.Uuid
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String? @map("product_id") @db.Uuid
+  product   Product? @relation(fields: [productId], references: [id])
+  qty       Int
+  pricePen  Decimal @map("price_pen") @db.Decimal(10, 2)
+  name      String  // snapshot del nombre al momento de compra
+
+  @@map("order_items")
+}
+
+// ─── PROMOCIONES ──────────────────────────────────────────
+
+model Promotion {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  type         String    // percent | fixed
+  value        Decimal   @db.Decimal(10, 2)
+  minOrderPen  Decimal   @default(0) @map("min_order_pen") @db.Decimal(10, 2)
+  applicableTo String    @default("all") @map("applicable_to") // services | products | all
+  usageLimit   Int?      @map("usage_limit")
+  usedCount    Int       @default(0) @map("used_count")
+  expiresAt    DateTime? @map("expires_at")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  @@map("promotions")
+}
+
+// ─── GALERÍA ──────────────────────────────────────────────
+
+model Gallery {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imageUrl     String   @map("image_url")
+  thumbnailUrl String?  @map("thumbnail_url")
+  category     String?  // maquillaje | cabello | unas | cejas
+  caption      String?
+  sortOrder    Int      @default(0) @map("sort_order")
+  isPublished  Boolean  @default(true) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("gallery")
+}
+
+// ─── BLOG ─────────────────────────────────────────────────
+
+model BlogPost {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title       String
+  slug        String    @unique
+  excerpt     String?
+  content     String
+  coverUrl    String?   @map("cover_url")
+  isPublished Boolean   @default(false) @map("is_published")
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@map("blog_posts")
+}
+
+// ─── RESEÑAS ──────────────────────────────────────────────
+
+model Review {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  author    String
+  rating    Int
+  text      String?
+  date      DateTime? @db.Date
+  isVisible Boolean  @default(true) @map("is_visible")
+  source    String   @default("manual") // google | manual
+
+  @@map("reviews")
+}
+
+// ─── CONFIGURACIÓN DEL SALÓN ──────────────────────────────
+
+model Setting {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  salonName           String   @default("Deyanira Makeup Beauty") @map("salon_name")
+  phone               String?
+  whatsapp            String?
+  email               String?
+  address             String?
+  district            String?
+  city                String   @default("Lima")
+  lat                 Decimal  @default(-12.1109913) @db.Decimal(10, 7)
+  lng                 Decimal  @default(-76.8182017) @db.Decimal(10, 7)
+  hoursWeekday        String   @default("9:00 - 19:00") @map("hours_weekday")
+  hoursSaturday       String   @default("9:00 - 17:00") @map("hours_saturday")
+  hoursSunday         String   @default("Cerrado") @map("hours_sunday")
+  facebookUrl         String?  @map("facebook_url")
+  instagramUrl        String?  @map("instagram_url")
+  tiktokUrl           String?  @map("tiktok_url")
+  bookingNoticeHours  Int      @default(2) @map("booking_notice_hours")
+  cancellationHours   Int      @default(24) @map("cancellation_hours")
+  updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+// ─── ADMINISTRADORES ──────────────────────────────────────
+
+model Admin {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String   @default("staff") // owner | staff
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admins")
+}
+
+// ─── CONTABILIDAD ─────────────────────────────────────────
+
+model Expense {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date          DateTime @db.Date
+  category      String
+  // alquiler | salarios | productos | servicios_pub | marketing
+  // equipos | mantenimiento | transporte | impuestos | otro
+  description   String
+  amountPen     Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  paymentMethod String   @default("efectivo") @map("payment_method")
+  // efectivo | transferencia | tarjeta | yape
+  receiptUrl    String?  @map("receipt_url")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("expenses")
+}
+
+model OtherIncome {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  date        DateTime @db.Date
+  category    String
+  // servicios_externos | cursos | alquiler_espacio | otro
+  description String
+  amountPen   Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date])
+  @@map("other_income")
+}
