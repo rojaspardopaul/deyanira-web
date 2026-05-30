@@ -2,11 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import GalleryGrid from '@/components/gallery/GalleryGrid';
+import { buildMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Galería',
-  description: 'Trabajos de maquillaje, cabello, uñas y cejas. Transformaciones reales en Deyanira Makeup Beauty, Lima.',
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Galería de Trabajos — Maquillaje, Uñas y Cabello en Lima',
+  description: 'Portafolio real de trabajos: maquillaje de novia, looks sociales, uñas decoradas, balayage y diseño de cejas en Deyanira Makeup Beauty, Surco - Lima.',
+  path: '/galeria',
+  keywords: [
+    'galería maquillaje Lima',
+    'fotos uñas Lima',
+    'trabajos balayage Lima',
+    'portafolio salón belleza',
+    'maquillaje novia fotos Lima',
+  ],
+});
 
 const CATEGORIES = [
   { slug: '', label: '✦ Todo' },
@@ -30,7 +39,7 @@ export default async function GaleriaPage({
     <div className="min-h-screen bg-white pt-16">
 
       {/* Hero */}
-      <div className="bg-gradient-to-br from-primary-50 via-white to-pink-50 border-b border-gray-100 px-4 py-10 text-center">
+      <div className="bg-gradient-to-br from-primary-50 via-white to-amber-50 border-b border-gray-100 px-4 py-10 text-center">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-gray-900 mb-2">
           Nuestros trabajos
         </h1>
@@ -49,7 +58,7 @@ export default async function GaleriaPage({
                 href={cat.slug ? `/galeria?category=${cat.slug}` : '/galeria'}
                 className={`shrink-0 px-4 py-2 rounded-full text-sm font-medium border-2 transition-all ${
                   (category || '') === cat.slug
-                    ? 'bg-primary-600 text-white border-primary-600'
+                    ? 'bg-primary-400 text-gray-900 border-primary-400'
                     : 'border-gray-200 text-gray-600 hover:border-primary-400 bg-white'
                 }`}
               >

@@ -1,8 +1,8 @@
 const { Router } = require('express');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../../lib/prisma');
 
-const prisma = new PrismaClient();
 const router = Router();
+const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,98}[a-z0-9])?$/i;
 
 router.get('/', async (_req, res, next) => {
   try {
@@ -10,6 +10,7 @@ router.get('/', async (_req, res, next) => {
       where: { isPublished: true },
       select: { id: true, title: true, slug: true, excerpt: true, coverUrl: true, publishedAt: true },
       orderBy: { publishedAt: 'desc' },
+      take: 100,
     });
     res.json(posts);
   } catch (err) {
@@ -19,6 +20,9 @@ router.get('/', async (_req, res, next) => {
 
 router.get('/:slug', async (req, res, next) => {
   try {
+    if (!SLUG_RE.test(req.params.slug)) {
+      return res.status(400).json({ error: 'Slug inválido' });
+    }
     const post = await prisma.blogPost.findUnique({ where: { slug: req.params.slug } });
     if (!post || !post.isPublished) return res.status(404).json({ error: 'No encontrado' });
     res.json(post);

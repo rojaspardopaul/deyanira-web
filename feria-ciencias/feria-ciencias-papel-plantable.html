@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Feria de Ciencias 2026 — Papel que Florece</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  @page { size: A4; margin: 16mm 15mm; }
+  html { background: #e9e9e9; }
+  body {
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1f2937; line-height: 1.55; font-size: 12.3px;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; padding: 18mm 16mm; position: relative; }
+  .page + .page { margin-top: 8mm; }
+  p { margin-bottom: 8px; text-align: justify; }
+  strong { color: #1b5e20; }
+
+  /* PORTADA */
+  .cover { display: flex; flex-direction: column; min-height: 261mm; text-align: center; }
+  .cover .crest {
+    width: 78px; height: 78px; border-radius: 50%; margin: 0 auto;
+    border: 3px solid #2e7d32; display: flex; align-items: center; justify-content: center;
+    font-size: 34px; background: #f1f8e9;
+  }
+  .cover .ie { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #6b7280; margin-top: 14px; }
+  .cover .feria { margin-top: 6px; font-size: 14px; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: #2e7d32; }
+  .cover .big { margin-top: 38px; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; color: #9ca3af; }
+  .cover h1 { font-size: 33px; line-height: 1.15; margin: 8px 18px 0; color: #1b5e20; font-weight: 800; }
+  .cover h1 .accent { color: #d81b60; }
+  .cover .sub { margin: 16px 30px 0; font-size: 14px; color: #4b5563; font-style: italic; }
+  .cover .tagchips { margin-top: 22px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .cover .chip { font-size: 11px; font-weight: 700; padding: 6px 14px; border-radius: 999px; background: #e8f5e9; color: #1b5e20; border: 1px solid #66bb6a; }
+  .cover .hero-emoji { margin-top: 30px; font-size: 64px; letter-spacing: 6px; }
+  .cover .data { margin: auto 0 0; border-top: 2px solid #e5e7eb; padding-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 26px; text-align: left; font-size: 12.5px; }
+  .cover .data .row { display: flex; gap: 8px; align-items: baseline; }
+  .cover .data .lbl { font-weight: 700; color: #1b5e20; white-space: nowrap; }
+  .cover .data .val { flex: 1; border-bottom: 1.5px solid #cdd5cf; min-height: 16px; font-weight: 600; color: #1f2937; }
+  .cover .data .fill { flex: 1; border-bottom: 1.5px dotted #9ca3af; min-height: 16px; }
+  .cover .year { margin-top: 14px; font-size: 16px; font-weight: 800; color: #2e7d32; letter-spacing: 2px; }
+
+  /* SECCIONES */
+  .sec { margin-bottom: 16px; page-break-inside: avoid; }
+  .sec-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .sec-num { width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; background: #2e7d32; color: #fff; font-weight: 800; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+  .sec-title { font-size: 17px; font-weight: 800; color: #1b5e20; }
+  .sec-body { padding-left: 36px; }
+
+  ul, ol { padding-left: 18px; margin-bottom: 8px; }
+  li { margin-bottom: 5px; text-align: justify; }
+
+  .callout { background: #f1f8e9; border-left: 4px solid #2e7d32; border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 12px; }
+  .callout.pink { background: #fce4ec; border-left-color: #d81b60; }
+  .callout.warn { background: #fff8e1; border-left-color: #f9a825; }
+
+  .mat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+  .mat-grid .it { display: flex; gap: 8px; font-size: 12px; }
+  .mat-grid .it .dot { color: #2e7d32; font-weight: 800; }
+
+  .step { display: flex; gap: 12px; margin-bottom: 10px; page-break-inside: avoid; }
+  .step .n { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; margin-top: 1px; background: #d81b60; color: #fff; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; }
+  .step .txt { flex: 1; }
+  .step .txt b { color: #d81b60; }
+
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11.5px; }
+  th { background: #2e7d32; color: #fff; padding: 7px 8px; text-align: left; font-weight: 700; }
+  td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  tr:nth-child(even) td { background: #f6faf3; }
+
+  .photo-box { border: 2px dashed #bdbdbd; border-radius: 10px; height: 150px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #9e9e9e; font-size: 12px; text-align: center; background: #fafafa; }
+  .photo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 8px; }
+  .photo-cap { font-size: 11px; color: #6b7280; text-align: center; margin-top: 4px; }
+
+  .pagefoot { position: absolute; bottom: 8mm; left: 16mm; right: 16mm; border-top: 1px solid #e5e7eb; padding-top: 5px; font-size: 9.5px; color: #9ca3af; display: flex; justify-content: space-between; }
+  .lead { font-size: 12.5px; color: #374151; }
+  .hand { font-style: italic; background: #fffdf5; border: 1px dashed #e0d6a8; border-radius: 8px; padding: 10px 14px; margin: 10px 0; color: #5b5320; }
+</style>
+</head>
+<body>
+
+<!-- PORTADA -->
+<div class="page cover">
+  <div class="crest">🌸</div>
+  <div class="ie">I.E. Virgen del Carmen</div>
+  <div class="feria">Feria de Ciencias 2026</div>
+
+  <div class="big">Proyecto de Ciencia y Tecnología</div>
+  <h1>Papel que Florece <span class="accent">🌱</span><br/>Papel reciclado y plantable</h1>
+  <p class="sub">"Un papel hecho de basura… que después se siembra y se convierte en plantas"</p>
+
+  <div class="tagchips">
+    <span class="chip">♻️ Eco-Productivo</span>
+    <span class="chip">🔬 Transformación científica</span>
+    <span class="chip">👩‍🔬 Trabajo individual</span>
+  </div>
+
+  <div class="hero-emoji">📰 ➜ 💧 ➜ 🌷</div>
+
+  <div class="data">
+    <div class="row"><span class="lbl">Estudiante:</span><span class="val">Diana Azumi Rojas Cancha</span></div>
+    <div class="row"><span class="lbl">Grado y sección:</span><span class="val">3.° de secundaria</span></div>
+    <div class="row"><span class="lbl">Área:</span><span class="val">Ciencia y Tecnología</span></div>
+    <div class="row"><span class="lbl">Docente:</span><span class="val">Ketty Riveros</span></div>
+    <div class="row"><span class="lbl">Institución Educativa:</span><span class="val">Virgen del Carmen</span></div>
+    <div class="row"><span class="lbl">Lugar y fecha:</span><span class="fill"></span></div>
+  </div>
+  <div class="year">— 2026 —</div>
+</div>
+
+<!-- PÁGINA 2 -->
+<div class="page">
+
+  <div class="hand">
+    ✍️ <strong>¿Por qué elegí este proyecto?</strong><br/>
+    Cuando terminó el año pasado, junté un montón de cuadernos usados y hojas que ya no servían y me dio
+    pena botarlos. Mi mamá me contó que para hacer papel se cortan muchos árboles, y yo pensé:
+    <em>¿y si en vez de botar el papel, lo convierto en papel nuevo… y encima le pongo semillas para que
+    después se pueda sembrar?</em> Investigué sobre el "papel plantable", lo probé en casa y me emocionó
+    muchísimo ver germinar las plantitas. Este informe cuenta cómo lo hice paso a paso.
+  </div>
+
+  <!-- 1. TÍTULO -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">1</div><div class="sec-title">Título</div></div>
+    <div class="sec-body">
+      <p><strong>Papel que Florece:</strong> elaboración de papel reciclado y plantable a partir de papel
+      usado y semillas, como alternativa ecológica y productiva para reducir los residuos de papel.</p>
+      <div class="callout pink">
+        <strong>Pregunta de investigación:</strong> ¿Puedo convertir el papel usado en un papel nuevo
+        que, al sembrarlo en tierra húmeda, germine y se convierta en plantas?
+      </div>
+      <p class="lead"><strong>Hipótesis:</strong> Si reciclo papel usado convirtiéndolo en pulpa y le
+      agrego semillas pequeñas, entonces obtendré un papel nuevo y biodegradable que, al plantarlo y
+      regarlo, hará germinar las semillas.</p>
+    </div>
+  </div>
+
+  <!-- 2. OBJETIVOS -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">2</div><div class="sec-title">Objetivos</div></div>
+    <div class="sec-body">
+      <p><strong>Objetivo general</strong></p>
+      <ul>
+        <li>Elaborar papel reciclado plantable usando papel usado y semillas, para demostrar que un
+        residuo puede transformarse en un producto ecológico y útil.</li>
+      </ul>
+      <p><strong>Objetivos específicos</strong></p>
+      <ul>
+        <li>Reutilizar papel usado (cuadernos viejos, periódicos) convirtiéndolo en pulpa.</li>
+        <li>Comprobar el <strong>proceso de reciclaje del papel</strong> (transformación de las fibras).</li>
+        <li>Incorporar semillas pequeñas para obtener un <strong>papel plantable</strong>.</li>
+        <li>Demostrar que el papel, al sembrarlo, <strong>hace germinar</strong> las semillas.</li>
+        <li>Crear un producto eco-productivo (tarjetas o separadores) hecho de residuos.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 3. IMPORTANCIA -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">3</div><div class="sec-title">Importancia</div></div>
+    <div class="sec-body">
+      <p>Para fabricar papel nuevo se talan muchos árboles y se usa muchísima agua y energía. Además,
+      gran parte del papel se bota a la basura después de usarlo una sola vez. Reciclar papel
+      <strong>ahorra árboles, agua y energía</strong>, y produce menos contaminación.</p>
+      <p>Mi proyecto es importante porque:</p>
+      <ul>
+        <li><strong>Es ecológico:</strong> reutiliza papel que iba a la basura y evita talar árboles.</li>
+        <li><strong>Es productivo:</strong> con la basura hago un producto nuevo (tarjetas, separadores,
+        invitaciones) que hasta se podría vender.</li>
+        <li><strong>Es sorprendente y útil:</strong> el papel <strong>se planta y crece</strong>, así que
+        no genera basura: termina convertido en plantas.</li>
+        <li><strong>Es replicable:</strong> cualquier persona puede hacerlo en casa con papel viejo y semillas.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pagefoot"><span>Feria de Ciencias 2026 · Papel que Florece · Diana Azumi Rojas Cancha</span><span>Página 2</span></div>
+</div>
+
+<!-- PÁGINA 3 -->
+<div class="page">
+
+  <!-- 4. MATERIALES -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">4</div><div class="sec-title">Materiales</div></div>
+    <div class="sec-body">
+      <p>Todo es reciclado o muy económico:</p>
+      <div class="mat-grid">
+        <div class="it"><span class="dot">•</span> Papel usado (hojas, cuadernos viejos, periódico)</div>
+        <div class="it"><span class="dot">•</span> Agua</div>
+        <div class="it"><span class="dot">•</span> Un balde o recipiente ancho</div>
+        <div class="it"><span class="dot">•</span> Licuadora</div>
+        <div class="it"><span class="dot">•</span> Un colador grande o un marco con malla (bastidor)</div>
+        <div class="it"><span class="dot">•</span> Una tela o paño absorbente</div>
+        <div class="it"><span class="dot">•</span> Una esponja</div>
+        <div class="it"><span class="dot">•</span> Semillas pequeñas (culantro, lechuga, manzanilla o flores)</div>
+        <div class="it"><span class="dot">•</span> Un rodillo o una botella (para aplanar)</div>
+        <div class="it"><span class="dot">•</span> Colorante natural opcional (betarraga, cúrcuma)</div>
+      </div>
+      <div class="callout">
+        <strong>Tip de la "científica":</strong> usa <em>semillas pequeñas</em> (culantro, lechuga,
+        manzanilla). Las semillas grandes no germinan bien dentro del papel y lo hacen muy grueso.
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. PROCEDIMIENTOS -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">5</div><div class="sec-title">Procedimientos</div></div>
+    <div class="sec-body">
+
+      <div class="step"><div class="n">1</div><div class="txt">
+        <b>Remojar el papel.</b> Rompo el papel usado en trocitos pequeños y los dejo en agua de
+        <b>1 a 2 horas</b> (o toda la noche) hasta que se ablanden.
+      </div></div>
+
+      <div class="step"><div class="n">2</div><div class="txt">
+        <b>Hacer la pulpa.</b> Licúo el papel remojado con bastante agua hasta obtener una <b>pasta
+        suave (pulpa)</b>, parecida a una papilla. Si quiero color, agrego un poco de betarraga o cúrcuma.
+      </div></div>
+
+      <div class="step"><div class="n">3</div><div class="txt">
+        <b>Agregar las semillas.</b> Vierto la pulpa en el balde con un poco más de agua y, con la mano,
+        mezclo <b>suavemente</b> las semillas (sin licuarlas, para no romperlas).
+      </div></div>
+
+      <div class="step"><div class="n">4</div><div class="txt">
+        <b>Formar la hoja.</b> Sumerjo el colador/bastidor en la mezcla y lo levanto en posición plana,
+        para que quede una <b>capa pareja de pulpa</b> encima de la malla. Dejo que escurra el agua.
+      </div></div>
+
+      <div class="step"><div class="n">5</div><div class="txt">
+        <b>Quitar el agua.</b> Volteo la capa sobre una tela y presiono con la <b>esponja</b> para
+        absorber el exceso de agua. Luego paso el <b>rodillo</b> con cuidado para aplanarla.
+      </div></div>
+
+      <div class="step"><div class="n">6</div><div class="txt">
+        <b>Secar.</b> Dejo secar la hoja al aire <b>1 a 2 días</b> en un lugar ventilado y con sombra
+        (no al sol fuerte, para no dañar las semillas).
+      </div></div>
+
+      <div class="step"><div class="n">7</div><div class="txt">
+        <b>Producto final.</b> Despego la hoja con cuidado: ya tengo mi <b>papel reciclado plantable</b>.
+        Lo corto en tarjetas o separadores.
+      </div></div>
+
+      <div class="step"><div class="n">8</div><div class="txt">
+        <b>Demostrar que florece.</b> Para la feria, siembro un pedacito del papel en tierra húmeda, lo
+        riego cada día y en <b>1 a 2 semanas</b> germinan las plantitas. ¡Esa es la prueba!
+      </div></div>
+
+      <div class="callout warn">
+        ⚠️ <strong>Seguridad:</strong> uso la licuadora siempre <strong>con ayuda de un adulto</strong> y
+        nunca meto las manos mientras está encendida.
+      </div>
+
+      <div class="callout pink">
+        🔬 <strong>¿Qué pasa por dentro? (la ciencia):</strong> el papel está hecho de fibras de
+        <em>celulosa</em>. Al remojar y licuar, esas fibras se <em>separan</em> y forman la pulpa; al
+        escurrir y secar, se <em>vuelven a unir</em> y forman una hoja nueva (reciclaje = transformación
+        de la materia). Las semillas quedan <em>atrapadas</em> entre las fibras y, cuando hay agua y
+        tierra, <em>germinan</em>. Como el papel es biodegradable, se deshace y alimenta a la planta.
+      </div>
+    </div>
+  </div>
+
+  <div class="pagefoot"><span>Feria de Ciencias 2026 · Papel que Florece · Diana Azumi Rojas Cancha</span><span>Página 3</span></div>
+</div>
+
+<!-- PÁGINA 4 -->
+<div class="page">
+
+  <!-- 6. CONCLUSIÓN -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">6</div><div class="sec-title">Conclusión</div></div>
+    <div class="sec-body">
+      <p>Comprobé mi hipótesis: <strong>sí pude transformar papel usado en un papel nuevo y plantable</strong>.
+      Al sembrarlo en tierra húmeda, las semillas germinaron, así que el papel no se convierte en basura,
+      sino que <strong>termina convertido en plantas</strong>.</p>
+      <p>Con este proyecto demostré que <strong>reciclar es una forma de transformar la materia</strong> y
+      que con algo tan simple como papel viejo y semillas se puede crear un producto ecológico, bonito y
+      útil. Es eco-productivo porque aprovecha residuos, casi no cuesta dinero y se podría vender como
+      tarjetas o invitaciones plantables.</p>
+      <p>Lo que más me gustó fue entender que la <strong>celulosa</strong> del papel se puede reutilizar
+      muchas veces, y emocionarme al ver las primeras plantitas salir de mi papel. Aprendí a ser más
+      paciente y ordenada (¡las primeras hojas me salieron muy gruesas!). En el futuro me gustaría
+      mejorar el papel para que sea más delgado y parejo, y hacer una pequeña colección de tarjetas
+      plantables para regalar en mi colegio.</p>
+      <div class="callout">
+        🌱 <strong>Mi mensaje:</strong> la basura no siempre es basura. A veces, con un poco de ciencia,
+        ¡puede volver a florecer!
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. ANEXOS -->
+  <div class="sec">
+    <div class="sec-head"><div class="sec-num">7</div><div class="sec-title">Anexos</div></div>
+    <div class="sec-body">
+
+      <p><strong>Anexo A — Tabla de observaciones</strong></p>
+      <table>
+        <thead><tr><th>Etapa</th><th>¿Qué observé?</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td>Remojo del papel</td><td>El papel se ablandó y se deshizo</td><td>—</td></tr>
+          <tr><td>Licuado (pulpa)</td><td>Quedó una pasta suave color gris/crema</td><td>✔ Pulpa</td></tr>
+          <tr><td>Formado y secado</td><td>Se formó una hoja nueva y firme</td><td>✔ Papel reciclado</td></tr>
+          <tr><td>Siembra (día 1)</td><td>Papel enterrado y regado</td><td>—</td></tr>
+          <tr><td>Día 7–14</td><td>Brotaron plantitas verdes del papel</td><td>✔ Germinó</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-top:12px;"><strong>Anexo B — Evidencia fotográfica</strong></p>
+      <div class="photo-grid">
+        <div><div class="photo-box">📷 Pega aquí tu foto<br/>(papel remojado / pulpa)</div><div class="photo-cap">Foto 1: La pulpa de papel</div></div>
+        <div><div class="photo-box">📷 Pega aquí tu foto<br/>(formando la hoja)</div><div class="photo-cap">Foto 2: Formando la hoja con la malla</div></div>
+        <div><div class="photo-box">📷 Pega aquí tu foto<br/>(papel seco / tarjetas)</div><div class="photo-cap">Foto 3: Papel plantable terminado</div></div>
+        <div><div class="photo-box">📷 Pega aquí tu foto<br/>(plantitas germinando)</div><div class="photo-cap">Foto 4: El papel "floreciendo"</div></div>
+      </div>
+
+      <p style="margin-top:12px;"><strong>Anexo C — Glosario</strong></p>
+      <ul>
+        <li><strong>Celulosa:</strong> fibra natural de las plantas con la que está hecho el papel.</li>
+        <li><strong>Pulpa:</strong> mezcla de fibras de papel deshecho con agua.</li>
+        <li><strong>Reciclar:</strong> transformar un residuo en un material o producto nuevo.</li>
+        <li><strong>Germinar:</strong> cuando una semilla brota y empieza a crecer como planta.</li>
+        <li><strong>Biodegradable:</strong> que la naturaleza puede descomponer en poco tiempo.</li>
+      </ul>
+
+      <p style="margin-top:8px;"><strong>Anexo D — Referencias</strong></p>
+      <ul>
+        <li>Ministerio del Ambiente del Perú (MINAM) — reciclaje y manejo de residuos.</li>
+        <li>Información educativa sobre fabricación y reciclaje del papel (celulosa).</li>
+        <li>Guías escolares sobre "papel plantable" / seed paper.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="pagefoot"><span>Feria de Ciencias 2026 · Papel que Florece · Diana Azumi Rojas Cancha</span><span>Página 4</span></div>
+</div>
+
+</body>
+</html>
