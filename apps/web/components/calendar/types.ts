@@ -1,6 +1,6 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
-export type AptStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+export type AptStatus = 'pending' | 'confirmed' | 'in_progress' | 'cancelled' | 'completed' | 'no_show';
 
 export type CalView = 'month' | 'week' | 'day' | 'resource' | 'agenda';
 

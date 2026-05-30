@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { CalendarToolbar } from './toolbar/CalendarToolbar';
 import { CalendarSidebar } from './sidebar/CalendarSidebar';
 import { MonthView } from './views/MonthView';
@@ -61,12 +62,17 @@ export function CalendarRoot({
   const [showMobilePanel, setShowMobilePanel] = useState(false);
   const [staffList, setStaffList]             = useState<StaffMember[]>(externalStaffList || []);
   const [defaultStaffId, setDefaultStaffId]   = useState<string | undefined>(undefined);
+  // Arrastre DESACTIVADO por defecto: evita mover citas por error. Se activa con un
+  // toggle en la toolbar y, además, cada movimiento pide confirmación (doble seguridad).
+  const [dragEnabled, setDragEnabled]         = useState(false);
+  const [pendingMove, setPendingMove]         = useState<{ apt: Appointment; newDate: string; newStart: string; newEnd: string; newStaffId?: string } | null>(null);
 
   const { appointments, loading, load, optimisticUpdate, upsert, subscribeToChanges } = useAppointments();
   const { undoEntry, pushUndo, dismissUndo, triggerUndo } = useUndoToast();
 
-  const canDrag   = enableDrag   && adminRole !== 'estilista';
-  const canResize = enableResize && adminRole !== 'estilista';
+  // El arrastre requiere: habilitado por prop, toggle ON, y no ser estilista.
+  const canDrag   = enableDrag   && dragEnabled && adminRole !== 'estilista';
+  const canResize = enableResize && dragEnabled && adminRole !== 'estilista';
 
   // Auto-open sidebar on desktop
   useEffect(() => {
@@ -88,8 +94,22 @@ export function CalendarRoot({
       .catch(() => {});
   }, []);
 
-  // ── Drag (Phase 2) ────────────────────────────────────────────────────────
-  const dragOnCommit = useCallback((apt: Appointment, newDate: string, newStart: string, newEnd: string) => {
+  // ── Drag (Phase 2) — pide confirmación antes de mover ─────────────────────
+  const dragOnRequestCommit = useCallback(
+    (apt: Appointment, newDate: string, newStart: string, newEnd: string, newStaffId?: string) => {
+      setPendingMove({ apt, newDate, newStart, newEnd, newStaffId });
+    }, []);
+
+  const dragOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
+
+  const { dragState, handleDragStart } = useDrag({ onRequestCommit: dragOnRequestCommit, onRollback: dragOnRollback });
+
+  // Confirmado por el admin → optimistic update + API (guarda fecha/hora, antes
+  // ignoradas) + undo. El backend envía el email "Reprogramada" al cliente.
+  const commitMove = useCallback(async () => {
+    if (!pendingMove) return;
+    const { apt, newDate, newStart, newEnd, newStaffId } = pendingMove;
+    setPendingMove(null);
     const rollback = optimisticUpdate(apt.id, { date: newDate, startTime: newStart, endTime: newEnd });
     const originalDate = aptDateStr(apt);
     pushUndo({
@@ -97,18 +117,18 @@ export function CalendarRoot({
       rollback: async () => {
         rollback();
         await adminApi().appointments.update(apt.id, {
-          date: originalDate,
-          startTime: apt.startTime,
-          endTime: apt.endTime,
-          staffId: apt.staff?.id || null,
+          date: originalDate, startTime: apt.startTime, endTime: apt.endTime, staffId: apt.staff?.id || null,
         }).catch(() => {});
       },
     });
-  }, [optimisticUpdate, pushUndo]);
-
-  const dragOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
-
-  const { dragState, handleDragStart } = useDrag({ onCommit: dragOnCommit, onRollback: dragOnRollback });
+    try {
+      const patch: Record<string, string> = { date: newDate, startTime: newStart, endTime: newEnd };
+      if (newStaffId) patch.staffId = newStaffId;
+      await adminApi().appointments.update(apt.id, patch);
+    } catch {
+      rollback();
+    }
+  }, [pendingMove, optimisticUpdate, pushUndo]);
 
   // ── Resize (Phase 3) ──────────────────────────────────────────────────────
   const resizeOnCommit = useCallback((apt: Appointment, newEndTime: string) => {
@@ -318,6 +338,9 @@ export function CalendarRoot({
         adminRole={adminRole}
         sidebarOpen={sidebarOpen}
         enableResourceView={enableResourceView}
+        dragEnabled={dragEnabled}
+        canToggleDrag={enableDrag && adminRole !== 'estilista'}
+        onToggleDrag={() => setDragEnabled(v => !v)}
         onViewChange={setView}
         onPrev={goPrev}
         onNext={goNext}
@@ -522,6 +545,20 @@ export function CalendarRoot({
           }}
           onUpdated={() => {}}
           onStatusChanged={async () => {}}
+        />
+      )}
+
+      {/* Confirmación de movimiento de cita (arrastre) */}
+      {pendingMove && (
+        <ConfirmModal
+          dialog={{
+            title: '¿Mover esta cita?',
+            message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} se moverá del ${aptDateStr(pendingMove.apt)} ${pendingMove.apt.startTime} al ${pendingMove.newDate} ${pendingMove.newStart}. Se le avisará por correo.`,
+            confirmLabel: 'Sí, mover',
+            confirmClass: 'bg-gold-600 hover:bg-gold-500',
+            onConfirm: () => { void commitMove(); },
+          }}
+          onClose={() => setPendingMove(null)}
         />
       )}
 

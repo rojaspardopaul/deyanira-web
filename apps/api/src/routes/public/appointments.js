@@ -4,7 +4,7 @@ const { z } = require('zod');
 const prisma = require('../../lib/prisma');
 const logger = require('../../lib/logger');
 const { isCustomer, optionalCustomer } = require('../../middleware/auth');
-const { sendAppointmentConfirmation, sendAppointmentCancelled, sendNewBookingToSalon, sendBookingConfirmation } = require('../../lib/notifications/email');
+const { sendAppointmentRequested, sendBookingRequested, sendAppointmentCancelled, sendNewBookingToSalon } = require('../../lib/notifications/email');
 const { getAvailableSlots } = require('../../lib/booking/availability');
 const { validate, UUID_RE, TIME_RE, DATE_RE, EMAIL_RE, PHONE_RE } = require('../../lib/validate');
 const { BadRequest, NotFound, Conflict, TooMany } = require('../../lib/errors');
@@ -250,8 +250,11 @@ router.post('/', optionalCustomer, honeypot('website'), turnstile(), validate({ 
     const contactEmail = req.user?.email || guestEmail;
     const contactName  = guestName || 'Cliente';
 
+    // FLUJO: la cita nace en 'pending' (Solicitada). NO confirmamos aún — el cliente
+    // recibe un acuse "Solicitud recibida" (stepper paso 1) y el salón un aviso para
+    // revisar y confirmar. El correo de "Confirmada" lo dispara el admin al confirmar.
     if (contactEmail) {
-      sendAppointmentConfirmation({ appointment, email: contactEmail, name: contactName })
+      sendAppointmentRequested({ appointment, email: contactEmail, name: contactName })
         .catch(err => logger.error('email_failed', { msg: err.message }));
     }
     sendNewBookingToSalon({ appointment })
@@ -580,9 +583,18 @@ router.post('/batch', optionalCustomer, honeypot('website'), turnstile(), valida
       throw err;
     }
 
-    // POLÍTICA: al RESERVAR no enviamos correo al cliente todavía.
-    // El cliente recibirá el correo de confirmación cuando se pague/verifique el
-    // adelanto (o cuando el admin confirme). Mientras tanto, solo notificamos al salón.
+    // FLUJO: la reserva nace 'pending' (Solicitada). El cliente recibe un acuse
+    // "Solicitud recibida" (stepper paso 1); el correo de "Confirmada" lo dispara
+    // el admin al confirmar (o el flujo de adelanto al pagarse). Avisamos al salón.
+    const batchEmail = req.user?.email || guestEmail;
+    const batchName  = guestName || req.user?.name || 'Cliente';
+    if (batchEmail) {
+      sendBookingRequested({
+        appointments: createdAppointments,
+        packageInfo: pkg ? { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType } : null,
+        email: batchEmail, name: batchName, atHomeExtraPen,
+      }).catch((err) => logger.error('email_failed', { msg: err.message }));
+    }
     sendNewBookingToSalon({ appointment: createdAppointments[0] })
       .catch((err) => logger.error('email_failed', { msg: err.message }));
 

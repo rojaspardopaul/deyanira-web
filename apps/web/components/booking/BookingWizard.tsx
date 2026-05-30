@@ -1193,9 +1193,9 @@ export default function BookingWizard({
             style={{ background: 'linear-gradient(135deg, rgba(37,211,102,0.2), rgba(37,211,102,0.1))', border: '1px solid rgba(37,211,102,0.3)' }}>
             <CalendarCheck className="w-10 h-10" strokeWidth={2.5} style={{ color: '#25D366' }} />
           </div>
-          <h2 className="font-display font-bold italic text-3xl text-white mb-2">¡Cita reservada!</h2>
+          <h2 className="font-display font-bold italic text-3xl text-white mb-2">¡Solicitud recibida!</h2>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            Hemos registrado tu reserva. <strong className="text-white">El salón te contactará</strong> para confirmar.
+            Te enviamos un correo con los detalles. <strong className="text-white">El salón confirmará tu cita</strong> muy pronto.
           </p>
         </div>
 
@@ -1302,13 +1302,13 @@ export default function BookingWizard({
               }
             }}
             disabled={whatsappLoading}
-            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-95 disabled:opacity-60"
-            style={{ background: '#25D366', boxShadow: '0 4px 20px rgba(37,211,102,0.4)' }}>
-            <Phone className="w-4 h-4" />
-            {whatsappLoading ? 'Preparando imagen...' : 'Enviar al salón por WhatsApp'}
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-full font-semibold text-xs transition-all active:scale-95 disabled:opacity-60"
+            style={{ background: 'transparent', color: '#25D366', border: '1px solid rgba(37,211,102,0.5)' }}>
+            <Phone className="w-3.5 h-3.5" />
+            {whatsappLoading ? 'Preparando imagen...' : 'Compartir comprobante por WhatsApp (opcional)'}
           </button>
           <a href="/mi-cuenta/citas"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-full font-bold text-sm text-white transition-all active:scale-95"
+            className="flex items-center justify-center gap-2 w-full py-3.5 rounded-full font-bold text-sm text-white transition-all active:scale-95 order-first"
             style={{ background: 'linear-gradient(135deg, #FF4FA2, #e6368a)', boxShadow: '0 4px 20px rgba(255,79,162,0.4)' }}>
             <CalendarCheck className="w-4 h-4" /> Ver mis citas
           </a>

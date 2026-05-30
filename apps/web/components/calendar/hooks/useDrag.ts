@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { adminApi } from '@/lib/api';
 import { snapToGrid, timeToMin, minToHHMM, clamp } from '../utils/time';
 import { aptDateStr } from '../utils/date';
 import { HOUR_START, HOUR_END, HOUR_HEIGHT, SNAP_MINUTES } from '../constants';
 import type { Appointment, DragState } from '../types';
 
 type UseDragOptions = {
-  onCommit?: (apt: Appointment, newDate: string, newStart: string, newEnd: string) => void;
+  // Al soltar, en vez de persistir directamente, se PIDE confirmación al padre.
+  // El padre muestra un diálogo y solo entonces guarda (doble seguridad).
+  onRequestCommit?: (apt: Appointment, newDate: string, newStart: string, newEnd: string, newStaffId?: string) => void;
   onRollback?: (apt: Appointment) => void;
 };
 
@@ -23,15 +24,15 @@ type UseDragOptions = {
  *   const { dragState, handleDragStart } = useDrag({ onCommit, onRollback });
  *   // Pass handleDragStart to WeekView/DayView as onDragStart prop
  */
-export function useDrag({ onCommit, onRollback }: UseDragOptions = {}) {
+export function useDrag({ onRequestCommit, onRollback }: UseDragOptions = {}) {
   const [dragState, setDragState] = useState<DragState | null>(null);
 
   // Stable refs so window listeners always see current values without useCallback churn
   const stateRef = useRef<DragState | null>(null);
   const durationRef = useRef(0);
   const originalRef = useRef<Appointment | null>(null);
-  const optionsRef = useRef({ onCommit, onRollback });
-  optionsRef.current = { onCommit, onRollback };
+  const optionsRef = useRef({ onRequestCommit, onRollback });
+  optionsRef.current = { onRequestCommit, onRollback };
 
   const listenersActive = useRef(false);
 
@@ -91,25 +92,11 @@ export function useDrag({ onCommit, onRollback }: UseDragOptions = {}) {
       state.snappedStart === state.originalStartTime
     ) return;
 
-    optionsRef.current.onCommit?.(apt, state.targetDate, state.snappedStart, state.snappedEnd);
-    try {
-      const patch: Record<string, string> = {
-        startTime: state.snappedStart,
-        endTime: state.snappedEnd,
-      };
-      if (state.targetDate !== state.originalDate) patch.date = state.targetDate;
-      if (state.targetStaffId && state.targetStaffId !== apt.staff?.id) {
-        patch.staffId = state.targetStaffId;
-      }
-      await adminApi().appointments.update(apt.id, patch);
-    } catch {
-      optionsRef.current.onRollback?.({
-        ...apt,
-        date: state.originalDate,
-        startTime: state.originalStartTime,
-        endTime: state.originalEndTime,
-      });
-    }
+    // NO se persiste aquí: se pide confirmación al padre (ConfirmModal). El padre
+    // hace el optimistic update + API + undo solo si el admin confirma el movimiento.
+    const newStaffId = (state.targetStaffId && state.targetStaffId !== apt.staff?.id)
+      ? state.targetStaffId : undefined;
+    optionsRef.current.onRequestCommit?.(apt, state.targetDate, state.snappedStart, state.snappedEnd, newStaffId);
   });
 
   const onKey = useRef((e: KeyboardEvent) => {

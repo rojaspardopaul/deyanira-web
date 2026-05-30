@@ -9,11 +9,12 @@ import { useLoading } from '@/lib/loading';
 import { Calendar, ChevronLeft, Clock, MessageCircle } from 'lucide-react';
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending:   { label: 'Pendiente',  color: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
-  completed: { label: 'Completada', color: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: 'Cancelada',  color: 'bg-red-100 text-red-600' },
-  no_show:   { label: 'No asistió', color: 'bg-gray-100 text-gray-500' },
+  pending:     { label: 'Solicitada', color: 'bg-yellow-100 text-yellow-700' },
+  confirmed:   { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
+  in_progress: { label: 'En curso',   color: 'bg-teal-100 text-teal-700' },
+  completed:   { label: 'Atendida',   color: 'bg-blue-100 text-blue-700' },
+  cancelled:   { label: 'Cancelada',  color: 'bg-red-100 text-red-600' },
+  no_show:     { label: 'No asistió', color: 'bg-gray-100 text-gray-500' },
 };
 
 export default function MisCitasPage() {
@@ -36,7 +37,7 @@ export default function MisCitasPage() {
   }, [router, wrap]);
 
   const upcoming = appointments.filter(
-    (a) => a.status === 'pending' || a.status === 'confirmed'
+    (a) => a.status === 'pending' || a.status === 'confirmed' || a.status === 'in_progress'
   );
   const past = appointments.filter(
     (a) => a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'

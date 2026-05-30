@@ -16,6 +16,9 @@ const {
   sendAppointmentConfirmation,
   sendAppointmentCancelled,
   sendAppointmentCompleted,
+  sendAppointmentRescheduled,
+  sendAppointmentNoShow,
+  sendAppointmentInProgress,
   sendOrderStatusUpdate,
   sendBookingConfirmation,
   sendDepositReceipt,
@@ -99,7 +102,7 @@ function pick(obj, keys) {
   return result;
 }
 
-const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
+const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'];
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['pending', 'paid', 'failed'];
 const PROMOTION_TYPES = ['percent', 'fixed'];
@@ -315,12 +318,19 @@ router.post('/appointments/confirm-group', async (req, res, next) => {
 
 router.patch('/appointments/:id', async (req, res, next) => {
   try {
-    const { status, staffId: assignStaffId, notes } = req.body;
+    // Acepta cambios de estado, reasignación de estilista, notas Y reprogramación
+    // (date/startTime/endTime) — este último venía siendo IGNORADO por el backend,
+    // por lo que los movimientos del calendario no se guardaban (bug corregido).
+    const { status, staffId: assignStaffId, notes, date, startTime, endTime } = req.body;
+    const TIME_OK = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const DATE_OK = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-    // Estilista cannot cancel
     if (req.admin.role === 'estilista' && status === 'cancelled') {
       return res.status(403).json({ error: 'No tienes permiso para cancelar citas' });
     }
+
+    const current = await prisma.appointment.findUnique({ where: { id: req.params.id } });
+    if (!current) return res.status(404).json({ error: 'Cita no encontrada' });
 
     const data = {};
     if (status) {
@@ -329,35 +339,57 @@ router.patch('/appointments/:id', async (req, res, next) => {
       }
       data.status = status;
     }
+
+    // ── Reprogramación (fecha/hora) ──
+    const curIso = current.date ? new Date(current.date).toISOString().slice(0, 10) : null;
+    let targetDate = current.date, targetStart = current.startTime, targetEnd = current.endTime;
+    if (date !== undefined) {
+      if (!DATE_OK.test(date)) return res.status(400).json({ error: 'Fecha inválida' });
+      data.date = new Date(date + 'T12:00:00Z'); targetDate = data.date;
+    }
+    if (startTime !== undefined) {
+      if (!TIME_OK.test(startTime)) return res.status(400).json({ error: 'Hora de inicio inválida' });
+      data.startTime = startTime; targetStart = startTime;
+    }
+    if (endTime !== undefined) {
+      if (!TIME_OK.test(endTime)) return res.status(400).json({ error: 'Hora de fin inválida' });
+      data.endTime = endTime; targetEnd = endTime;
+    }
+    if (targetStart >= targetEnd) return res.status(400).json({ error: 'La hora de fin debe ser posterior a la de inicio' });
+    const isReschedule = (date !== undefined && date !== curIso)
+      || (startTime !== undefined && startTime !== current.startTime)
+      || (endTime !== undefined && endTime !== current.endTime);
+
+    // ── Reasignación de estilista ──
     if (assignStaffId !== undefined) {
       if (assignStaffId && !UUID_RE.test(assignStaffId)) {
         return res.status(400).json({ error: 'staffId inválido' });
       }
-      // Verificar que no haya conflicto al reasignar
-      if (assignStaffId) {
-        const current = await prisma.appointment.findUnique({ where: { id: req.params.id } });
-        if (current) {
-          const conflict = await prisma.appointment.findFirst({
-            where: {
-              id: { not: req.params.id },
-              staffId: assignStaffId,
-              date: current.date,
-              status: { in: ['pending', 'confirmed'] },
-              startTime: { lt: current.endTime },
-              endTime: { gt: current.startTime },
-            },
-            include: { service: true },
-          });
-          if (conflict) {
-            return res.status(409).json({
-              error: `Esa estilista ya tiene una cita de "${conflict.service.name}" entre ${conflict.startTime} y ${conflict.endTime}`,
-            });
-          }
-        }
-      }
       data.staffId = assignStaffId || null;
       data.onDutyStaff = !assignStaffId;
     }
+
+    // ── Validación de conflicto en el destino (estilista + fecha/hora) ──
+    const targetStaff = (assignStaffId !== undefined) ? (assignStaffId || null) : current.staffId;
+    if (targetStaff && (isReschedule || (assignStaffId !== undefined && assignStaffId))) {
+      const conflict = await prisma.appointment.findFirst({
+        where: {
+          id: { not: req.params.id },
+          staffId: targetStaff,
+          date: targetDate,
+          status: { in: ['pending', 'confirmed', 'in_progress'] },
+          startTime: { lt: targetEnd },
+          endTime: { gt: targetStart },
+        },
+        include: { service: true },
+      });
+      if (conflict) {
+        return res.status(409).json({
+          error: `Esa estilista ya tiene una cita de "${conflict.service.name}" entre ${conflict.startTime} y ${conflict.endTime}`,
+        });
+      }
+    }
+
     if (notes !== undefined) data.notes = notes ? String(notes).slice(0, 500) : null;
     if (!Object.keys(data).length) return res.status(400).json({ error: 'Nada que actualizar' });
 
@@ -370,22 +402,30 @@ router.patch('/appointments/:id', async (req, res, next) => {
       },
     });
 
-    // Enviar email al cliente cuando cambia el estado.
-    // POLÍTICA: para citas de PAQUETE NO enviamos email aquí. El admin debe usar
-    // el botón "Confirmar grupo" (POST /admin/appointments/confirm-group) para que
-    // se envíe un único email consolidado con todas las citas del paquete en esa fecha.
-    if (status) {
-      const clientEmail = updated.guestEmail;
-      const clientName  = updated.guestName || 'Cliente';
-      const isPackage = !!updated.packageId;
-      if (clientEmail) {
-        if (status === 'confirmed' && !isPackage) {
-          sendAppointmentConfirmation({ appointment: updated, email: clientEmail, name: clientName }).catch(console.error);
-        } else if (status === 'cancelled') {
-          sendAppointmentCancelled({ appointment: updated, email: clientEmail, name: clientName, reason: 'Cancelado por el salón' }).catch(console.error);
-        } else if (status === 'completed' && !isPackage) {
-          sendAppointmentCompleted({ appointment: updated, email: clientEmail, name: clientName }).catch(console.error);
-        }
+    // ── Notificaciones al cliente ──
+    // PAQUETES: las confirmaciones van por "Confirmar grupo" (email consolidado).
+    const clientEmail = updated.guestEmail;
+    const clientName  = updated.guestName || 'Cliente';
+    const isPackage   = !!updated.packageId;
+
+    if (isReschedule && clientEmail) {
+      sendAppointmentRescheduled({
+        appointment: updated, email: clientEmail, name: clientName,
+        beforeDate: current.date, beforeStart: current.startTime,
+      }).catch(err => logger.error('email_failed', { msg: err.message }));
+    }
+
+    if (status && clientEmail) {
+      if (status === 'confirmed' && !isPackage) {
+        sendAppointmentConfirmation({ appointment: updated, email: clientEmail, name: clientName }).catch(err => logger.error('email_failed', { msg: err.message }));
+      } else if (status === 'in_progress' && !isPackage) {
+        sendAppointmentInProgress({ appointment: updated, email: clientEmail, name: clientName }).catch(err => logger.error('email_failed', { msg: err.message }));
+      } else if (status === 'completed' && !isPackage) {
+        sendAppointmentCompleted({ appointment: updated, email: clientEmail, name: clientName }).catch(err => logger.error('email_failed', { msg: err.message }));
+      } else if (status === 'cancelled') {
+        sendAppointmentCancelled({ appointment: updated, email: clientEmail, name: clientName, reason: 'Cancelado por el salón' }).catch(err => logger.error('email_failed', { msg: err.message }));
+      } else if (status === 'no_show') {
+        sendAppointmentNoShow({ appointment: updated, email: clientEmail, name: clientName }).catch(err => logger.error('email_failed', { msg: err.message }));
       }
     }
 

@@ -1,9 +1,14 @@
 // Renderiza un recibo de reserva en HTML (listo para imprimir / guardar como PDF).
 // Usado por GET /api/booking-payments/:id/receipt y por el email de confirmación.
 const { escapeHtml: esc } = require('../html');
+const T = require('../notifications/theme');
 
-const PINK = '#FF4FA2';
-const GOLD = '#D4AF37';
+// Colores de marca tomados del theme central → cambiar la marca en theme.js
+// también re-skinnea este recibo. (Recibo CLARO/imprimible: no usa el fondo oscuro.)
+const PINK = T.color.primary;   // #db2777
+const GOLD = T.color.gold;      // #d4af37
+const INK1 = T.color.inkDark;   // #100815
+const INK2 = T.color.inkDeep;   // #2a0f22
 
 function money(n) {
   return 'S/ ' + Number(n || 0).toFixed(2);
@@ -75,7 +80,7 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   html, body { background: #ECECEC; }
   body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; position: relative; padding: 0 0 40mm; }
-  .band { background: linear-gradient(120deg, #100815 0%, #2a0f22 100%); color: #fff; padding: 32px 40px 26px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 3px solid ${GOLD}; }
+  .band { background: ${INK1}; background: linear-gradient(120deg, ${INK1} 0%, ${INK2} 100%); color: #fff; padding: 32px 40px 26px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 3px solid ${GOLD}; }
   .logo { max-height: 64px; max-width: 220px; object-fit: contain; }
   .brandtext { font-family: Georgia, serif; font-size: 30px; font-weight: bold; letter-spacing: 5px; color: ${GOLD}; line-height: 1; }
   .brandtext span { display: block; font-family: Arial, sans-serif; font-size: 9px; letter-spacing: 6px; color: rgba(212,175,55,0.55); margin-top: 4px; }
@@ -104,7 +109,8 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   .totals .deposit { color: #16a34a; font-weight: 700; }
   .totals .balance { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; margin-top: 8px; font-size: 16px; font-weight: 700; color: #9a3412; display: flex; justify-content: space-between; }
   .note { margin-top: 26px; font-size: 12px; color: #777; line-height: 1.6; border-top: 1px dashed #ddd; padding-top: 16px; }
-  .foot { position: absolute; bottom: 0; left: 0; right: 0; background: #100815; color: rgba(255,255,255,0.6); font-size: 11px; text-align: center; padding: 14px; }
+  .foot { position: absolute; bottom: 0; left: 0; right: 0; background: ${INK1}; color: rgba(255,255,255,0.6); font-size: 11px; text-align: center; padding: 14px; }
+  .foot .contact { color: rgba(255,255,255,0.45); font-size: 10.5px; margin-top: 3px; }
   .foot b { color: ${GOLD}; }
   @media print { body { background: #fff; } .page { box-shadow: none; } }
 </style>
@@ -154,7 +160,9 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
       </div>
     </div>
 
-    <div class="foot">© ${new Date().getFullYear()} <b>${esc(salonName)}</b> · Gracias por su preferencia</div>
+    <div class="foot">© ${new Date().getFullYear()} <b>${esc(salonName)}</b> · Gracias por su preferencia
+      ${(salonPhone || salonAddr) ? `<div class="contact">${[salonAddr, salonPhone].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    </div>
   </div>
 </body>
 </html>`;

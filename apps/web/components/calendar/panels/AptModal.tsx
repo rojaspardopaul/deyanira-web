@@ -495,13 +495,23 @@ export function AptModal({
                 <>
                   <button
                     onClick={() => setPendingAction({
-                      type: 'completed', confirmLabel: 'Marcar completada',
-                      title: '¿Marcar como completada?',
+                      type: 'in_progress', confirmLabel: 'Iniciar',
+                      title: '¿Marcar la cita en curso?',
+                      description: `${clientName(apt)} · ${apt.startTime}`,
+                    })}
+                    className="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Check className="w-4 h-4" /> Iniciar (en curso)
+                  </button>
+                  <button
+                    onClick={() => setPendingAction({
+                      type: 'completed', confirmLabel: 'Marcar atendida',
+                      title: '¿Marcar como atendida?',
                       description: `${clientName(apt)} · ${apt.startTime}`,
                     })}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
-                    <Check className="w-4 h-4" /> Marcar completada
+                    <Check className="w-4 h-4" /> Marcar atendida
                   </button>
                   <button
                     onClick={() => setPendingAction({
@@ -514,6 +524,18 @@ export function AptModal({
                     Cliente no asistió
                   </button>
                 </>
+              )}
+              {apt.status === 'in_progress' && (
+                <button
+                  onClick={() => setPendingAction({
+                    type: 'completed', confirmLabel: 'Marcar atendida',
+                    title: '¿Marcar como atendida?',
+                    description: `${clientName(apt)} · ${apt.startTime}`,
+                  })}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Check className="w-4 h-4" /> Marcar atendida
+                </button>
               )}
               {canCancel && (
                 <button
