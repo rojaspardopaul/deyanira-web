@@ -1,16 +1,26 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Award, Heart, Star, Clock } from 'lucide-react';
+import Image from 'next/image';
+import { Award, Heart, Star, Clock, Sparkles } from 'lucide-react';
+import { api } from '@/lib/api';
+import { buildMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Nosotros',
-  description: 'Conoce a Deyanira Makeup Beauty: salón de belleza profesional en Lima, Perú. Nuestra historia, valores y equipo.',
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Sobre Nosotros — Deyanira Makeup Beauty Lima',
+  description: 'Conoce nuestra historia, valores y al equipo de estilistas profesionales certificadas de Deyanira Makeup Beauty en Surco, Lima. +6 años transformando a las mujeres limeñas.',
+  path: '/nosotros',
+  keywords: [
+    'sobre Deyanira Makeup Beauty',
+    'salón de belleza Surco historia',
+    'maquilladoras profesionales Lima',
+    'estilistas Lima certificadas',
+  ],
+});
 
 const VALUES = [
   {
     icon: Award,
-    color: 'bg-pink-100 text-pink-600',
+    color: 'bg-amber-100 text-gold-600',
     title: 'Profesionalismo',
     desc: 'Cada servicio se realiza con la máxima precisión y técnica. Nunca improvisamos con tu imagen.',
   },
@@ -41,18 +51,22 @@ const STATS = [
   { value: '5★', label: 'valoración promedio' },
 ];
 
-const TEAM = [
-  { name: 'Deyanira', role: 'Fundadora & Maquilladora profesional', initial: 'D' },
-  { name: 'Equipo Cabello', role: 'Estilistas especializadas', initial: 'C' },
-  { name: 'Equipo Uñas', role: 'Nail artists certificadas', initial: 'U' },
-];
+type StaffMember = {
+  id: string;
+  name: string;
+  role?: string | null;
+  photoUrl?: string | null;
+  bio?: string | null;
+  staffServices?: Array<{ service: { name: string } }>;
+};
 
-export default function NosotrosPage() {
+export default async function NosotrosPage() {
+  const staff = await api.staff.list().catch(() => []) as StaffMember[];
   return (
     <div className="min-h-screen bg-white pt-16">
 
-      {/* ── Hero ──────────────────────────────────────── */}
-      <section className="bg-gradient-to-br from-primary-50 via-white to-pink-50 px-4 py-16 md:py-24">
+      {/* Hero */}
+      <section className="bg-gradient-to-br from-primary-50 via-white to-amber-50 px-4 py-16 md:py-24">
         <div className="max-w-3xl mx-auto text-center">
           <span className="inline-block bg-primary-100 text-primary-700 text-xs font-semibold uppercase tracking-widest px-4 py-2 rounded-full mb-5">
             Nuestra historia
@@ -69,21 +83,21 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      {/* ── Stats ─────────────────────────────────────── */}
-      <section className="bg-primary-600 text-white px-4 py-10">
+      {/* Stats */}
+      <section className="bg-primary-500 text-white px-4 py-10">
         <div className="max-w-4xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {STATS.map(({ value, label }) => (
               <div key={label} className="text-center">
                 <p className="text-4xl font-display font-bold text-white mb-1">{value}</p>
-                <p className="text-primary-200 text-sm">{label}</p>
+                <p className="text-primary-100 text-sm">{label}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── Historia ──────────────────────────────────── */}
+      {/* Historia */}
       <section className="px-4 py-16 md:py-24">
         <div className="max-w-5xl mx-auto">
           <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -133,7 +147,7 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      {/* ── Valores ───────────────────────────────────── */}
+      {/* Valores */}
       <section className="bg-gray-50 px-4 py-16 md:py-24">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
@@ -156,8 +170,8 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      {/* ── Equipo ────────────────────────────────────── */}
-      <section className="px-4 py-16 md:py-24">
+      {/* Equipo */}
+      <section className="px-4 py-5 md:py-24">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-3">
@@ -165,22 +179,87 @@ export default function NosotrosPage() {
             </h2>
             <p className="text-gray-500">Profesionales certificadas y apasionadas</p>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6">
-            {TEAM.map(({ name, role, initial }) => (
-              <div key={name} className="card p-6 text-center group hover:-translate-y-1 transition-all">
-                <div className="w-20 h-20 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-2xl font-display">
-                  {initial}
+
+          {staff.length === 0 ? (
+            <div className="grid sm:grid-cols-3 gap-6">
+              {[
+                { name: 'Deyanira', role: 'Fundadora & Maquilladora profesional', initial: 'D' },
+                { name: 'Equipo Cabello', role: 'Estilistas especializadas', initial: 'C' },
+                { name: 'Equipo Uñas', role: 'Nail artists certificadas', initial: 'U' },
+              ].map(({ name, role, initial }) => (
+                <div key={name} className="card p-6 text-center group hover:-translate-y-1 transition-all">
+                  <div className="w-20 h-20 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-2xl font-display">
+                    {initial}
+                  </div>
+                  <h3 className="font-display font-bold text-gray-900 text-lg mb-1">{name}</h3>
+                  <p className="text-gray-500 text-sm">{role}</p>
                 </div>
-                <h3 className="font-display font-bold text-gray-900 text-lg mb-1">{name}</h3>
-                <p className="text-gray-500 text-sm">{role}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {staff.map((member) => {
+                const services = member.staffServices?.map(ss => ss.service.name) ?? [];
+                return (
+                  <div key={member.id}
+                    className="card overflow-hidden group hover:-translate-y-1 transition-all duration-300">
+                    {/* Photo */}
+                    <div className="relative aspect-[4/3] bg-gradient-to-br from-primary-100 to-primary-200 overflow-hidden">
+                      {member.photoUrl ? (
+                        <Image
+                          src={member.photoUrl}
+                          alt={member.name}
+                          fill
+                          className="object-cover group-hover:scale-105 transition-transform duration-500"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-6xl font-bold font-display text-primary-400 select-none">
+                            {member.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="p-5">
+                      <h3 className="font-display font-bold text-gray-900 text-lg leading-tight mb-0.5">
+                        {member.name}
+                      </h3>
+                      {member.role && (
+                        <p className="text-primary-600 text-sm font-semibold mb-2">{member.role}</p>
+                      )}
+                      {member.bio && (
+                        <p className="text-gray-500 text-sm leading-relaxed mb-3 line-clamp-3">{member.bio}</p>
+                      )}
+                      {services.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {services.slice(0, 4).map(svc => (
+                            <span key={svc}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700">
+                              <Sparkles className="w-3 h-3" />
+                              {svc}
+                            </span>
+                          ))}
+                          {services.length > 4 && (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                              +{services.length - 4} más
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── CTA final ─────────────────────────────────── */}
-      <section className="bg-primary-600 text-white px-4 py-16 text-center">
+      {/* CTA final */}
+      <section className="bg-primary-500 text-white px-4 py-16 text-center">
         <div className="max-w-2xl mx-auto">
           <h2 className="text-3xl font-display font-bold mb-4">
             ¿Lista para vivir la experiencia?

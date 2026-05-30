@@ -27,42 +27,295 @@ model ServiceCategory {
 }
 
 model Service {
-  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String
-  slug         String          @unique
-  description  String?
-  categoryId   String?         @map("category_id") @db.Uuid
-  category     ServiceCategory? @relation(fields: [categoryId], references: [id])
-  pricePen     Decimal         @map("price_pen") @db.Decimal(10, 2)
-  duration     Int
-  imageUrl     String?         @map("image_url")
-  isActive     Boolean         @default(true) @map("is_active")
-  createdAt    DateTime        @default(now()) @map("created_at")
-  staffServices StaffService[]
-  appointments Appointment[]
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  slug            String           @unique
+  description     String?
+  categoryId      String?          @map("category_id") @db.Uuid
+  category        ServiceCategory? @relation(fields: [categoryId], references: [id])
+  pricePen        Decimal          @map("price_pen") @db.Decimal(10, 2)
+  // Precio "antes de oferta". Si está seteado y > pricePen, la UI muestra descuento.
+  comparePricePen Decimal?         @map("compare_price_pen") @db.Decimal(10, 2)
+  duration        Int
+  imageUrl        String?          @map("image_url")
+  isActive        Boolean          @default(true) @map("is_active")
+
+  // Servicios con el mismo `parallelGroup` se pueden ejecutar simultáneamente
+  // (ej. maquillaje + peinado). Al programar solo se cuenta el más largo del grupo.
+  parallelGroup String? @map("parallel_group")
+
+  // Anticipación obligatoria respecto al evento principal.
+  // 0/null = mismo día. 1 = un día antes. 15 = quince días antes (prueba de maquillaje).
+  daysBeforeMain Int? @map("days_before_main")
+
+  // Contenido informativo extendido (Markdown) — se muestra en acordeón/tooltip
+  longDescriptionMd String? @map("long_description_md")
+  recommendationMd  String? @map("recommendation_md")
+  scheduleInfoMd    String? @map("schedule_info_md")
+
+  // Enlace al catálogo asociado (ej. servicio "Peinado" → catálogo de peinados)
+  catalogSlug String? @map("catalog_slug")
+
+  createdAt        DateTime         @default(now()) @map("created_at")
+  staffServices    StaffService[]
+  appointments     Appointment[]
+  packageItems     PackageItem[]
+  trialForPackages ServicePackage[]         @relation("TrialAddonService")
+  modifierGroups   ServiceModifierGroup[]
+  conditionalRules ServiceConditionalRule[]
 
   @@map("services")
+}
+
+// ─── MODIFICADORES DINÁMICOS DE SERVICIOS ────────────────
+// Cada servicio puede tener N grupos de opciones configurables (ej. "Largo del cabello",
+// "¿Quieres aerógrafo?", "Cantidad de invitadas"). Cada opción puede modificar el precio
+// y/o la duración base del servicio.
+
+model ServiceModifierGroup {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId String  @map("service_id") @db.Uuid
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  name     String // "Largo del cabello"
+  helpText String? @map("help_text") // Texto de ayuda mostrado bajo el label
+
+  // Tipo de campo: single_select | multi_select | toggle | quantity | text_input
+  //              | textarea | image_cards | range_slider | color_selector | step_selector | upload_image
+  fieldType String @map("field_type")
+
+  // Sub-tipo de display: cards | dropdown | radio | chips
+  // (mayormente aplica a single_select / multi_select)
+  displayType String? @map("display_type")
+
+  required  Boolean @default(false)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  // Para tipos numéricos (quantity / range_slider / step_selector)
+  minValue     Float?  @map("min_value")
+  maxValue     Float?  @map("max_value")
+  stepValue    Float?  @map("step_value")
+  defaultValue String? @map("default_value") // JSON serializado
+
+  options ServiceModifierOption[]
+
+  @@index([serviceId, sortOrder])
+  @@map("service_modifier_groups")
+}
+
+model ServiceModifierOption {
+  id      String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  groupId String               @map("group_id") @db.Uuid
+  group   ServiceModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  label    String
+  value    String? // Identificador interno opcional (ej. "corto")
+  imageUrl String? @map("image_url")
+  iconName String? @map("icon_name") // nombre de lucide-react opcional
+
+  // Tipo de modificador: fixed | percent | multiplier | per_quantity
+  modifierType  String  @default("fixed") @map("modifier_type")
+  modifierValue Decimal @default(0) @map("modifier_value") @db.Decimal(10, 2)
+
+  // Duración extra en minutos (positiva o negativa)
+  durationDelta Int @default(0) @map("duration_delta")
+
+  isDefault Boolean @default(false) @map("is_default")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  @@index([groupId, sortOrder])
+  @@map("service_modifier_options")
+}
+
+model ServiceConditionalRule {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  serviceId String  @map("service_id") @db.Uuid
+  service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  name String // "Cabello extra largo + alto volumen"
+
+  // Lista de condiciones evaluadas con AND.
+  // [{ groupId, operator: "equals" | "in" | "gte" | "lte" | "truthy", value }]
+  conditions Json
+
+  // Efecto cuando todas las condiciones se cumplen.
+  // add_price | add_percent | add_duration | block_booking | require_lead_days
+  effect      String
+  effectValue Json   @map("effect_value")
+
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  @@index([serviceId])
+  @@map("service_conditional_rules")
+}
+
+// ─── EVENTOS Y PAQUETES ────────────────────────────────────
+// Un EventType (Novia, Quinceañera, etc.) agrupa múltiples paquetes
+// y contenido informativo (presentación, ventajas, políticas).
+
+model EventType {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String // "Novia", "Quinceañera"
+  slug           String           @unique
+  tagline        String? // "Más que mi profesión, mi pasión"
+  shortDesc      String?          @map("short_desc")
+  heroImageUrl   String?          @map("hero_image_url")
+  // Contenido largo en Markdown — bloque "Presentación" del PDF
+  presentationMd String?          @map("presentation_md")
+  // Datos a tomar en cuenta (cancelaciones, depósito, etc.)
+  policiesMd     String?          @map("policies_md")
+  // Color de acento HEX (#E8C040)
+  accentColor    String           @default("#E8C040") @map("accent_color")
+  icon           String? // emoji o nombre lucide
+  sortOrder      Int              @default(0) @map("sort_order")
+  isActive       Boolean          @default(true) @map("is_active")
+  highlight      Boolean          @default(false) // destacado en /servicios
+  packages       ServicePackage[]
+  benefits       EventBenefit[]
+  addons         ServiceAddon[]
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@map("event_types")
+}
+
+model ServicePackage {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventTypeId     String    @map("event_type_id") @db.Uuid
+  eventType       EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  name            String // "Paquete Uno"
+  slug            String // unique within event
+  subtitle        String?
+  description     String?
+  imageUrl        String?   @map("image_url")
+  pricePen        Decimal   @map("price_pen") @db.Decimal(10, 2)
+  // Precio "antes de oferta" del paquete. Si está seteado y > pricePen, se muestra como descuento.
+  comparePricePen Decimal?  @map("compare_price_pen") @db.Decimal(10, 2)
+  // groupSize=null → solo titular. groupSize=3 → "Novia + 3 familiares"
+  groupSize       Int?      @map("group_size")
+  groupLabel      String?   @map("group_label")
+  hasTrial        Boolean   @default(false) @map("has_trial")
+  highlighted     Boolean   @default(false) // "Recomendado"
+  sortOrder       Int       @default(0) @map("sort_order")
+  isActive        Boolean   @default(true) @map("is_active")
+
+  // Adelanto: si requiresDeposit, el cliente paga depositPercent% al reservar.
+  requiresDeposit Boolean   @default(true) @map("requires_deposit")
+  depositPercent  Int       @default(50)   @map("deposit_percent")
+
+  // Toggle "Con prueba de maquillaje" — añade un servicio opcional con sobrecargo
+  trialAddonServiceId String?  @map("trial_addon_service_id") @db.Uuid
+  trialAddonService   Service? @relation("TrialAddonService", fields: [trialAddonServiceId], references: [id])
+  // Sobrecargo adicional cuando el toggle está activado (S/)
+  trialAddonPricePen  Decimal? @map("trial_addon_price_pen") @db.Decimal(10, 2)
+
+  items           PackageItem[]
+  appointments    Appointment[]
+  bookingPayments BookingPayment[]
+
+  @@unique([eventTypeId, slug])
+  @@map("service_packages")
+}
+
+model PackageItem {
+  id        String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  packageId String         @map("package_id") @db.Uuid
+  package   ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  // Etiqueta visible ("Manicura esmaltado en gel", "Pedicura acrílica")
+  label     String
+  // Vínculo opcional al catálogo de Service (para reserva/disponibilidad)
+  serviceId String?        @map("service_id") @db.Uuid
+  service   Service?       @relation(fields: [serviceId], references: [id])
+  quantity  Int            @default(1)
+  sortOrder Int            @default(0) @map("sort_order")
+
+  @@map("package_items")
+}
+
+// Add-ons globales o por evento (aerógrafo, fuera-de-Cieneguilla…)
+model ServiceAddon {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventTypeId String?    @map("event_type_id") @db.Uuid
+  eventType   EventType? @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  pricePen    Decimal    @map("price_pen") @db.Decimal(10, 2)
+  icon        String?
+  sortOrder   Int        @default(0) @map("sort_order")
+  isActive    Boolean    @default(true) @map("is_active")
+
+  @@map("service_addons")
+}
+
+// Catálogos visuales — peinados (normal/elaborado/muy elaborado), cortes, colores…
+// Un Service puede tener catalogSlug que apunte a un Catalog específico.
+model Catalog {
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String        @unique
+  name         String
+  description  String?
+  heroImageUrl String?       @map("hero_image_url")
+  isActive     Boolean       @default(true) @map("is_active")
+  sortOrder    Int           @default(0) @map("sort_order")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  items        CatalogItem[]
+
+  @@map("catalogs")
+}
+
+model CatalogItem {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  catalogId     String   @map("catalog_id") @db.Uuid
+  catalog       Catalog  @relation(fields: [catalogId], references: [id], onDelete: Cascade)
+  // Etiqueta de grupo (ej. "Normal", "Elaborado", "Muy elaborado")
+  groupLabel    String?  @map("group_label")
+  title         String
+  description   String?
+  imageUrl      String?  @map("image_url")
+  // Si aplica, sobrecargo respecto al servicio base
+  extraPricePen Decimal? @map("extra_price_pen") @db.Decimal(10, 2)
+  // Tiempo estimado adicional
+  extraMinutes  Int?     @map("extra_minutes")
+  sortOrder     Int      @default(0) @map("sort_order")
+
+  @@index([catalogId, groupLabel])
+  @@map("catalog_items")
+}
+
+// Bullets de ventajas (ej. "Ventajas del aerógrafo")
+model EventBenefit {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventTypeId String    @map("event_type_id") @db.Uuid
+  eventType   EventType @relation(fields: [eventTypeId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  icon        String?
+  sortOrder   Int       @default(0) @map("sort_order")
+
+  @@map("event_benefits")
 }
 
 // ─── PERSONAL ────────────────────────────────────────────
 
 model Staff {
-  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  role          String?
-  photoUrl      String?        @map("photo_url")
-  bio           String?
-  isActive      Boolean        @default(true) @map("is_active")
-  staffServices StaffService[]
-  schedules     StaffSchedule[]
-  appointments  Appointment[]
+  id               String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  role             String?
+  photoUrl         String?               @map("photo_url")
+  bio              String?
+  isActive         Boolean               @default(true) @map("is_active")
+  staffServices    StaffService[]
+  schedules        StaffSchedule[]
+  appointments     Appointment[]
+  unavailabilities StaffUnavailability[]
+  adminUsers       Admin[]
 
   @@map("staff")
 }
 
 model StaffService {
-  staffId   String @map("staff_id") @db.Uuid
-  serviceId String @map("service_id") @db.Uuid
+  staffId   String  @map("staff_id") @db.Uuid
+  serviceId String  @map("service_id") @db.Uuid
   staff     Staff   @relation(fields: [staffId], references: [id], onDelete: Cascade)
   service   Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 
@@ -71,12 +324,12 @@ model StaffService {
 }
 
 model StaffSchedule {
-  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  staffId    String @map("staff_id") @db.Uuid
-  staff      Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  dayOfWeek  Int    @map("day_of_week") // 0=Dom, 1=Lun, ..., 6=Sáb
-  startTime  String @map("start_time") // "09:00"
-  endTime    String @map("end_time")   // "19:00"
+  id        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId   String @map("staff_id") @db.Uuid
+  staff     Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dayOfWeek Int    @map("day_of_week") // 0=Dom, 1=Lun, ..., 6=Sáb
+  startTime String @map("start_time") // "09:00"
+  endTime   String @map("end_time") // "19:00"
 
   @@map("staff_schedules")
 }
@@ -85,13 +338,16 @@ model StaffSchedule {
 // Supabase Auth maneja auth.users — esta tabla extiende el perfil
 
 model Customer {
-  id             String        @id @db.Uuid // mismo UUID de auth.users
-  name           String
-  phone          String?
-  loyaltyPoints  Int           @default(0) @map("loyalty_points")
-  createdAt      DateTime      @default(now()) @map("created_at")
-  appointments   Appointment[]
-  orders         Order[]
+  id            String        @id @db.Uuid // mismo UUID de auth.users (o UUID propio para clientes walk-in)
+  name          String
+  email         String?
+  phone         String?
+  isActive      Boolean       @default(true) @map("is_active")
+  loyaltyPoints Int           @default(0) @map("loyalty_points")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  appointments    Appointment[]
+  orders          Order[]
+  bookingPayments BookingPayment[]
 
   @@map("customers")
 }
@@ -99,30 +355,89 @@ model Customer {
 // ─── CITAS ────────────────────────────────────────────────
 
 model Appointment {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  customerId  String?  @map("customer_id") @db.Uuid
-  customer    Customer? @relation(fields: [customerId], references: [id])
-  staffId     String   @map("staff_id") @db.Uuid
-  staff       Staff    @relation(fields: [staffId], references: [id])
-  serviceId   String   @map("service_id") @db.Uuid
-  service     Service  @relation(fields: [serviceId], references: [id])
-  date        DateTime @db.Date
-  startTime   String   @map("start_time") // "10:00"
-  endTime     String   @map("end_time")   // "11:00"
-  status      String   @default("pending")
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId     String?         @map("customer_id") @db.Uuid
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+  staffId        String?         @map("staff_id") @db.Uuid // null = estilista de turno (admin asigna)
+  staff          Staff?          @relation(fields: [staffId], references: [id])
+  onDutyStaff    Boolean         @default(false) @map("on_duty_staff") // true cuando staffId=null por turno
+  serviceId      String          @map("service_id") @db.Uuid
+  service        Service         @relation(fields: [serviceId], references: [id])
+  // Cuando la cita forma parte de un paquete (Novia, Quinceañera…)
+  packageId      String?         @map("package_id") @db.Uuid
+  package        ServicePackage? @relation(fields: [packageId], references: [id])
+  date           DateTime        @db.Date
+  startTime      String          @map("start_time") // "10:00"
+  endTime        String          @map("end_time") // "11:00"
+  status         String          @default("pending")
   // pending | confirmed | cancelled | completed | no_show
-  notes       String?
-  totalPen    Decimal  @map("total_pen") @db.Decimal(10, 2)
-  reminder24h Boolean  @default(false) @map("reminder_24h")
-  reminder2h  Boolean  @default(false) @map("reminder_2h")
+  notes          String?
+  totalPen       Decimal         @map("total_pen") @db.Decimal(10, 2)
+  reminder24h    Boolean         @default(false) @map("reminder_24h")
+  reminder2h     Boolean         @default(false) @map("reminder_2h")
   // Datos del cliente invitado (sin cuenta)
-  guestName   String?  @map("guest_name")
-  guestPhone  String?  @map("guest_phone")
-  guestEmail  String?  @map("guest_email")
-  createdAt   DateTime @default(now()) @map("created_at")
+  guestName      String?         @map("guest_name")
+  guestPhone     String?         @map("guest_phone")
+  guestEmail     String?         @map("guest_email")
+  // Servicio a domicilio
+  atHome         Boolean         @default(false) @map("at_home")
+  atHomeAddress  String?         @map("at_home_address")
+  atHomeDistrict String?         @map("at_home_district")
+  atHomeExtraPen Decimal?        @map("at_home_extra_pen") @db.Decimal(10, 2)
+  // Identificador estable del grupo de reserva (todas las citas creadas juntas
+  // comparten este UUID). Reemplaza el agrupado frágil por packageId+date+customerKey.
+  bookingGroupId String?         @map("booking_group_id") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at")
 
   @@index([staffId, date, status])
+  @@index([bookingGroupId])
+  @@index([customerId, createdAt])
+  @@index([guestEmail])
+  @@index([guestPhone])
   @@map("appointments")
+}
+
+// ─── PAGOS DE RESERVA / ADELANTOS ─────────────────────────
+// Un registro por reserva (grupo de citas = bookingGroupId). Rastrea el adelanto
+// del 50% de los paquetes: cobro con tarjeta (Culqi), comprobante (Yape/Plin/
+// transferencia) o registro manual del admin (efectivo/etc). Genera el recibo.
+model BookingPayment {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingGroupId String          @map("booking_group_id") @db.Uuid
+  packageId      String?         @map("package_id") @db.Uuid
+  package        ServicePackage? @relation(fields: [packageId], references: [id])
+  customerId     String?         @map("customer_id") @db.Uuid
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+
+  // Snapshot del cliente (sirve para invitados y para el recibo)
+  customerName  String  @map("customer_name")
+  customerEmail String? @map("customer_email")
+  customerPhone String? @map("customer_phone")
+
+  totalPen       Decimal @map("total_pen") @db.Decimal(10, 2)
+  depositPercent Int     @map("deposit_percent")
+  depositPen     Decimal @map("deposit_pen") @db.Decimal(10, 2)
+  paidPen        Decimal @default(0) @map("paid_pen") @db.Decimal(10, 2)
+  balancePen     Decimal @map("balance_pen") @db.Decimal(10, 2)
+
+  // culqi | yape | plin | transfer | cash
+  method String?
+  // pending | awaiting_verification | paid | rejected | expired
+  status String @default("pending")
+
+  culqiChargeId String?   @map("culqi_charge_id")
+  proofImageUrl String?   @map("proof_image_url")
+  receiptNumber String?   @unique @map("receipt_number") // DMB-YYYYMMDD-###
+  verifiedBy    String?   @map("verified_by") @db.Uuid
+  verifiedAt    DateTime? @map("verified_at")
+  notes         String?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@index([bookingGroupId])
+  @@index([status])
+  @@map("booking_payments")
 }
 
 // ─── PRODUCTOS ────────────────────────────────────────────
@@ -138,19 +453,19 @@ model ProductCategory {
 }
 
 model Product {
-  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String
-  slug         String          @unique
+  slug         String           @unique
   description  String?
-  categoryId   String?         @map("category_id") @db.Uuid
+  categoryId   String?          @map("category_id") @db.Uuid
   category     ProductCategory? @relation(fields: [categoryId], references: [id])
   brand        String?
-  pricePen     Decimal         @map("price_pen") @db.Decimal(10, 2)
-  comparePrice Decimal?        @map("compare_price") @db.Decimal(10, 2)
-  stock        Int             @default(0)
-  images       String[]        // Cloudinary URLs
-  isActive     Boolean         @default(true) @map("is_active")
-  createdAt    DateTime        @default(now()) @map("created_at")
+  pricePen     Decimal          @map("price_pen") @db.Decimal(10, 2)
+  comparePrice Decimal?         @map("compare_price") @db.Decimal(10, 2)
+  stock        Int              @default(0)
+  images       String[] // Cloudinary URLs
+  isActive     Boolean          @default(true) @map("is_active")
+  createdAt    DateTime         @default(now()) @map("created_at")
   orderItems   OrderItem[]
 
   @@map("products")
@@ -173,6 +488,7 @@ model Order {
   paymentRef    String?     @map("payment_ref")
   shipName      String?     @map("ship_name")
   shipPhone     String?     @map("ship_phone")
+  shipEmail     String?     @map("ship_email")
   shipAddress   String?     @map("ship_address")
   shipDistrict  String?     @map("ship_district")
   shipCity      String      @default("Lima") @map("ship_city")
@@ -180,18 +496,21 @@ model Order {
   createdAt     DateTime    @default(now()) @map("created_at")
   items         OrderItem[]
 
+  @@index([customerId, createdAt])
+  @@index([shipPhone])
+  @@index([status, createdAt])
   @@map("orders")
 }
 
 model OrderItem {
-  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId   String  @map("order_id") @db.Uuid
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId String? @map("product_id") @db.Uuid
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String   @map("order_id") @db.Uuid
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String?  @map("product_id") @db.Uuid
   product   Product? @relation(fields: [productId], references: [id])
   qty       Int
-  pricePen  Decimal @map("price_pen") @db.Decimal(10, 2)
-  name      String  // snapshot del nombre al momento de compra
+  pricePen  Decimal  @map("price_pen") @db.Decimal(10, 2)
+  name      String // snapshot del nombre al momento de compra
 
   @@map("order_items")
 }
@@ -201,7 +520,7 @@ model OrderItem {
 model Promotion {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   code         String    @unique
-  type         String    // percent | fixed
+  type         String // percent | fixed
   value        Decimal   @db.Decimal(10, 2)
   minOrderPen  Decimal   @default(0) @map("min_order_pen") @db.Decimal(10, 2)
   applicableTo String    @default("all") @map("applicable_to") // services | products | all
@@ -219,7 +538,7 @@ model Gallery {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   imageUrl     String   @map("image_url")
   thumbnailUrl String?  @map("thumbnail_url")
-  category     String?  // maquillaje | cabello | unas | cejas
+  category     String? // maquillaje | cabello | unas | cejas
   caption      String?
   sortOrder    Int      @default(0) @map("sort_order")
   isPublished  Boolean  @default(true) @map("is_published")
@@ -247,13 +566,13 @@ model BlogPost {
 // ─── RESEÑAS ──────────────────────────────────────────────
 
 model Review {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   author    String
   rating    Int
   text      String?
   date      DateTime? @db.Date
-  isVisible Boolean  @default(true) @map("is_visible")
-  source    String   @default("manual") // google | manual
+  isVisible Boolean   @default(true) @map("is_visible")
+  source    String    @default("manual") // google | manual
 
   @@map("reviews")
 }
@@ -271,6 +590,10 @@ model Setting {
   city                String   @default("Lima")
   lat                 Decimal  @default(-12.1109913) @db.Decimal(10, 7)
   lng                 Decimal  @default(-76.8182017) @db.Decimal(10, 7)
+  // Hora mínima de inicio para reservar. Default 09:00, pero los paquetes pueden requerir antes.
+  bookingMinHour      String   @default("09:00") @map("booking_min_hour")
+  // Hora mínima específica para paquetes (eventos novia/quinceañera). Si null, usa bookingMinHour.
+  packageMinHour      String?  @map("package_min_hour")
   hoursWeekday        String   @default("9:00 - 19:00") @map("hours_weekday")
   hoursSaturday       String   @default("9:00 - 17:00") @map("hours_saturday")
   hoursSunday         String   @default("Cerrado") @map("hours_sunday")
@@ -279,6 +602,30 @@ model Setting {
   tiktokUrl           String?  @map("tiktok_url")
   bookingNoticeHours  Int      @default(2) @map("booking_notice_hours")
   cancellationHours   Int      @default(24) @map("cancellation_hours")
+  // Servicio a domicilio
+  atHomeEnabled       Boolean  @default(false) @map("at_home_enabled")
+  atHomeBasePen       Decimal  @default(20.00) @map("at_home_base_pen") @db.Decimal(10, 2)
+  atHomeBaseKm        Int      @default(5) @map("at_home_base_km")
+  atHomeRatePen       Decimal  @default(3.00) @map("at_home_rate_pen") @db.Decimal(10, 2)
+  // Timer de reserva (segundos que tiene el cliente para confirmar en el paso final)
+  bookingTimerSeconds Int      @default(600) @map("booking_timer_seconds")
+  // Horas que se mantiene una reserva de paquete con adelanto pendiente antes de
+  // liberarse automáticamente (cancela las citas y suelta el horario).
+  depositExpiryHours  Int      @default(24) @map("deposit_expiry_hours")
+  // Datos de pago mostrados al cliente para abonar por transferencia/Yape/Plin
+  yapeNumber          String?  @map("yape_number")
+  yapeName            String?  @map("yape_name")
+  plinNumber          String?  @map("plin_number")
+  bankName            String?  @map("bank_name")
+  bankAccount         String?  @map("bank_account")
+  bankCci             String?  @map("bank_cci")
+  bankAccountHolder   String?  @map("bank_account_holder")
+  // Identidad visual — logos subidos desde el admin
+  logoUrl             String?  @map("logo_url") // Logo para fondos claros (versión oscura)
+  logoDarkUrl         String?  @map("logo_dark_url") // Logo para fondos oscuros (versión blanca)
+  logoIconUrl         String?  @map("logo_icon_url") // Ícono cuadrado (favicon / cabecera pequeña)
+  // Slides del carrusel del home: array de { imageUrl?, videoUrl?, badge, line1, line2, bullets[], ctaText, ctaHref, gravity }
+  homeSlides          Json     @default("[]") @map("home_slides")
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("settings")
@@ -287,15 +634,106 @@ model Setting {
 // ─── ADMINISTRADORES ──────────────────────────────────────
 
 model Admin {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id           String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  role         String   @default("staff") // owner | staff
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
+  email        String  @unique
+  passwordHash String  @map("password_hash")
+  role         String  @default("admin") // super_admin | admin | estilista
+  staffId      String? @map("staff_id") @db.Uuid
+  staff        Staff?  @relation(fields: [staffId], references: [id])
+  isActive     Boolean @default(true) @map("is_active")
+
+  // ── MFA (TOTP) ────────────────────────────────
+  mfaEnabled     Boolean  @default(false) @map("mfa_enabled")
+  mfaSecret      String?  @map("mfa_secret") // cifrado en reposo (lib/crypto)
+  mfaBackupCodes String[] @default([]) @map("mfa_backup_codes") // hashes de códigos de respaldo
+
+  // Invalida tokens emitidos antes de este timestamp
+  // (subir al cambiar password, rol, isActive=false, etc.)
+  tokensValidFrom DateTime @default(now()) @map("tokens_valid_from")
+
+  passwordChangedAt DateTime? @map("password_changed_at")
+  lastLoginAt       DateTime? @map("last_login_at")
+  lastLoginIp       String?   @map("last_login_ip")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  auditLogs AuditLog[] @relation("AdminAuditActor")
 
   @@map("admins")
+}
+
+// ─── AUDIT LOG (acciones admin) ───────────────────────────
+// Append-only. Nunca update/delete desde la app.
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actor      Admin?   @relation("AdminAuditActor", fields: [actorId], references: [id])
+  actorEmail String?  @map("actor_email")
+  action     String // "admin.user.create", "admin.order.update", etc.
+  entity     String? // "Admin" | "Order" | "Service" | "Settings" ...
+  entityId   String?  @map("entity_id")
+  method     String?
+  path       String?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  changes    Json? // diff before/after (sanitizado, sin password)
+  statusCode Int?     @map("status_code")
+  requestId  String?  @map("request_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([actorId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// ─── PASSWORD RESET (admin) ──────────────────────────────
+model AdminPasswordReset {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId   String    @map("admin_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") // sha256 del token (nunca guardamos plaintext)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  ip        String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([adminId])
+  @@map("admin_password_resets")
+}
+
+// ─── CULQI WEBHOOK EVENTS ────────────────────────────────
+// Persistimos cada evento para idempotencia + auditoría.
+model CulqiWebhookEvent {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventId     String    @unique @map("event_id") // id de Culqi (idempotency)
+  type        String
+  chargeId    String?   @map("charge_id")
+  orderId     String?   @map("order_id") @db.Uuid
+  payload     Json
+  processed   Boolean   @default(false)
+  processedAt DateTime? @map("processed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([type, createdAt])
+  @@map("culqi_webhook_events")
+}
+
+// ─── BLOQUEOS DE DISPONIBILIDAD ──────────────────────────
+// staffId null = todo el salón cerrado ese día/hora
+
+model StaffUnavailability {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId   String?  @map("staff_id") @db.Uuid
+  staff     Staff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  startTime String?  @map("start_time") // null = todo el día
+  endTime   String?  @map("end_time") // null = todo el día
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([date])
+  @@map("staff_unavailabilities")
 }
 
 // ─── CONTABILIDAD ─────────────────────────────────────────

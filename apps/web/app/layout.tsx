@@ -1,51 +1,143 @@
-import type { Metadata } from 'next';
-import { Inter, Playfair_Display } from 'next/font/google';
+import type { Metadata, Viewport } from 'next';
+import { Inter, Playfair_Display, Poppins } from 'next/font/google';
 import './globals.css';
+
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import WhatsAppButton from '@/components/layout/WhatsAppButton';
 import BottomNav from '@/components/layout/BottomNav';
+import FaviconUpdater from '@/components/layout/FaviconUpdater';
+import { LoadingProvider } from '@/lib/loading';
+import { SalonSettingsProvider } from '@/lib/useSalonSettings';
 
-// Self-hosted fonts — cero render-blocking, cero peticiones a Google en runtime
+import { JsonLd } from '@/components/seo/JsonLd';
+import { organizationLd, webSiteLd } from '@/lib/jsonld';
+import { SITE } from '@/lib/seo';
+
 const inter = Inter({
   subsets: ['latin'],
-  variable: '--font-sans',
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['300', '400', '500', '600', '700', '800'],
+  variable: '--font-poppins',
   display: 'swap',
 });
 
 const playfair = Playfair_Display({
   subsets: ['latin'],
-  variable: '--font-display',
+  variable: '--font-playfair',
   display: 'swap',
 });
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: '(prefers-color-scheme: dark)',  color: '#100815' },
+  ],
+};
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE.url),
   title: {
     default: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
     template: '%s | Deyanira Makeup Beauty',
   },
-  description:
-    'Salón de belleza profesional en Lima, Perú. Maquillaje, cabello, uñas, cejas. Agenda tu cita online y compra productos de belleza.',
-  keywords: ['salon de belleza lima', 'maquillaje profesional peru', 'citas de belleza lima'],
+  description: SITE.defaultDescription,
+  keywords: SITE.defaultKeywords,
+  applicationName: SITE.name,
+  authors: [{ name: SITE.name, url: SITE.url }],
+  creator: SITE.name,
+  publisher: SITE.name,
+  formatDetection: { telephone: true, email: true, address: true },
+  alternates: {
+    canonical: SITE.url,
+    languages: { 'es-PE': SITE.url, 'x-default': SITE.url },
+  },
+  manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+    shortcut: '/favicon.ico',
+  },
   openGraph: {
     type: 'website',
-    locale: 'es_PE',
-    siteName: 'Deyanira Makeup Beauty',
+    locale: SITE.locale,
+    siteName: SITE.name,
+    title: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
+    description: SITE.defaultDescription,
+    url: SITE.url,
+    images: [
+      { url: `${SITE.url}${SITE.ogImage}`, width: 1200, height: 630, alt: SITE.name },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    site: SITE.twitter,
+    creator: SITE.twitter,
+    title: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
+    description: SITE.defaultDescription,
+    images: [`${SITE.url}${SITE.ogImage}`],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+    // bing: process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION,
+  },
+  category: 'beauty',
+  other: {
+    'geo.region': SITE.geo.region,
+    'geo.placename': SITE.geo.placename,
+    'geo.position': SITE.geo.position,
+    'ICBM': SITE.geo.icbm,
   },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es-PE" className={`${inter.variable} ${playfair.variable}`}>
+    <html lang={SITE.language} className={`${inter.variable} ${poppins.variable} ${playfair.variable}`}>
+      <head>
+        {/* Performance: preconnect a recursos críticos */}
+        <link rel="preconnect" href="https://res.cloudinary.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link rel="dns-prefetch" href="https://api.culqi.com" />
+
+        {/* Structured data global (Organization + WebSite) */}
+        <JsonLd data={[organizationLd(), webSiteLd()]} />
+      </head>
       <body>
-        <Header />
-        {/* pb-nav = espacio para el bottom nav en móvil (safe area incluida) */}
-        <main className="pb-nav md:pb-0">
-          {children}
-        </main>
-        <Footer />
-        <WhatsAppButton />
-        <BottomNav />
+        <LoadingProvider>
+          <SalonSettingsProvider>
+            <FaviconUpdater />
+            <Header />
+            <main>
+              {children}
+            </main>
+            <Footer />
+            <WhatsAppButton />
+            <BottomNav />
+          </SalonSettingsProvider>
+        </LoadingProvider>
       </body>
     </html>
   );

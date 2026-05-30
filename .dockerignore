@@ -1,0 +1,45 @@
+# Build artifacts
+node_modules/
+**/node_modules/
+.next/
+out/
+dist/
+build/
+
+# Env (NUNCA en imágenes)
+.env
+.env.*
+!.env.example
+
+# VCS / IDE
+.git/
+.gitignore
+.gitattributes
+.vscode/
+.idea/
+.vercel/
+
+# Tests / coverage
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+.playwright-mcp/
+**/*.test.*
+**/*.spec.*
+
+# Logs
+*.log
+logs/
+
+# Docs
+README.md
+CLAUDE.md
+docs/
+
+# Misc
+.DS_Store
+Thumbs.db
+.cache/
+tmp/
+*.tsbuildinfo

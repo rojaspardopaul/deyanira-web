@@ -1,219 +1,280 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { Sparkles, Clock, Star, ArrowRight, Award, CalendarCheck } from 'lucide-react';
 import { api } from '@/lib/api';
+import HeroCarousel from '@/components/home/HeroCarousel';
+import LocationSection from '@/components/home/LocationSection';
+import PopularServices, { type PopularService } from '@/components/home/PopularServices';
+import { JsonLd } from '@/components/seo/JsonLd';
+import { beautySalonLd, faqLd } from '@/lib/jsonld';
+import { buildMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Salón de Belleza Profesional en Lima, Perú',
-  description:
-    'Deyanira Makeup Beauty: maquillaje, cabello, uñas y cejas en Lima. Agenda tu cita online y luce increíble.',
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Salón de Belleza en Lima — Maquillaje, Uñas, Cabello y Cejas',
+  description: 'Deyanira Makeup Beauty: salón profesional en Surco, Lima. Maquillaje, uñas, cabello y cejas. Reserva tu cita online en 1 minuto con confirmación inmediata por WhatsApp.',
+  path: '/',
+});
 
-const localBusinessSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'BeautySalon',
-  name: 'Deyanira Makeup Beauty',
-  url: 'https://deyanira.pe',
-  telephone: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
-  address: {
-    '@type': 'PostalAddress',
-    addressLocality: 'Lima',
-    addressCountry: 'PE',
-  },
-  geo: {
-    '@type': 'GeoCoordinates',
-    latitude: -12.1109913,
-    longitude: -76.8182017,
-  },
-  openingHoursSpecification: [
-    { '@type': 'OpeningHoursSpecification', dayOfWeek: ['Monday','Tuesday','Wednesday','Thursday','Friday'], opens: '09:00', closes: '19:00' },
-    { '@type': 'OpeningHoursSpecification', dayOfWeek: 'Saturday', opens: '09:00', closes: '17:00' },
-  ],
-  priceRange: 'S/S/',
-  currenciesAccepted: 'PEN',
-};
+// FAQs ricas — Google las muestra como rich snippets bajo el resultado
+const HOME_FAQS = [
+  { q: '¿Dónde queda Deyanira Makeup Beauty?',
+    a: 'Estamos en Surco, Lima. Atendemos a clientas de Surco, San Borja, La Molina, Miraflores, San Isidro y todo Lima Metropolitana.' },
+  { q: '¿Hacen servicios a domicilio en Lima?',
+    a: 'Sí, ofrecemos maquillaje y peinado a domicilio en toda Lima Metropolitana con recargo por movilidad según distrito.' },
+  { q: '¿Cuánto cuesta un maquillaje profesional?',
+    a: 'Nuestros maquillajes profesionales van desde S/ 80 (maquillaje social) hasta S/ 300 (maquillaje de novia con prueba). Consulta cada servicio en la página de servicios.' },
+  { q: '¿Cómo reservo una cita?',
+    a: 'Puedes reservar online 24/7 desde la página de Reservar — elige servicio, estilista, fecha y hora. Recibes confirmación inmediata por email y WhatsApp.' },
+  { q: '¿Qué métodos de pago aceptan?',
+    a: 'Aceptamos efectivo, tarjeta de crédito/débito (Visa, MasterCard) vía Culqi y transferencias por Yape o Plin.' },
+];
 
 const SERVICE_CATEGORIES = [
-  { icon: '💄', name: 'Maquillaje', slug: 'maquillaje', desc: 'Novia, social, artístico' },
-  { icon: '💇', name: 'Cabello', slug: 'cabello', desc: 'Corte, tinte, peinado' },
-  { icon: '💅', name: 'Uñas', slug: 'unas', desc: 'Acrílicas, semipermanente' },
-  { icon: '✨', name: 'Cejas', slug: 'cejas', desc: 'Diseño, depilación, laminado' },
+  { icon: '💄', name: 'Maquillaje', slug: 'maquillaje', desc: 'Novia, social, artístico', color: 'rgba(255,79,162,0.12)', border: 'rgba(255,79,162,0.2)' },
+  { icon: '💇', name: 'Cabello',    slug: 'cabello',    desc: 'Corte, tinte, peinado',     color: 'rgba(212,175,55,0.1)',  border: 'rgba(212,175,55,0.2)' },
+  { icon: '💅', name: 'Uñas',      slug: 'unas',       desc: 'Acrílicas, semipermanente', color: 'rgba(255,79,162,0.09)', border: 'rgba(255,79,162,0.18)' },
+  { icon: '✨', name: 'Cejas',     slug: 'cejas',      desc: 'Diseño, depilación, laminado', color: 'rgba(212,175,55,0.09)', border: 'rgba(212,175,55,0.18)' },
 ];
 
 const REASONS = [
-  { icon: '🎓', title: 'Profesionales certificadas', desc: 'Equipo con formación profesional y años de experiencia en Lima.' },
-  { icon: '✨', title: 'Productos premium', desc: 'Solo trabajamos con marcas profesionales para garantizar resultados duraderos.' },
-  { icon: '📅', title: 'Agenda 24/7', desc: 'Reserva tu cita cuando quieras, confirmación inmediata por WhatsApp.' },
+  { icon: Award,        title: 'Profesionales certificadas', desc: 'Equipo con formación profesional y años de experiencia en Lima.' },
+  { icon: Sparkles,     title: 'Productos premium',          desc: 'Solo trabajamos con marcas profesionales para resultados duraderos.' },
+  { icon: CalendarCheck, title: 'Agenda 24/7',               desc: 'Reserva tu cita cuando quieras, confirmación inmediata por WhatsApp.' },
 ];
 
+const TESTIMONIALS = [
+  { name: 'María G.', initials: 'MG', review: 'Quedé encantada con mi maquillaje de novia. ¡Profesionales de verdad!', stars: 5 },
+  { name: 'Lucía R.', initials: 'LR', review: 'El diseño de cejas me cambió la cara. Muy precisas y atentas.', stars: 5 },
+  { name: 'Carla M.', initials: 'CM', review: 'Reservé por la app y fue súper fácil. Llegué y me atendieron perfecto.', stars: 5 },
+];
+
+const STATS = [
+  { value: '+500', label: 'Clientas satisfechas' },
+  { value: '5★',   label: 'Calificación promedio' },
+  { value: '+6',   label: 'Años de experiencia' },
+  { value: '24/7', label: 'Reservas online' },
+];
+
+function SectionLabel({ children, dark }: { children: React.ReactNode; dark?: boolean }) {
+  return (
+    <p className="section-label" style={{ color: dark ? 'rgba(212,175,55,0.8)' : '#b8962e' }}>
+      {children}
+    </p>
+  );
+}
+
 export default async function HomePage() {
-  // Fetch gallery preview — si la API no responde, mostramos alternativa
-  const galleryPhotos = await api.gallery
-    .list()
-    .catch(() => []) as Record<string, unknown>[];
+  const [galleryPhotos, popularServices] = await Promise.all([
+    api.gallery.list().catch(() => []) as Promise<Record<string, unknown>[]>,
+    api.services.popular(6).catch(() => []) as Promise<PopularService[]>,
+  ]);
   const preview = galleryPhotos.slice(0, 6);
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
-      />
+      <JsonLd data={[
+        beautySalonLd({
+          phone: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
+          district: 'Surco',
+          hoursWeekday: '9:00 - 19:00',
+          hoursSaturday: '9:00 - 18:00',
+          priceRange: 'S/ 30 - S/ 300',
+          rating: { value: 5.0, count: 47 },
+        }),
+        faqLd(HOME_FAQS),
+      ]} />
 
       {/* ── Hero ─────────────────────────────────────────── */}
-      <section className="relative min-h-[100svh] flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-pink-50 overflow-hidden pt-16">
-        {/* Decorative blobs */}
-        <div className="absolute top-20 -left-20 w-72 h-72 bg-primary-100 rounded-full blur-3xl opacity-50 pointer-events-none" />
-        <div className="absolute bottom-20 -right-10 w-56 h-56 bg-pink-100 rounded-full blur-3xl opacity-60 pointer-events-none" />
+      <HeroCarousel />
 
-        <div className="relative z-10 text-center px-5 py-16 max-w-3xl mx-auto">
-          <span className="inline-flex items-center gap-2 bg-primary-50 border border-primary-100 text-primary-700 text-xs font-semibold uppercase tracking-widest px-4 py-2 rounded-full mb-6">
-            ✦ Salón Profesional en Lima, Perú
-          </span>
-          <h1 className="text-4xl sm:text-5xl md:text-7xl font-display font-bold text-gray-900 mb-5 leading-tight">
-            Tu belleza,<br />
-            <span className="text-primary-600">nuestra pasión</span>
-          </h1>
-          <p className="text-lg sm:text-xl text-gray-600 mb-8 max-w-lg mx-auto leading-relaxed">
-            Maquillaje profesional, cabello, uñas y cejas.<br className="hidden sm:block" />
-            Agenda tu cita en línea y luce espectacular.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Link href="/reservar" className="btn-primary text-base px-8 py-4 shadow-lg shadow-primary-200">
-              Reserva tu cita
-            </Link>
-            <Link href="/servicios" className="btn-outline text-base px-8 py-4">
-              Ver servicios
-            </Link>
-          </div>
-          {/* Social proof */}
-          <p className="mt-8 text-sm text-gray-500">
-            ⭐⭐⭐⭐⭐ &nbsp;+500 clientas felices en Lima
-          </p>
+      {/* ── Stats ticker ─────────────────────────────────── */}
+      <div style={{ background: '#0F0F0F', borderTop: '1px solid rgba(255,255,255,0.06)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-6xl mx-auto px-4 py-4 hidden md:grid grid-cols-4 divide-x divide-white/10">
+          {STATS.map(({ value, label }) => (
+            <div key={label} className="flex flex-col items-center py-2 px-6">
+              <span className="font-display font-bold text-2xl" style={{ color: '#D4AF37' }}>{value}</span>
+              <span className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+            </div>
+          ))}
         </div>
-      </section>
+        {/* Mobile ticker */}
+        <div className="md:hidden overflow-hidden py-3">
+          <div className="flex animate-marquee whitespace-nowrap gap-12"
+            style={{ fontSize: '0.65rem', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 600 }}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <span key={i} className="flex items-center gap-12 shrink-0">
+                <span className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Sparkles className="w-3 h-3 shrink-0" style={{ color: '#D4AF37' }} /> Maquillaje Profesional
+                </span>
+                <span className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Clock className="w-3 h-3 shrink-0" style={{ color: '#D4AF37' }} /> Agenda 24/7
+                </span>
+                <span className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Star className="w-3 h-3 shrink-0" style={{ color: '#D4AF37' }} /> +500 Clientas
+                </span>
+                <span className="flex items-center gap-2" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                  <Sparkles className="w-3 h-3 shrink-0" style={{ color: '#D4AF37' }} /> Envío a Lima
+                </span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      {/* ── Categorías de servicios ───────────────────────── */}
-      <section className="py-16 md:py-24 px-4 bg-white">
+      {/* ── Los más reservados ───────────────────────────── */}
+      <PopularServices services={popularServices} />
+
+      {/* ── Servicios ────────────────────────────────────── */}
+      <section className="py-16 md:py-24 px-4" style={{ background: '#F5E6DA' }}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-10">
-            <p className="text-primary-600 font-semibold uppercase tracking-widest text-xs mb-2">
-              Nuestros servicios
-            </p>
-            <h2 className="section-title">Todo para tu belleza</h2>
-            <p className="text-gray-500 max-w-xl mx-auto">
+          <div className="text-center mb-12">
+            <SectionLabel>Nuestros servicios</SectionLabel>
+            <h2 className="section-title-light mt-2 mb-3">
+              Todo para tu <span style={{ color: '#b8962e' }}>Belleza</span>
+            </h2>
+            <p className="text-sm max-w-md mx-auto" style={{ color: '#8a6a78' }}>
               Servicios profesionales con productos de primera calidad
             </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {SERVICE_CATEGORIES.map((cat) => (
-              <Link
-                key={cat.slug}
-                href={`/servicios?category=${cat.slug}`}
-                className="group card p-6 text-center hover:border-primary-200 hover:-translate-y-1 transition-all duration-200 active:scale-[0.98]"
-              >
-                <span className="text-4xl mb-3 block">{cat.icon}</span>
-                <h3 className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors mb-1">
+              <Link key={cat.slug} href={`/servicios?category=${cat.slug}`}
+                className="group rounded-2xl p-5 md:p-7 text-center block transition-all duration-300 hover:-translate-y-2"
+                style={{
+                  background: 'rgba(255,255,255,0.85)',
+                  border: `1px solid ${cat.border}`,
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}>
+                <span className="text-3xl md:text-4xl mb-3 md:mb-4 block group-hover:scale-115 transition-transform duration-300 group-hover:animate-float">
+                  {cat.icon}
+                </span>
+                <h3 className="font-poppins font-bold text-sm md:text-base mb-1 transition-colors duration-200 group-hover:text-[#FF4FA2]"
+                  style={{ color: '#0F0F0F' }}>
                   {cat.name}
                 </h3>
-                <p className="text-xs text-gray-500">{cat.desc}</p>
+                <p className="text-xs" style={{ color: '#b09aa5' }}>{cat.desc}</p>
               </Link>
             ))}
           </div>
 
-          <div className="text-center mt-8">
-            <Link href="/servicios" className="btn-primary">
-              Ver todos los servicios
+          <div className="text-center mt-10">
+            <Link href="/servicios" className="btn-outline inline-flex">
+              Ver todos los servicios <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* ── CTA Reservar ─────────────────────────────────── */}
-      <section className="py-16 md:py-20 px-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white">
-        <div className="max-w-2xl mx-auto text-center">
-          <p className="text-primary-200 text-sm font-semibold uppercase tracking-widest mb-3">¿Lista?</p>
-          <h2 className="text-3xl md:text-4xl font-display font-bold mb-4">
-            ¿Lista para verte increíble?
-          </h2>
-          <p className="text-primary-100 text-lg mb-8">
-            Agenda tu cita en minutos. Disponibilidad en tiempo real.
+      <section className="relative py-20 md:py-32 px-4 overflow-hidden">
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg, #0F0F0F 0%, #1a0510 50%, #0F0F0F 100%)' }} />
+        {/* Pink glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] rounded-full pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse, rgba(255,79,162,0.18) 0%, transparent 70%)' }} />
+        {/* Gold lines */}
+        <div className="absolute top-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.6), transparent)' }} />
+        <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(212,175,55,0.6), transparent)' }} />
+
+        <div className="relative z-10 max-w-2xl mx-auto text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] mb-5" style={{ color: 'rgba(255,220,200,0.7)' }}>
+            ¿Lista para brillar?
           </p>
-          <Link
-            href="/reservar"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-white text-primary-700 font-bold rounded-full text-base hover:bg-primary-50 active:scale-95 transition-all shadow-xl shadow-primary-900/20"
-          >
-            Reservar ahora →
+          <h2 className="font-display font-bold italic text-4xl md:text-6xl text-white mb-5 leading-tight">
+            Reserva tu cita<br />
+            <span style={{ color: '#D4AF37' }}>hoy mismo</span>
+          </h2>
+          <p className="text-sm md:text-base mb-10 max-w-sm mx-auto" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            Disponibilidad en tiempo real. Confirmación inmediata por WhatsApp.
+          </p>
+          <Link href="/reservar" className="btn-gold text-base px-10 py-4">
+            <CalendarCheck className="w-5 h-5" />
+            Reservar ahora
           </Link>
         </div>
       </section>
 
       {/* ── Galería preview ──────────────────────────────── */}
-      <section className="py-16 md:py-24 px-4 bg-gray-50">
+      <section className="py-16 md:py-24 px-4" style={{ background: '#FAFAFA' }}>
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-8">
-            <h2 className="section-title">Nuestros trabajos</h2>
-            <p className="text-gray-500">Transformaciones reales de nuestras clientas</p>
+          <div className="text-center mb-12">
+            <SectionLabel>Portafolio</SectionLabel>
+            <h2 className="section-title-light mt-2 mb-3">
+              Nuestros <span style={{ color: '#FF4FA2' }}>Trabajos</span>
+            </h2>
+            <p className="text-sm" style={{ color: '#8a6a78' }}>Transformaciones reales de nuestras clientas</p>
           </div>
 
           {preview.length > 0 ? (
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
               {preview.map((photo, i) => (
-                <div
-                  key={photo.id as string}
-                  className="aspect-square rounded-2xl overflow-hidden bg-gray-200 group"
-                >
+                <div key={photo.id as string}
+                  className="aspect-square rounded-2xl overflow-hidden group shadow-card relative">
                   <Image
                     src={photo.imageUrl as string}
                     alt={(photo.caption as string) || 'Trabajo de Deyanira Makeup Beauty'}
-                    width={400}
-                    height={400}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    width={400} height={400}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     priority={i < 2}
                   />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
+                    <span className="text-white text-xs font-medium">{photo.caption as string || 'Ver trabajo'}</span>
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            /* Si no hay fotos aún, mostrar placeholder elegante */
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className={`aspect-square rounded-2xl flex items-center justify-center text-3xl ${
-                    ['bg-primary-100', 'bg-pink-100', 'bg-rose-100', 'bg-primary-200', 'bg-pink-200', 'bg-rose-200'][i]
-                  }`}
-                >
-                  {['💄', '💇', '💅', '✨', '🌸', '💖'][i]}
+              {[
+                { emoji: '💄', label: 'Maquillaje', bg: 'rgba(255,79,162,0.08)' },
+                { emoji: '💇', label: 'Cabello',    bg: 'rgba(212,175,55,0.08)' },
+                { emoji: '💅', label: 'Uñas',       bg: 'rgba(255,79,162,0.06)' },
+                { emoji: '✨', label: 'Cejas',      bg: 'rgba(212,175,55,0.06)' },
+                { emoji: '🌸', label: 'Novia',      bg: 'rgba(255,79,162,0.08)' },
+                { emoji: '💖', label: 'Social',     bg: 'rgba(212,175,55,0.06)' },
+              ].map(({ emoji, label, bg }, i) => (
+                <div key={i}
+                  className="aspect-square rounded-2xl flex flex-col items-center justify-center gap-3 group transition-all duration-300 hover:-translate-y-2 hover:shadow-card-hover"
+                  style={{ background: 'rgba(255,255,255,0.9)', border: '1px solid rgba(0,0,0,0.07)', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
+                  <span className="text-4xl md:text-5xl group-hover:scale-110 transition-transform duration-300">{emoji}</span>
+                  <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#b8962e' }}>{label}</span>
                 </div>
               ))}
             </div>
           )}
 
-          <div className="text-center mt-8">
-            <Link href="/galeria" className="btn-outline">
-              Ver galería completa
+          <div className="text-center mt-10">
+            <Link href="/galeria" className="btn-outline inline-flex">
+              Ver galería completa <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* ── Por qué elegirnos ────────────────────────────── */}
-      <section className="py-16 md:py-24 px-4 bg-white">
+      <section className="py-16 md:py-24 px-4" style={{ background: '#0F0F0F' }}>
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="section-title">¿Por qué elegirnos?</h2>
+            <SectionLabel dark>Nuestra diferencia</SectionLabel>
+            <h2 className="section-title-dark mt-2">
+              ¿Por qué <span style={{ color: '#FF4FA2' }}>elegirnos?</span>
+            </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
-            {REASONS.map((item) => (
-              <div
-                key={item.title}
-                className="text-center p-8 rounded-2xl bg-gray-50 hover:bg-primary-50 transition-colors duration-200"
-              >
-                <span className="text-5xl mb-4 block">{item.icon}</span>
-                <h3 className="text-lg font-display font-bold mb-2">{item.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{item.desc}</p>
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {REASONS.map(({ icon: Icon, title, desc }) => (
+              <div key={title}
+                className="group rounded-2xl p-7 text-center transition-all duration-300 hover:-translate-y-2 cursor-default"
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                }}>
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5 transition-all duration-300 group-hover:scale-110"
+                  style={{ background: 'linear-gradient(135deg, rgba(255,79,162,0.15), rgba(212,175,55,0.1))', border: '1px solid rgba(255,79,162,0.2)' }}>
+                  <Icon className="w-6 h-6" style={{ color: '#FF4FA2' }} />
+                </div>
+                <h3 className="font-poppins font-bold text-base mb-3 text-white">{title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>{desc}</p>
               </div>
             ))}
           </div>
@@ -221,30 +282,47 @@ export default async function HomePage() {
       </section>
 
       {/* ── Testimonios ──────────────────────────────────── */}
-      <section className="py-16 md:py-20 px-4 bg-primary-50">
+      <section className="py-16 md:py-24 px-4" style={{ background: '#F5E6DA' }}>
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-10">
-            <h2 className="section-title">Lo que dicen nuestras clientas</h2>
+          <div className="text-center mb-12">
+            <SectionLabel>Reseñas</SectionLabel>
+            <h2 className="section-title-light mt-2">
+              Lo que dicen nuestras <span style={{ color: '#b8962e' }}>clientas</span>
+            </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            {[
-              { name: 'María G.', review: 'Quedé encantada con mi maquillaje de novia. ¡Profesionales de verdad!', stars: 5 },
-              { name: 'Lucía R.', review: 'El diseño de cejas me cambió la cara. Muy precisas y atentas.', stars: 5 },
-              { name: 'Carla M.', review: 'Reservé por la app y fue súper fácil. Llegué y me atendieron perfecto.', stars: 5 },
-            ].map(({ name, review, stars }) => (
-              <div key={name} className="card p-6">
-                <div className="flex gap-0.5 mb-3">
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-5">
+            {TESTIMONIALS.map(({ name, initials, review, stars }) => (
+              <div key={name}
+                className="rounded-2xl p-6 transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover"
+                style={{
+                  background: 'rgba(255,255,255,0.85)',
+                  border: '1px solid rgba(0,0,0,0.07)',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+                }}>
+                {/* Stars */}
+                <div className="flex gap-0.5 mb-4">
                   {Array.from({ length: stars }).map((_, i) => (
-                    <span key={i} className="text-yellow-400 text-lg">★</span>
+                    <Star key={i} className="w-4 h-4 fill-current" style={{ color: '#D4AF37' }} />
                   ))}
                 </div>
-                <p className="text-gray-700 text-sm leading-relaxed mb-4">&ldquo;{review}&rdquo;</p>
-                <p className="font-semibold text-sm text-gray-900">{name}</p>
+                <p className="text-sm leading-relaxed mb-5 italic" style={{ color: '#6b4d5a' }}>
+                  &ldquo;{review}&rdquo;
+                </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0"
+                    style={{ background: 'linear-gradient(135deg, #FF4FA2, #e6368a)' }}>
+                    {initials}
+                  </div>
+                  <p className="font-semibold text-sm" style={{ color: '#0F0F0F' }}>{name}</p>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* ── Ubicación ─────────────────────────── */}
+      <LocationSection />
     </>
   );
 }

@@ -1,18 +1,21 @@
 const { Router } = require('express');
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../../lib/prisma');
 
-const prisma = new PrismaClient();
 const router = Router();
+const VALID_CATEGORIES = new Set(['maquillaje', 'cabello', 'unas', 'cejas', 'general']);
 
 router.get('/', async (req, res, next) => {
   try {
-    const { category } = req.query;
+    const category = typeof req.query.category === 'string' && VALID_CATEGORIES.has(req.query.category)
+      ? req.query.category
+      : null;
     const photos = await prisma.gallery.findMany({
       where: {
         isPublished: true,
-        ...(category && { category }),
+        ...(category ? { category } : {}),
       },
       orderBy: { sortOrder: 'asc' },
+      take: 200,
     });
     res.json(photos);
   } catch (err) {

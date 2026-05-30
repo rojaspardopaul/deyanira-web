@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api';
+import DateTimePicker from '@/components/ui/datetime';
 import {
   TrendingUp, TrendingDown, DollarSign, Percent,
   Plus, Pencil, Trash2, ChevronDown,
@@ -241,8 +242,12 @@ function ExpenseModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-              <input type="date" required value={form.date} onChange={f('date')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <DateTimePicker
+                mode="date"
+                theme="light"
+                value={form.date || null}
+                onChange={d => setForm(prev => ({ ...prev, date: d }))}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Monto (S/)</label>
@@ -357,8 +362,12 @@ function OtherIncomeModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha</label>
-              <input type="date" required value={form.date} onChange={f('date')}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <DateTimePicker
+                mode="date"
+                theme="light"
+                value={form.date || null}
+                onChange={d => setForm(prev => ({ ...prev, date: d }))}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Monto (S/)</label>
