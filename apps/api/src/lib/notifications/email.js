@@ -103,12 +103,20 @@ function fmtPrice(n) { return `S/ ${Number(n).toFixed(2)}`; }
 function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
 // ── Footer con redes sociales ──────────────────────────────────
-// Íconos PNG hospedados (Gmail/Outlook eliminan SVG inline) en /public/email/.
+// Los íconos deben cargar en CUALQUIER cliente de correo y entorno (los clientes
+// no pueden acceder a localhost ni a /public sin deploy). Por eso se referencian
+// desde un CDN público estable (íconos blancos circulares, ideales sobre el footer
+// oscuro). El enlace usa la URL real configurada en Admin → Configuración → redes.
+const SOCIAL_ICON_CDN = {
+  instagram: 'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/instagram-circle-white.png',
+  facebook:  'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/facebook-circle-white.png',
+  tiktok:    'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/tiktok-circle-white.png',
+};
 function socialIcon(slug, url) {
   const u = safeUrl(url);
-  if (!u) return '';
+  if (!u || !SOCIAL_ICON_CDN[slug]) return '';
   return `<a href="${u}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;margin:0 5px;">`
-    + `<img src="${WEB_URL}/email/${slug}.png" width="34" height="34" alt="${esc(slug)}" style="display:inline-block;width:34px;height:34px;border:0;outline:none;text-decoration:none;"></a>`;
+    + `<img src="${SOCIAL_ICON_CDN[slug]}" width="34" height="34" alt="${esc(slug)}" style="display:inline-block;width:34px;height:34px;border:0;outline:none;text-decoration:none;"></a>`;
 }
 
 function socialFooter(settings) {
