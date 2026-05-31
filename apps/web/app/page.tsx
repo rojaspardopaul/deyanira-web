@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import HeroCarousel from '@/components/home/HeroCarousel';
 import LocationSection from '@/components/home/LocationSection';
 import PopularServices, { type PopularService } from '@/components/home/PopularServices';
+import FeaturedPackages, { type FeaturedPackage } from '@/components/home/FeaturedPackages';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { beautySalonLd, faqLd } from '@/lib/jsonld';
 import { buildMetadata } from '@/lib/seo';
@@ -65,11 +66,18 @@ function SectionLabel({ children, dark }: { children: React.ReactNode; dark?: bo
 }
 
 export default async function HomePage() {
-  const [galleryPhotos, popularServices] = await Promise.all([
+  const [galleryPhotos, popularServices, eventTypes] = await Promise.all([
     api.gallery.list().catch(() => []) as Promise<Record<string, unknown>[]>,
     api.services.popular(6).catch(() => []) as Promise<PopularService[]>,
+    api.eventTypes.list().catch(() => []) as Promise<FeaturedPackage[]>,
   ]);
   const preview = galleryPhotos.slice(0, 6);
+
+  // Paquetes estrella (Novia / Quinceañera) — cards exclusivos arriba de "favoritas"
+  const FEATURED_ORDER = ['novia', 'quinceanera'];
+  const featuredPackages = FEATURED_ORDER
+    .map((slug) => eventTypes.find((e) => e.slug === slug))
+    .filter((e): e is FeaturedPackage => Boolean(e));
 
   return (
     <>
@@ -121,6 +129,9 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Paquetes exclusivos (Novia / Quinceañera) ────── */}
+      <FeaturedPackages packages={featuredPackages} />
 
       {/* ── Los más reservados ───────────────────────────── */}
       <PopularServices services={popularServices} />
