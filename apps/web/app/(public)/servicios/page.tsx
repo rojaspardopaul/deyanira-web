@@ -1,12 +1,13 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Clock, ChevronRight, Sparkles, Crown, ArrowRight } from 'lucide-react';
+import { Sparkles, Crown, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { buildMetadata } from '@/lib/seo';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { breadcrumbsLd } from '@/lib/jsonld';
 import { clImage } from '@/lib/cloudinary-client';
 import CategoryFilterBar from '@/components/servicios/CategoryFilterBar';
+import ServiceCard, { type ServiceCardData } from '@/components/servicios/ServiceCard';
 
 type EventTypeSummary = {
   id: string;
@@ -38,31 +39,21 @@ export const metadata: Metadata = buildMetadata({
   ],
 });
 
-const CATEGORY_ICONS: Record<string, string> = {
-  maquillaje: '💄',
-  cabello: '💇',
-  unas: '💅',
-  cejas: '✨',
-};
-
-const CATEGORY_COLORS: Record<string, { bg: string; border: string; accent: string }> = {
-  maquillaje: { bg: 'rgba(255,79,162,0.1)',  border: 'rgba(255,79,162,0.3)',  accent: '#FF4FA2' },
-  cabello:    { bg: 'rgba(232,192,64,0.1)',  border: 'rgba(232,192,64,0.3)',  accent: '#E8C040' },
-  unas:       { bg: 'rgba(255,79,162,0.08)', border: 'rgba(255,79,162,0.25)', accent: '#FF4FA2' },
-  cejas:      { bg: 'rgba(232,192,64,0.08)', border: 'rgba(232,192,64,0.25)', accent: '#E8C040' },
-};
-
 export default async function ServiciosPage({
   searchParams,
 }: {
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category } = await searchParams;
-  const [services, categories, eventTypes] = await Promise.all([
+  const [services, categories, eventTypes, popular] = await Promise.all([
     api.services.list(category ? `category=${category}` : undefined).catch(() => []) as Promise<Record<string, unknown>[]>,
     api.services.categories().catch(() => []) as Promise<Record<string, unknown>[]>,
     api.eventTypes.list().catch(() => []) as Promise<EventTypeSummary[]>,
+    api.services.popular(8).catch(() => []) as Promise<Record<string, unknown>[]>,
   ]);
+
+  // Ids de los servicios más reservados → badge "POPULAR"
+  const popularIds = new Set(popular.map((p) => p.id as string));
 
   return (
     <div className="min-h-screen pt-16" style={{ background: '#FAFAFA' }}>
@@ -218,91 +209,14 @@ export default async function ServiciosPage({
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {services.map((service) => {
-              const catSlug = (service.categorySlug as string) || '';
-              const colors = CATEGORY_COLORS[catSlug] || { bg: 'rgba(232,192,64,0.08)', border: 'rgba(232,192,64,0.2)', accent: '#E8C040' };
-              const icon = CATEGORY_ICONS[catSlug] || '✨';
-              const isPink = colors.accent === '#FF4FA2';
-              const hasCompare = service.comparePricePen != null && Number(service.comparePricePen) > Number(service.pricePen);
-
-              return (
-                <Link
-                  key={service.id as string}
-                  href={`/reservar?service=${service.id}`}
-                  className="group relative rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-1.5 flex flex-col active:scale-[0.98]"
-                  style={{
-                    background: '#fff',
-                    border: '1px solid rgba(0,0,0,0.07)',
-                    boxShadow: '0 2px 14px rgba(0,0,0,0.06)',
-                  }}
-                >
-                  {/* Top gradient bar */}
-                  <div className="h-1" style={{ background: isPink ? 'linear-gradient(90deg, #FF4FA2, #E8C040)' : 'linear-gradient(90deg, #E8C040, #FF4FA2)' }} />
-
-                  {/* Descuento badge */}
-                  {hasCompare && (
-                    <span className="absolute top-3 right-3 text-[10px] font-bold px-1.5 py-0.5 rounded-full z-10" style={{ background: '#fee2e2', color: '#dc2626' }}>
-                      -{Math.round(((Number(service.comparePricePen) - Number(service.pricePen)) / Number(service.comparePricePen)) * 100)}%
-                    </span>
-                  )}
-
-                  <div className="p-3.5 sm:p-4 flex flex-col flex-1">
-                    {/* Icon */}
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-2.5"
-                      style={{ background: colors.bg, border: `1px solid ${colors.border}` }}>
-                      {icon}
-                    </div>
-
-                    {/* Name */}
-                    <h3 className="font-poppins font-bold text-sm sm:text-base leading-snug line-clamp-2 mb-1" style={{ color: '#0F0F0F' }}>
-                      {service.name as string}
-                    </h3>
-
-                    {/* Description — solo en pantallas grandes */}
-                    {service.description != null && (
-                      <p className="hidden sm:block text-xs line-clamp-2 mb-2" style={{ color: '#8a6a78' }}>
-                        {String(service.description)}
-                      </p>
-                    )}
-
-                    {/* Duration */}
-                    <div className="flex items-center gap-1.5 mb-3">
-                      <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: colors.accent }} />
-                      <span className="text-[11px] sm:text-xs font-medium" style={{ color: '#8a6a78' }}>
-                        {service.duration as number} min
-                      </span>
-                    </div>
-
-                    {/* Price + CTA */}
-                    <div className="mt-auto pt-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-                      <div className="flex items-baseline gap-1.5 flex-wrap mb-2.5">
-                        {hasCompare && (
-                          <span className="text-xs line-through" style={{ color: '#b09aa5' }}>
-                            S/{Number(service.comparePricePen).toFixed(0)}
-                          </span>
-                        )}
-                        <span className="text-lg sm:text-xl font-bold" style={{ color: colors.accent }}>
-                          S/ {Number(service.pricePen).toFixed(0)}
-                        </span>
-                      </div>
-                      <span
-                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-full text-xs font-bold transition-all duration-200"
-                        style={{
-                          background: isPink
-                            ? 'linear-gradient(135deg, #FF4FA2, #e6368a)'
-                            : 'linear-gradient(135deg, #E8C040, #C9A030)',
-                          color: '#fff',
-                        }}
-                      >
-                        Reservar
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+            {services.map((service) => (
+              <ServiceCard
+                key={service.id as string}
+                service={service as unknown as ServiceCardData}
+                popular={popularIds.has(service.id as string)}
+              />
+            ))}
           </div>
         )}
       </div>
