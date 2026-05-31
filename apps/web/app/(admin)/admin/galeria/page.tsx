@@ -6,7 +6,7 @@ import { adminApi } from '@/lib/api';
 import Link from 'next/link';
 import {
   ChevronLeft, Trash2, Eye, EyeOff, UploadCloud, Loader2, Film,
-  Check, AlertCircle,
+  Check, AlertCircle, Tag,
 } from 'lucide-react';
 import { confirmAction } from '@/lib/confirm';
 import { HL, Danger } from '@/components/ui/highlight';
@@ -66,6 +66,7 @@ export default function AdminGaleriaPage() {
   const [category, setCategory] = useState('general');
   const [jobs, setJobs] = useState<UploadJob[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [editCat, setEditCat] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async (token: string) => {
@@ -144,6 +145,20 @@ export default function AdminGaleriaPage() {
       await adminApi(token).gallery.update(item.id, { isPublished: !item.isPublished });
     } catch {
       setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, isPublished: item.isPublished } : i));
+    }
+  }
+
+  async function updateCategory(item: GalleryItem, slug: string) {
+    setEditCat(null);
+    if ((item.category || 'general') === slug) return;
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    const prevCat = item.category;
+    setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, category: slug } : i));
+    try {
+      await adminApi(token).gallery.update(item.id, { category: slug });
+    } catch {
+      setItems((prev) => prev.map((i) => i.id === item.id ? { ...i, category: prevCat } : i));
     }
   }
 
@@ -277,6 +292,10 @@ export default function AdminGaleriaPage() {
 
                   {/* Acciones */}
                   <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                    <button onClick={() => setEditCat(editCat === item.id ? null : item.id)} title="Cambiar categoría"
+                      className="w-9 h-9 bg-white/90 rounded-full flex items-center justify-center hover:bg-white transition-colors">
+                      <Tag className="w-4 h-4 text-gray-700" />
+                    </button>
                     <button onClick={() => togglePublished(item)} title={item.isPublished ? 'Ocultar' : 'Publicar'}
                       className="w-9 h-9 bg-white/90 rounded-full flex items-center justify-center hover:bg-white transition-colors">
                       {item.isPublished ? <EyeOff className="w-4 h-4 text-gray-700" /> : <Eye className="w-4 h-4 text-gray-700" />}
@@ -286,6 +305,26 @@ export default function AdminGaleriaPage() {
                       <Trash2 className="w-4 h-4 text-white" />
                     </button>
                   </div>
+
+                  {/* Selector de categoría */}
+                  {editCat === item.id && (
+                    <div className="absolute inset-0 z-20 bg-black/75 backdrop-blur-sm p-2.5 flex flex-col justify-center gap-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-white/60 text-center mb-0.5">Categoría</p>
+                      {CATEGORIES.map((c) => {
+                        const ct = getCategoryTheme(c.slug);
+                        const active = (item.category || 'general') === c.slug;
+                        return (
+                          <button key={c.slug} onClick={() => updateCategory(item, c.slug)}
+                            className="w-full px-2 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                            style={active
+                              ? { background: ct.accent, color: '#fff' }
+                              : { background: ct.soft, color: ct.chipText }}>
+                            {ct.emoji} {c.label} {active && <Check className="w-3 h-3" strokeWidth={3} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               );
             })}
