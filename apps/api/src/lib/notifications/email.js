@@ -97,10 +97,19 @@ function fmtShort(d, time) {
   const months = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   const weekdays = ['dom','lun','mar','mié','jue','vie','sáb'];
   const dow = new Date(Date.UTC(y, m - 1, day)).getUTCDay();
-  return `${weekdays[dow]} ${day} ${months[m - 1]}${time ? ` · ${time}` : ''}`;
+  return `${weekdays[dow]} ${day} ${months[m - 1]}${time ? ` · ${fmt12(time)}` : ''}`;
 }
 function fmtPrice(n) { return `S/ ${Number(n).toFixed(2)}`; }
 function capFirst(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
+// "HH:MM" (24h) → "1:30 p.m." — todos los correos muestran 12h.
+function fmt12(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return hhmm || '';
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h < 12 ? 'a.m.' : 'p.m.';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
 
 // ── Footer con redes sociales ──────────────────────────────────
 // Los íconos deben cargar en CUALQUIER cliente de correo y entorno (los clientes
@@ -352,7 +361,7 @@ function aptSummary(apt) {
     ['Servicio',  apt.service?.name || '—'],
     ['Estilista', staffCell],
     ['Fecha',     capFirst(date)],
-    ['Hora',      `${apt.startTime} – ${apt.endTime}`],
+    ['Hora',      `${fmt12(apt.startTime)} – ${fmt12(apt.endTime)}`],
     ['Total',     { html: `<strong style="color:${T.color.gold};font-size:15px;">${esc(fmtPrice(apt.totalPen))}</strong>` }],
   ];
   if (apt.atHome && apt.atHomeAddress) {
@@ -404,7 +413,7 @@ function bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen }) {
     return `<tr>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};border-bottom:1px solid ${T.color.rowLine};">
         <strong>${esc(apt.service?.name || '—')}</strong>
-        <div style="font-size:11px;color:${T.color.textFaint};margin-top:2px;">${esc(apt.startTime)} – ${esc(apt.endTime)} · ${esc(staffName)}</div>
+        <div style="font-size:11px;color:${T.color.textFaint};margin-top:2px;">${esc(fmt12(apt.startTime))} – ${esc(fmt12(apt.endTime))} · ${esc(staffName)}</div>
       </td>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};text-align:right;border-bottom:1px solid ${T.color.rowLine};white-space:nowrap;">
         ${apt.totalPen != null ? esc(fmtPrice(apt.totalPen)) : ''}
@@ -725,7 +734,7 @@ async function sendNewBookingToSalon({ appointment }) {
     ['Servicio',  apt.service?.name || '—'],
     ['Estilista', staffLabel],
     ['Fecha',     capFirst(fmtDate(apt.date))],
-    ['Hora',      `${apt.startTime} – ${apt.endTime}`],
+    ['Hora',      `${fmt12(apt.startTime)} – ${fmt12(apt.endTime)}`],
     ['Total',     { html: `<strong style="color:${T.color.gold};">${esc(fmtPrice(apt.totalPen))}</strong>` }],
   ];
   if (apt.atHome && apt.atHomeAddress) {

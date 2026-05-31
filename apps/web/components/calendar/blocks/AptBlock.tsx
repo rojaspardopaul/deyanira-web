@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { STATUS } from '../status';
-import { timeToMin } from '../utils/time';
+import { timeToMin, fmtTime12 } from '../utils/time';
 import { clientName } from '../utils/date';
 import { HOUR_START, HOUR_HEIGHT } from '../constants';
 import type { Appointment, LayoutInfo } from '../types';
@@ -57,7 +57,7 @@ export function AptBlock({
     >
       <div className="px-1 py-0.5 h-full flex flex-col justify-start">
         <p className={`text-[10px] font-bold ${cfg.text} truncate leading-tight`}>
-          {apt.startTime} {clientName(apt)}
+          {fmtTime12(apt.startTime)} {clientName(apt)}
         </p>
         {!compact && (
           <p className="text-[9px] text-gray-500 truncate leading-tight">{apt.service.name}</p>
@@ -70,13 +70,15 @@ export function AptBlock({
         )}
       </div>
 
-      {/* Resize handle — bottom 8px strip */}
-      {resizable && !compact && onResizeStart && (
+      {/* Resize handle — siempre disponible (también en citas cortas como 30 min),
+          para poder estirar la duración desde la parte inferior. */}
+      {resizable && onResizeStart && (
         <div
-          className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+          className="absolute bottom-0 left-0 right-0 h-2.5 cursor-ns-resize flex items-end justify-center pb-0.5 opacity-50 hover:opacity-100 transition-opacity"
           onPointerDown={(e) => { e.stopPropagation(); onResizeStart(apt, e); }}
+          title="Arrastra para ajustar la duración"
         >
-          <div className="w-6 h-0.5 rounded-full bg-current opacity-40" />
+          <div className="w-7 h-0.5 rounded-full bg-current opacity-50" />
         </div>
       )}
     </div>

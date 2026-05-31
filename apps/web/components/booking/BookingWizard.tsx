@@ -25,6 +25,7 @@ const CatalogPreviewModal = dynamic(
 );
 const AddServiceModal = dynamic(() => import('@/components/booking/AddServiceModal'), { ssr: false });
 import Turnstile from '@/components/ui/Turnstile';
+import { fmtRange12 } from '@/lib/time';
 import BookingSummary from '@/components/booking/BookingSummary';
 import { toBlob as htmlToBlob } from 'html-to-image';
 import {
@@ -2569,7 +2570,7 @@ function ConfirmStep({
             </div>
             <div style={{ color: 'rgba(255,255,255,0.4)' }}>
               <Clock className="w-3.5 h-3.5 inline mr-1.5" style={{ color: '#D4AF37' }} />
-              {slot?.start} – {endTime}
+              {fmtRange12(slot?.start, endTime)}
             </div>
           </div>
 

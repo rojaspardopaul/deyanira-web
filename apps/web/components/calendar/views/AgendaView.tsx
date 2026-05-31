@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { Calendar, Clock } from 'lucide-react';
 import { aptDateStr, clientName, toYMD, addDays } from '../utils/date';
+import { fmtTime12 } from '../utils/time';
 import { STATUS } from '../status';
 import { MONTH_NAMES } from '../constants';
 import type { Appointment, AptStatus } from '../types';
@@ -141,7 +142,7 @@ export function AgendaView({
                           <div className="flex items-center gap-1 mt-1">
                             <Clock className="w-3 h-3 text-gray-400" />
                             <span className="text-[10px] text-gray-500 font-medium">
-                              {apt.startTime} – {apt.endTime}
+                              {fmtTime12(apt.startTime)} – {fmtTime12(apt.endTime)}
                             </span>
                             {apt.totalPen && (
                               <span className="text-[10px] text-gray-400 ml-auto">

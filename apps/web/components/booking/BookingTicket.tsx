@@ -1,6 +1,7 @@
 'use client';
 
 import { forwardRef } from 'react';
+import { fmtRange12 } from '@/lib/time';
 
 // Ticket de reserva premium con paleta de marca.
 // Fondo: negro #0F0F0F → #181818 con glows decorativos rosa y dorado.
@@ -295,7 +296,7 @@ const BookingTicket = forwardRef<HTMLDivElement, BookingTicketProps>(function Bo
                   🕐 Hora
                 </p>
                 <p style={{ fontSize: 14, fontWeight: 700, margin: '4px 0 0 0', color: '#fff' }}>
-                  {g.startTime}{g.endTime ? ` – ${g.endTime}` : ''}
+                  {fmtRange12(g.startTime, g.endTime)}
                 </p>
               </div>
             </div>

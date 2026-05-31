@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
 import { useLoading } from '@/lib/loading';
+import { fmtTime12 } from '@/lib/time';
 import { Calendar, ChevronLeft, Clock, MessageCircle } from 'lucide-react';
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -141,7 +142,7 @@ function AppointmentCard({ apt }: { apt: Record<string, unknown> }) {
         </span>
         <span className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-gray-400" />
-          {apt.startTime as string}
+          {fmtTime12(apt.startTime as string)}
         </span>
       </div>
 

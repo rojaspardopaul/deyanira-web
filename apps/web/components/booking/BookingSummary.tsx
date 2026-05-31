@@ -1,5 +1,7 @@
 'use client';
 
+import { fmtRange12 } from '@/lib/time';
+
 // Resumen simple de la reserva para mostrar en pantalla tras confirmar.
 // Sin logo, sin decoraciones — solo los datos clave.
 // El diseño "premium con logo" vive en <BookingTicket /> y se usa solo
@@ -90,7 +92,7 @@ export default function BookingSummary({
                 Hora
               </p>
               <p className="text-sm font-bold text-white mt-0.5">
-                {g.startTime}{g.endTime ? ` – ${g.endTime}` : ''}
+                {fmtRange12(g.startTime, g.endTime)}
               </p>
             </div>
           </div>

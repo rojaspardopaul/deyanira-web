@@ -2,6 +2,7 @@
 
 import { STATUS } from '../status';
 import { toYMD, addDays, aptDateStr, isPastDate, clientName } from '../utils/date';
+import { fmtTime12 } from '../utils/time';
 import { MONTH_NAMES, DAY_NAMES_SHORT } from '../constants';
 import type { Appointment, AptStatus } from '../types';
 
@@ -73,7 +74,7 @@ export function MonthView({
                       className={`text-[10px] ${cfg.bgLight} ${cfg.text} px-1 py-px rounded font-semibold truncate hover:opacity-80 flex items-center gap-1`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                      <span className="truncate">{apt.startTime} {clientName(apt)}</span>
+                      <span className="truncate">{fmtTime12(apt.startTime)} {clientName(apt)}</span>
                     </div>
                   );
                 })}

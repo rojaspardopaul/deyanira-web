@@ -3,13 +3,13 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X, Plus, Check, Clock, User, Scissors, Home, Phone, Mail,
-  AlertCircle, Search, UserCheck,
+  AlertCircle, Search, UserCheck, Pencil,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import DateTimePicker from '@/components/ui/datetime';
 import { STATUS } from '../status';
 import { toYMD, clientName } from '../utils/date';
-import { timeToMin, minToHHMM } from '../utils/time';
+import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
 import type { Appointment, AptStatus, StaffMember, Slot } from '../types';
 
 type AptModalProps = {
@@ -70,6 +70,11 @@ export function AptModal({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  // Ajuste de duración (hora de fin) sobre una cita existente
+  const [editingTime, setEditingTime] = useState(false);
+  const [endEdit, setEndEdit] = useState('');
+  const [savingTime, setSavingTime] = useState(false);
+  const [timeError, setTimeError] = useState('');
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -152,6 +157,29 @@ export function AptModal({
       toast(pendingAction.confirmLabel + ' con éxito');
       setPendingAction(null);
     } finally { setActionLoading(false); }
+  }
+
+  function openTimeEditor() {
+    if (!apt) return;
+    setEndEdit(apt.endTime);
+    setTimeError('');
+    setEditingTime(true);
+  }
+
+  async function handleSaveTime() {
+    if (!apt) return;
+    if (!endEdit || timeToMin(endEdit) <= timeToMin(apt.startTime)) {
+      setTimeError('La hora de fin debe ser posterior a la de inicio'); return;
+    }
+    setSavingTime(true); setTimeError('');
+    try {
+      const updated = await adminApi().appointments.update(apt.id, { endTime: endEdit }) as Appointment;
+      onUpdated(updated);
+      toast('Duración actualizada');
+      setEditingTime(false);
+    } catch (e) {
+      setTimeError(e instanceof Error ? e.message : 'Error al actualizar la duración');
+    } finally { setSavingTime(false); }
   }
 
   async function handleAssign() {
@@ -380,15 +408,57 @@ export function AptModal({
           <div className={`${cfg.bgLight} border-l-4 ${cfg.border} rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-2">
               <Clock className={`w-4 h-4 ${cfg.text}`} />
-              <span className="font-bold text-gray-900 text-lg">{apt.startTime} &ndash; {apt.endTime}</span>
+              <span className="font-bold text-gray-900 text-lg">{fmtTime12(apt.startTime)} &ndash; {fmtTime12(apt.endTime)}</span>
+              {canAct && !editingTime && (
+                <button
+                  onClick={openTimeEditor}
+                  title="Ajustar duración"
+                  className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gold-600 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Ajustar
+                </button>
+              )}
             </div>
+
+            {editingTime ? (
+              <div className="bg-white rounded-xl p-3 border border-gray-200 mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Hora de término</p>
+                <DateTimePicker
+                  mode="time"
+                  theme="light"
+                  value={endEdit}
+                  minTime={minToHHMM(timeToMin(apt.startTime) + 5)}
+                  onChange={(v) => setEndEdit((v as string) || '')}
+                />
+                {timeError && <p className="text-xs text-red-500 mt-2">{timeError}</p>}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setEditingTime(false)}
+                    disabled={savingTime}
+                    className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveTime}
+                    disabled={savingTime}
+                    className="flex-1 py-2 bg-gold-400 hover:bg-gold-500 text-gray-900 rounded-xl text-xs font-bold disabled:opacity-50"
+                  >
+                    {savingTime ? 'Guardando...' : 'Guardar duración'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
             <div className="flex items-center justify-between">
               <p className="text-sm text-gray-700 flex items-center gap-1.5">
                 <Scissors className="w-3.5 h-3.5 text-gray-400" />{apt.service.name}
               </p>
               <p className="text-base font-bold text-gray-900">S/ {Number(apt.totalPen).toFixed(2)}</p>
             </div>
-            <p className="text-xs text-gray-500 mt-1 pl-5">{apt.service.duration} min</p>
+            <p className="text-xs text-gray-500 mt-1 pl-5">
+              {Math.max(0, timeToMin(apt.endTime) - timeToMin(apt.startTime))} min
+            </p>
           </div>
 
           {/* Client */}
@@ -484,7 +554,7 @@ export function AptModal({
                   onClick={() => setPendingAction({
                     type: 'confirmed', confirmLabel: 'Confirmar',
                     title: '¿Confirmar esta cita?',
-                    description: `${clientName(apt)} · ${apt.startTime}`,
+                    description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
                   })}
                   className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >
@@ -497,7 +567,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'in_progress', confirmLabel: 'Iniciar',
                       title: '¿Marcar la cita en curso?',
-                      description: `${clientName(apt)} · ${apt.startTime}`,
+                      description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
                     })}
                     className="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
@@ -507,7 +577,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'completed', confirmLabel: 'Marcar atendida',
                       title: '¿Marcar como atendida?',
-                      description: `${clientName(apt)} · ${apt.startTime}`,
+                      description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
                     })}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
@@ -530,7 +600,7 @@ export function AptModal({
                   onClick={() => setPendingAction({
                     type: 'completed', confirmLabel: 'Marcar atendida',
                     title: '¿Marcar como atendida?',
-                    description: `${clientName(apt)} · ${apt.startTime}`,
+                    description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
                   })}
                   className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >

@@ -18,6 +18,7 @@ import { useUndoToast } from './hooks/useUndoToast';
 import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
 import { toYMD, addDays, getWeekStart, aptDateStr } from './utils/date';
+import { fmtTime12 } from './utils/time';
 import type { Appointment, AptStatus, CalView, StaffMember } from './types';
 
 export type CalendarRootProps = {
@@ -65,7 +66,7 @@ export function CalendarRoot({
   // Arrastre DESACTIVADO por defecto: evita mover citas por error. Se activa con un
   // toggle en la toolbar y, además, cada movimiento pide confirmación (doble seguridad).
   const [dragEnabled, setDragEnabled]         = useState(false);
-  const [pendingMove, setPendingMove]         = useState<{ apt: Appointment; newDate: string; newStart: string; newEnd: string; newStaffId?: string } | null>(null);
+  const [pendingMove, setPendingMove]         = useState<{ apt: Appointment; newDate: string; newStart: string; newEnd: string; newStaffId?: string; kind?: 'move' | 'resize' } | null>(null);
 
   const { appointments, loading, load, optimisticUpdate, upsert, subscribeToChanges } = useAppointments();
   const { undoEntry, pushUndo, dismissUndo, triggerUndo } = useUndoToast();
@@ -113,7 +114,9 @@ export function CalendarRoot({
     const rollback = optimisticUpdate(apt.id, { date: newDate, startTime: newStart, endTime: newEnd });
     const originalDate = aptDateStr(apt);
     pushUndo({
-      message: `Cita movida a ${newDate} ${newStart}`,
+      message: pendingMove.kind === 'resize'
+        ? `Duración ajustada a ${fmtTime12(newEnd)}`
+        : `Cita movida a ${newDate} ${fmtTime12(newStart)}`,
       rollback: async () => {
         rollback();
         await adminApi().appointments.update(apt.id, {
@@ -130,21 +133,14 @@ export function CalendarRoot({
     }
   }, [pendingMove, optimisticUpdate, pushUndo]);
 
-  // ── Resize (Phase 3) ──────────────────────────────────────────────────────
-  const resizeOnCommit = useCallback((apt: Appointment, newEndTime: string) => {
-    const rollback = optimisticUpdate(apt.id, { endTime: newEndTime });
-    pushUndo({
-      message: `Duración ajustada a ${newEndTime}`,
-      rollback: async () => {
-        rollback();
-        await adminApi().appointments.update(apt.id, { endTime: apt.endTime }).catch(() => {});
-      },
-    });
-  }, [optimisticUpdate, pushUndo]);
+  // ── Resize (Phase 3) — también pide confirmación antes de aplicar ─────────
+  const resizeOnRequestCommit = useCallback((apt: Appointment, newEnd: string) => {
+    setPendingMove({ apt, newDate: aptDateStr(apt), newStart: apt.startTime, newEnd, kind: 'resize' });
+  }, []);
 
   const resizeOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
 
-  const { handleResizeStart } = useResize({ onCommit: resizeOnCommit, onRollback: resizeOnRollback });
+  const { handleResizeStart } = useResize({ onRequestCommit: resizeOnRequestCommit, onRollback: resizeOnRollback });
 
   // ── Date range ────────────────────────────────────────────────────────────
   const { dateFrom, dateTo } = useMemo(() => {
@@ -548,16 +544,24 @@ export function CalendarRoot({
         />
       )}
 
-      {/* Confirmación de movimiento de cita (arrastre) */}
+      {/* Confirmación de movimiento / ajuste de duración (arrastre o resize) */}
       {pendingMove && (
         <ConfirmModal
-          dialog={{
-            title: '¿Mover esta cita?',
-            message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} se moverá del ${aptDateStr(pendingMove.apt)} ${pendingMove.apt.startTime} al ${pendingMove.newDate} ${pendingMove.newStart}. Se le avisará por correo.`,
-            confirmLabel: 'Sí, mover',
-            confirmClass: 'bg-gold-600 hover:bg-gold-500',
-            onConfirm: () => { void commitMove(); },
-          }}
+          dialog={pendingMove.kind === 'resize'
+            ? {
+                title: '¿Ajustar la duración?',
+                message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} terminará a las ${fmtTime12(pendingMove.newEnd)} (antes ${fmtTime12(pendingMove.apt.endTime)}). Se le avisará por correo.`,
+                confirmLabel: 'Sí, ajustar',
+                confirmClass: 'bg-gold-600 hover:bg-gold-500',
+                onConfirm: () => { void commitMove(); },
+              }
+            : {
+                title: '¿Mover esta cita?',
+                message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} se moverá del ${aptDateStr(pendingMove.apt)} ${fmtTime12(pendingMove.apt.startTime)} al ${pendingMove.newDate} ${fmtTime12(pendingMove.newStart)}. Se le avisará por correo.`,
+                confirmLabel: 'Sí, mover',
+                confirmClass: 'bg-gold-600 hover:bg-gold-500',
+                onConfirm: () => { void commitMove(); },
+              }}
           onClose={() => setPendingMove(null)}
         />
       )}

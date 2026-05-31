@@ -3,6 +3,7 @@
 import { Plus, Clock, User, Scissors, Calendar } from 'lucide-react';
 import { STATUS } from '../status';
 import { isPastDate, isPastDateTime, clientName } from '../utils/date';
+import { fmtTime12 } from '../utils/time';
 import { MONTH_NAMES, DAY_NAMES_FULL } from '../constants';
 import type { Appointment } from '../types';
 
@@ -84,7 +85,7 @@ export function DayPanel({
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
                     <Clock className="w-3 h-3 text-gray-400" />
-                    {apt.startTime}&ndash;{apt.endTime}
+                    {fmtTime12(apt.startTime)}&ndash;{fmtTime12(apt.endTime)}
                   </span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bgLight} ${cfg.text} flex items-center gap-1`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />

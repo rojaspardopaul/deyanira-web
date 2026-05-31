@@ -35,7 +35,7 @@ export { useResize } from './hooks/useResize';
 
 // Utils (pure functions)
 export { toYMD, addDays, getWeekStart, aptDateStr, isPastDate, isPastDateTime, clientName } from './utils/date';
-export { timeToMin, minToHHMM, snapToGrid, clamp, hourToAMPM } from './utils/time';
+export { timeToMin, minToHHMM, snapToGrid, clamp, hourToAMPM, fmtTime12, fmtRange12 } from './utils/time';
 export { computeOverlapLayout } from './utils/layout';
 
 // Constants
