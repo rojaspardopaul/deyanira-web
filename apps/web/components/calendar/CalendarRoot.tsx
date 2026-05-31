@@ -67,6 +67,8 @@ export function CalendarRoot({
   // toggle en la toolbar y, además, cada movimiento pide confirmación (doble seguridad).
   const [dragEnabled, setDragEnabled]         = useState(false);
   const [pendingMove, setPendingMove]         = useState<{ apt: Appointment; newDate: string; newStart: string; newEnd: string; newStaffId?: string; kind?: 'move' | 'resize' } | null>(null);
+  // Grupos de reserva con comprobante por verificar → indicador 💳 en el bloque
+  const [pendingPaymentGroups, setPendingPaymentGroups] = useState<Set<string>>(new Set());
 
   const { appointments, loading, load, optimisticUpdate, upsert, subscribeToChanges } = useAppointments();
   const { undoEntry, pushUndo, dismissUndo, triggerUndo } = useUndoToast();
@@ -169,6 +171,17 @@ export function CalendarRoot({
     const params = new URLSearchParams({ dateFrom, dateTo });
     load(params);
   }, [load, dateFrom, dateTo]);
+
+  // Comprobantes por verificar → set de bookingGroupId para el indicador del bloque.
+  const refreshPendingPayments = useCallback(() => {
+    adminApi().bookingPayments.list('awaiting_verification')
+      .then((rows) => {
+        const list = (rows as Array<{ bookingGroupId?: string }>) || [];
+        setPendingPaymentGroups(new Set(list.map(p => p.bookingGroupId).filter(Boolean) as string[]));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { refreshPendingPayments(); }, [refreshPendingPayments, dateFrom, dateTo]);
 
   // Phase 6: Supabase Realtime subscription — follows date range
   useEffect(() => {
@@ -399,6 +412,7 @@ export function CalendarRoot({
               onDayHeaderClick={handleDayHeaderClick}
               dragState={dragState}
               resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -422,6 +436,7 @@ export function CalendarRoot({
               onDayClick={date => { setCurDate(date); setSelectedDate(date); }}
               dragState={dragState}
               resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -441,6 +456,7 @@ export function CalendarRoot({
               onAptClick={handleAptClick}
               dragState={dragState}
               resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -518,6 +534,7 @@ export function CalendarRoot({
           onUpdated={updated => {
             upsert(updated);
             setSelectedApt(updated);
+            refreshPendingPayments(); // un pago verificado puede quitar el indicador 💳
             onAppointmentMutated?.(updated, 'updated');
           }}
           onStatusChanged={async (id, status) => {

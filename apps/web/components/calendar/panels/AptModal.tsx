@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import DateTimePicker from '@/components/ui/datetime';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { STATUS } from '../status';
 import { toYMD, clientName } from '../utils/date';
 import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
@@ -80,6 +81,8 @@ export function AptModal({
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [proofOpen, setProofOpen] = useState(false);
+  // REGLA DE ORO: toda acción de aceptar/rechazar/verificar pide confirmación.
+  const [payConfirm, setPayConfirm] = useState<'approve' | 'reject' | null>(null);
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -562,18 +565,18 @@ export function AptModal({
 
               {paymentError && <p className="text-xs text-red-500 mb-2">{paymentError}</p>}
 
-              {/* Acciones de pago */}
+              {/* Acciones de pago — ambas piden confirmación (regla de oro) */}
               {paymentPending && canCancel && (
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleVerifyPayment(false)}
+                    onClick={() => setPayConfirm('reject')}
                     disabled={verifyingPayment}
                     className="flex-1 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
                   >
                     Rechazar
                   </button>
                   <button
-                    onClick={() => handleVerifyPayment(true)}
+                    onClick={() => setPayConfirm('approve')}
                     disabled={verifyingPayment}
                     className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
                   >
@@ -758,6 +761,28 @@ export function AptModal({
           )}
         </div>
       </div>
+
+      {/* Confirmación de aceptar/rechazar el pago (regla de oro: siempre preguntar) */}
+      {payConfirm && payment && (
+        <ConfirmModal
+          dialog={payConfirm === 'approve'
+            ? {
+                title: '¿Confirmar el pago?',
+                message: `Verificarás el adelanto de ${money(payment.depositPen)} de ${clientName(apt)}. La cita quedará confirmada y se le enviará el correo de confirmación.`,
+                confirmLabel: 'Sí, confirmar pago',
+                confirmClass: 'bg-emerald-600 hover:bg-emerald-500',
+                onConfirm: () => { void handleVerifyPayment(true); },
+              }
+            : {
+                title: '¿Rechazar el comprobante?',
+                message: `Marcarás el comprobante de ${clientName(apt)} como rechazado. La cita NO se confirmará. Esta acción se puede revertir pidiendo un nuevo comprobante.`,
+                confirmLabel: 'Sí, rechazar',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: () => { void handleVerifyPayment(false); },
+              }}
+          onClose={() => setPayConfirm(null)}
+        />
+      )}
 
       {/* Lightbox del comprobante — ampliar para revisar a detalle */}
       {proofOpen && payment?.proofImageUrl && (

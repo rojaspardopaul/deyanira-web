@@ -19,6 +19,7 @@ type ResourceViewProps = {
   onAptClick: (apt: Appointment) => void;
   dragState?: DragState | null;
   resizeState?: ResizeState | null;
+  pendingPaymentGroups?: Set<string>;
   onDragStart?: (apt: Appointment, e: React.PointerEvent, offsetY: number) => void;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
   enableDrag?: boolean;
@@ -28,13 +29,15 @@ type ResourceViewProps = {
 export function ResourceView({
   date, staffList, appointments, hiddenStatuses, today,
   selectedApt, onSlotClick, onAptClick,
-  dragState, resizeState, onDragStart, onResizeStart,
+  dragState, resizeState, pendingPaymentGroups, onDragStart, onResizeStart,
   enableDrag = false, enableResize = false,
 }: ResourceViewProps) {
   const liveEnd = (apt: Appointment): Appointment =>
     (resizeState?.isDragging && resizeState.aptId === apt.id)
       ? { ...apt, endTime: resizeState.snappedEnd }
       : apt;
+  const hasPay = (apt: Appointment): boolean =>
+    !!apt.bookingGroupId && !!pendingPaymentGroups?.has(apt.bookingGroupId);
   const hours       = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   const totalHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
   const isToday     = date === today;
@@ -166,6 +169,7 @@ export function ResourceView({
                     onDragStart={onDragStart}
                     resizable={enableResize}
                     onResizeStart={onResizeStart}
+                    hasPendingPayment={hasPay(apt)}
                   />
                 ))}
 
@@ -214,6 +218,7 @@ export function ResourceView({
                       onClick={onAptClick}
                       draggable={false}
                       resizable={false}
+                      hasPendingPayment={hasPay(apt)}
                     />
                   ))}
                   {showGhost && dragState && (

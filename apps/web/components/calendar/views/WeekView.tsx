@@ -23,6 +23,7 @@ type WeekViewProps = {
   onDayHeaderClick?: (date: string) => void;
   dragState?: DragState | null;
   resizeState?: ResizeState | null;
+  pendingPaymentGroups?: Set<string>;
   onDragStart?: (apt: Appointment, e: React.PointerEvent, offsetY: number) => void;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
   enableDrag?: boolean;
@@ -36,7 +37,7 @@ export function WeekView({
   weekStart, appointments, hiddenStatuses, today,
   selectedApt, selectedDate, selectedTime,
   onSlotClick, onAptClick, onDayHeaderClick,
-  dragState, resizeState, onDragStart, onResizeStart,
+  dragState, resizeState, pendingPaymentGroups, onDragStart, onResizeStart,
   enableDrag = false, enableResize = false,
   closedDaysOfWeek, blockedDates, partialBlocks = [],
 }: WeekViewProps) {
@@ -207,6 +208,7 @@ export function WeekView({
                       onDragStart={onDragStart}
                       resizable={enableResize}
                       onResizeStart={onResizeStart}
+                      hasPendingPayment={!!apt.bookingGroupId && !!pendingPaymentGroups?.has(apt.bookingGroupId)}
                     />
                   );
                 })}

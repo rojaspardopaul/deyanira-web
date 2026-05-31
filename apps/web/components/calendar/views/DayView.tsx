@@ -21,6 +21,7 @@ type DayViewProps = {
   onDayClick?: (date: string) => void;
   dragState?: DragState | null;
   resizeState?: ResizeState | null;
+  pendingPaymentGroups?: Set<string>;
   onDragStart?: (apt: Appointment, e: React.PointerEvent, offsetY: number) => void;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
   enableDrag?: boolean;
@@ -32,7 +33,7 @@ export function DayView({
   date, appointments, hiddenStatuses, today,
   selectedApt, selectedTime,
   weekStart, onSlotClick, onAptClick, onDayClick,
-  dragState, resizeState, onDragStart, onResizeStart,
+  dragState, resizeState, pendingPaymentGroups, onDragStart, onResizeStart,
   enableDrag = false, enableResize = false,
   closedDaysOfWeek,
 }: DayViewProps) {
@@ -169,6 +170,7 @@ export function DayView({
                 onDragStart={onDragStart}
                 resizable={enableResize}
                 onResizeStart={onResizeStart}
+                hasPendingPayment={!!apt.bookingGroupId && !!pendingPaymentGroups?.has(apt.bookingGroupId)}
               />
             );
           })}

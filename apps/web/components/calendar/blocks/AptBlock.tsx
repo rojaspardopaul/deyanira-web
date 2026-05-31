@@ -18,12 +18,15 @@ type AptBlockProps = {
   /** When true, show the resize handle at the bottom */
   resizable?: boolean;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
+  /** Comprobante de pago por verificar → muestra indicador 💳 */
+  hasPendingPayment?: boolean;
 };
 
 export function AptBlock({
   apt, layout, isSelected, onClick,
   draggable = false, onDragStart,
   resizable = false, onResizeStart,
+  hasPendingPayment = false,
 }: AptBlockProps) {
   const cfg = STATUS[apt.status];
   const startMin = timeToMin(apt.startTime);
@@ -55,6 +58,14 @@ export function AptBlock({
       onPointerDown={draggable ? handlePointerDown : undefined}
       onClick={(e) => { e.stopPropagation(); onClick(apt); }}
     >
+      {hasPendingPayment && (
+        <span
+          title="Comprobante de pago por verificar"
+          className="absolute -top-1 -right-1 z-30 w-4 h-4 rounded-full bg-amber-400 ring-2 ring-white flex items-center justify-center text-[8px] leading-none shadow-sm"
+        >
+          💳
+        </span>
+      )}
       <div className="px-1 py-0.5 h-full flex flex-col justify-start">
         <p className={`text-[10px] font-bold ${cfg.text} truncate leading-tight`}>
           {fmtTime12(apt.startTime)} {clientName(apt)}
