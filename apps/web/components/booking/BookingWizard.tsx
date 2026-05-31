@@ -2299,29 +2299,38 @@ function SlotStep({
               const maxD = date ? maxDateForGroup(dbm) : '';
               const cur = advanceDates[dbm] || { date: '', startTime: '10:00' };
               return (
-                <div key={dbm} className="rounded-xl p-3 mb-2 last:mb-0" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                  <div className="flex items-baseline justify-between mb-2">
+                <div key={dbm} className="rounded-xl p-3 sm:p-4 mb-3 last:mb-0" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                  <div className="flex items-baseline justify-between mb-3 gap-2">
                     <p className="text-sm font-semibold text-white">{g.services.join(' + ')}</p>
-                    <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: '#D4AF37' }}>{g.label}</span>
+                    <span className="text-[10px] uppercase tracking-wider font-bold shrink-0" style={{ color: '#D4AF37' }}>{g.label}</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <DateTimePicker
-                      mode="date"
-                      theme="dark"
-                      minDate={today}
-                      maxDate={maxD || undefined}
-                      disabled={!slot}
-                      value={cur.date || null}
-                      onChange={(d) => updateAdvanceDate(dbm, { date: d })}
-                    />
-                    <DateTimePicker
-                      mode="time"
-                      theme="dark"
-                      minuteStep={30}
-                      disabled={!cur.date}
-                      value={cur.startTime || '10:00'}
-                      onChange={(time) => updateAdvanceDate(dbm, { startTime: time })}
-                    />
+                  {/* Mismo estilo que el selector principal: calendario INLINE (mes completo,
+                      sin popover que se corte) y, debajo, la hora — apilados y responsivos. */}
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[11px] font-semibold mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>Elige el día</p>
+                      <DateTimePicker
+                        mode="date"
+                        variant="inline"
+                        theme="dark"
+                        minDate={today}
+                        maxDate={maxD || undefined}
+                        disabled={!slot}
+                        value={cur.date || null}
+                        onChange={(d) => updateAdvanceDate(dbm, { date: d })}
+                      />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold mb-2" style={{ color: cur.date ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>Elige la hora</p>
+                      <DateTimePicker
+                        mode="time"
+                        theme="dark"
+                        minuteStep={30}
+                        disabled={!cur.date}
+                        value={cur.startTime || '10:00'}
+                        onChange={(time) => updateAdvanceDate(dbm, { startTime: time })}
+                      />
+                    </div>
                   </div>
                 </div>
               );
