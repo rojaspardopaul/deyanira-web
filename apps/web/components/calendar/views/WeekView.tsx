@@ -6,7 +6,7 @@ import { computeOverlapLayout } from '../utils/layout';
 import { AptBlock } from '../blocks/AptBlock';
 import { GhostBlock } from '../blocks/GhostBlock';
 import { DAY_NAMES_SHORT, HOUR_START, HOUR_END, HOUR_HEIGHT } from '../constants';
-import type { Appointment, AptStatus, DragState } from '../types';
+import type { Appointment, AptStatus, DragState, ResizeState } from '../types';
 
 type PartialBlock = { date: string; start: string; end: string };
 
@@ -22,6 +22,7 @@ type WeekViewProps = {
   onAptClick: (apt: Appointment) => void;
   onDayHeaderClick?: (date: string) => void;
   dragState?: DragState | null;
+  resizeState?: ResizeState | null;
   onDragStart?: (apt: Appointment, e: React.PointerEvent, offsetY: number) => void;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
   enableDrag?: boolean;
@@ -35,7 +36,7 @@ export function WeekView({
   weekStart, appointments, hiddenStatuses, today,
   selectedApt, selectedDate, selectedTime,
   onSlotClick, onAptClick, onDayHeaderClick,
-  dragState, onDragStart, onResizeStart,
+  dragState, resizeState, onDragStart, onResizeStart,
   enableDrag = false, enableResize = false,
   closedDaysOfWeek, blockedDates, partialBlocks = [],
 }: WeekViewProps) {
@@ -190,19 +191,25 @@ export function WeekView({
                   </div>
                 )}
 
-                {dayApts.map(apt => (
-                  <AptBlock
-                    key={apt.id}
-                    apt={apt}
-                    layout={layout.get(apt.id) || { col: 0, totalCols: 1 }}
-                    isSelected={selectedApt?.id === apt.id}
-                    onClick={onAptClick}
-                    draggable={enableDrag}
-                    onDragStart={onDragStart}
-                    resizable={enableResize}
-                    onResizeStart={onResizeStart}
-                  />
-                ))}
+                {dayApts.map(apt => {
+                  // Durante el resize, el bloque se estira/acorta en vivo (override de endTime)
+                  const liveApt = (resizeState?.isDragging && resizeState.aptId === apt.id)
+                    ? { ...apt, endTime: resizeState.snappedEnd }
+                    : apt;
+                  return (
+                    <AptBlock
+                      key={apt.id}
+                      apt={liveApt}
+                      layout={layout.get(apt.id) || { col: 0, totalCols: 1 }}
+                      isSelected={selectedApt?.id === apt.id}
+                      onClick={onAptClick}
+                      draggable={enableDrag}
+                      onDragStart={onDragStart}
+                      resizable={enableResize}
+                      onResizeStart={onResizeStart}
+                    />
+                  );
+                })}
 
                 {showGhost && dragState && (
                   <GhostBlock

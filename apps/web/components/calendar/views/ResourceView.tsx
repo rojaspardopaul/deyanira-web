@@ -6,7 +6,7 @@ import { computeOverlapLayout } from '../utils/layout';
 import { AptBlock } from '../blocks/AptBlock';
 import { GhostBlock } from '../blocks/GhostBlock';
 import { MONTH_NAMES, DAY_NAMES_FULL, HOUR_START, HOUR_END, HOUR_HEIGHT } from '../constants';
-import type { Appointment, AptStatus, DragState, StaffMember } from '../types';
+import type { Appointment, AptStatus, DragState, ResizeState, StaffMember } from '../types';
 
 type ResourceViewProps = {
   date: string;
@@ -18,6 +18,7 @@ type ResourceViewProps = {
   onSlotClick: (date: string, time: string, staffId?: string) => void;
   onAptClick: (apt: Appointment) => void;
   dragState?: DragState | null;
+  resizeState?: ResizeState | null;
   onDragStart?: (apt: Appointment, e: React.PointerEvent, offsetY: number) => void;
   onResizeStart?: (apt: Appointment, e: React.PointerEvent) => void;
   enableDrag?: boolean;
@@ -27,9 +28,13 @@ type ResourceViewProps = {
 export function ResourceView({
   date, staffList, appointments, hiddenStatuses, today,
   selectedApt, onSlotClick, onAptClick,
-  dragState, onDragStart, onResizeStart,
+  dragState, resizeState, onDragStart, onResizeStart,
   enableDrag = false, enableResize = false,
 }: ResourceViewProps) {
+  const liveEnd = (apt: Appointment): Appointment =>
+    (resizeState?.isDragging && resizeState.aptId === apt.id)
+      ? { ...apt, endTime: resizeState.snappedEnd }
+      : apt;
   const hours       = Array.from({ length: HOUR_END - HOUR_START }, (_, i) => HOUR_START + i);
   const totalHeight = (HOUR_END - HOUR_START) * HOUR_HEIGHT;
   const isToday     = date === today;
@@ -153,7 +158,7 @@ export function ResourceView({
                 {staffApts.map(apt => (
                   <AptBlock
                     key={apt.id}
-                    apt={apt}
+                    apt={liveEnd(apt)}
                     layout={layout.get(apt.id) || { col: 0, totalCols: 1 }}
                     isSelected={selectedApt?.id === apt.id}
                     onClick={onAptClick}
@@ -203,7 +208,7 @@ export function ResourceView({
                   {unassigned.map(apt => (
                     <AptBlock
                       key={apt.id}
-                      apt={apt}
+                      apt={liveEnd(apt)}
                       layout={layout.get(apt.id) || { col: 0, totalCols: 1 }}
                       isSelected={selectedApt?.id === apt.id}
                       onClick={onAptClick}

@@ -140,7 +140,7 @@ export function CalendarRoot({
 
   const resizeOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
 
-  const { handleResizeStart } = useResize({ onRequestCommit: resizeOnRequestCommit, onRollback: resizeOnRollback });
+  const { resizeState, handleResizeStart } = useResize({ onRequestCommit: resizeOnRequestCommit, onRollback: resizeOnRollback });
 
   // ── Date range ────────────────────────────────────────────────────────────
   const { dateFrom, dateTo } = useMemo(() => {
@@ -398,6 +398,7 @@ export function CalendarRoot({
               onAptClick={handleAptClick}
               onDayHeaderClick={handleDayHeaderClick}
               dragState={dragState}
+              resizeState={resizeState}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -420,6 +421,7 @@ export function CalendarRoot({
               onAptClick={handleAptClick}
               onDayClick={date => { setCurDate(date); setSelectedDate(date); }}
               dragState={dragState}
+              resizeState={resizeState}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -438,6 +440,7 @@ export function CalendarRoot({
               onSlotClick={handleSlotClick}
               onAptClick={handleAptClick}
               dragState={dragState}
+              resizeState={resizeState}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}

@@ -112,14 +112,15 @@ function fmt12(hhmm) {
 }
 
 // ── Footer con redes sociales ──────────────────────────────────
-// Los íconos deben cargar en CUALQUIER cliente de correo y entorno (los clientes
-// no pueden acceder a localhost ni a /public sin deploy). Por eso se referencian
-// desde un CDN público estable (íconos blancos circulares, ideales sobre el footer
-// oscuro). El enlace usa la URL real configurada en Admin → Configuración → redes.
+// Los íconos deben cargar en CUALQUIER cliente y entorno (no se puede usar
+// localhost ni /public sin deploy) y verse en modo CLARO y OSCURO. Por eso se usan
+// los íconos a COLOR de marca (circle-colored): tienen su propio fondo/contraste y
+// son visibles sobre fondos claros u oscuros. El enlace usa la URL configurada en
+// Admin → Configuración → redes.
 const SOCIAL_ICON_CDN = {
-  instagram: 'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/instagram-circle-white.png',
-  facebook:  'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/facebook-circle-white.png',
-  tiktok:    'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-white/tiktok-circle-white.png',
+  instagram: 'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-colored/instagram-circle-colored.png',
+  facebook:  'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-colored/facebook-circle-colored.png',
+  tiktok:    'https://tlr.stripocdn.email/content/assets/img/social-icons/circle-colored/tiktok-circle-colored.png',
 };
 function socialIcon(slug, url) {
   const u = safeUrl(url);
@@ -340,13 +341,13 @@ function statusBanner(kind, title, text, extraHtml = '') {
   </table>`;
 }
 
-// Chips "antes → ahora" para reprogramaciones.
+// Chips "antes → ahora" para reprogramaciones. Anchos y sin cortar el texto.
 function rescheduleChips(beforeLabel, afterLabel) {
-  const chip = (cap, val) => `<td align="center" style="background:${T.color.panelBg};border:1px solid ${T.color.panelLine};border-radius:12px;padding:10px 16px;font-family:${T.font.sans};font-size:11px;color:${T.color.textMuted};">${esc(cap)}<div style="color:${T.color.cream};font-size:14px;font-weight:700;margin-top:3px;">${esc(val)}</div></td>`;
-  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:14px auto 2px;"><tr>
-    ${chip('Antes', beforeLabel)}
-    <td style="padding:0 10px;color:${T.color.gold};font-size:20px;">→</td>
-    ${chip('Ahora', afterLabel)}
+  const chip = (cap, val, accent) => `<td align="center" valign="middle" style="background:${T.color.panelBg};border:1px solid ${accent ? 'rgba(212,175,55,0.45)' : T.color.panelLine};border-radius:12px;padding:14px 22px;min-width:150px;font-family:${T.font.sans};font-size:11px;color:${T.color.textFaint};text-transform:uppercase;letter-spacing:0.5px;">${esc(cap)}<div style="color:${accent ? T.color.gold : T.color.cream};font-size:15px;font-weight:700;margin-top:5px;letter-spacing:0;text-transform:none;white-space:nowrap;">${esc(val)}</div></td>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:16px auto 4px;"><tr>
+    ${chip('Antes', beforeLabel, false)}
+    <td align="center" valign="middle" style="padding:0 12px;color:${T.color.gold};font-size:22px;font-weight:700;">→</td>
+    ${chip('Ahora', afterLabel, true)}
   </tr></table>`;
 }
 
