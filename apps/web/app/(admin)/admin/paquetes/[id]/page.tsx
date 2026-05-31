@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { Toast, type ToastState } from '@/components/ui/Toast';
 import { ImageUploader } from '@/components/ui/ImageUploader';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 type ServiceLite = { id: string; name: string };
 type EventTypeDetail = {
@@ -227,7 +229,11 @@ export default function AdminEventDetailPage() {
   }
 
   async function removePkg(p: PackageRow) {
-    if (!confirm(`¿Eliminar el paquete "${p.name}"?`)) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar paquete?',
+      message: <>Se eliminará el paquete <HL>{p.name}</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     try {
       await adminApi().packages.delete(p.id);
       setToast({ type: 'success', msg: 'Paquete eliminado' });
@@ -279,7 +285,11 @@ export default function AdminEventDetailPage() {
     }
   }
   async function removeAddon(a: AddonRow) {
-    if (!confirm(`¿Eliminar el add-on "${a.name}"?`)) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar add-on?',
+      message: <>Se eliminará el add-on <HL>{a.name}</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     try {
       await adminApi().addons.delete(a.id);
       setToast({ type: 'success', msg: 'Add-on eliminado' });
@@ -325,7 +335,11 @@ export default function AdminEventDetailPage() {
     }
   }
   async function removeBenefit(b: BenefitRow) {
-    if (!confirm(`¿Eliminar la ventaja "${b.title}"?`)) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar ventaja?',
+      message: <>Se eliminará la ventaja <HL>{b.title}</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     try {
       await adminApi().benefits.delete(b.id);
       setToast({ type: 'success', msg: 'Ventaja eliminada' });

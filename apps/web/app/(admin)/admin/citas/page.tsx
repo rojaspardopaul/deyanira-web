@@ -8,6 +8,9 @@ import { ChevronLeft, Calendar, Clock, Check, X, Plus, Search, UserCheck, Packag
 import { ConfirmModal, type ConfirmDialogConfig } from '@/components/ui/ConfirmModal';
 import DateTimePicker from '@/components/ui/datetime';
 import PackageBookingModal from '@/components/admin/PackageBookingModal';
+import { confirmAction } from '@/lib/confirm';
+import { HL, New, Danger } from '@/components/ui/highlight';
+import { fmtTime12 } from '@/lib/time';
 
 const STATUS_MAP = {
   pending:   { label: 'Pendiente',  color: 'bg-yellow-100 text-yellow-700' },
@@ -215,10 +218,10 @@ export default function AdminCitasPage() {
     const name = (apt.guestName || (apt.customer as Record<string, unknown>)?.name || 'el cliente') as string;
     const time = apt.startTime as string;
     const cfg: Record<string, Omit<ConfirmDialogConfig, 'onConfirm'>> = {
-      confirmed: { title: 'Confirmar cita', message: `¿Confirmar la cita de ${name} a las ${time}?`, confirmLabel: 'Sí, confirmar', confirmClass: 'bg-green-600 hover:bg-green-500' },
-      completed: { title: 'Marcar como completada', message: `¿Marcar la cita de ${name} como completada?`, confirmLabel: 'Sí, completar', confirmClass: 'bg-blue-600 hover:bg-blue-500' },
-      cancelled: { title: 'Cancelar cita', message: `¿Cancelar la cita de ${name}? Esta acción no se puede deshacer.`, confirmLabel: 'Sí, cancelar', confirmClass: 'bg-red-600 hover:bg-red-500' },
-      no_show:   { title: 'No asistió', message: `¿Marcar que ${name} no asistió a su cita?`, confirmLabel: 'Sí, marcar', confirmClass: 'bg-gray-600 hover:bg-gray-500' },
+      confirmed: { title: 'Confirmar cita', message: <>¿Confirmar la cita de <HL>{name}</HL> a las <New>{fmtTime12(time)}</New>?</>, confirmLabel: 'Sí, confirmar', confirmClass: 'bg-green-600 hover:bg-green-500' },
+      completed: { title: 'Marcar como atendida', message: <>¿Marcar la cita de <HL>{name}</HL> (<HL>{fmtTime12(time)}</HL>) como <New>atendida</New>?</>, confirmLabel: 'Sí, completar', confirmClass: 'bg-blue-600 hover:bg-blue-500' },
+      cancelled: { title: 'Cancelar cita', message: <>¿Cancelar la cita de <HL>{name}</HL> de las <HL>{fmtTime12(time)}</HL>? <Danger>No se puede deshacer.</Danger></>, confirmLabel: 'Sí, cancelar', confirmClass: 'bg-red-600 hover:bg-red-500' },
+      no_show:   { title: 'No asistió', message: <>¿Marcar que <HL>{name}</HL> <Danger>no asistió</Danger> a su cita de las <HL>{fmtTime12(time)}</HL>?</>, confirmLabel: 'Sí, marcar', confirmClass: 'bg-gray-600 hover:bg-gray-500' },
     };
     const c = cfg[newStatus];
     if (!c) return;
@@ -228,9 +231,9 @@ export default function AdminCitasPage() {
   function askGroupStatus(group: Apt[], newStatus: string, groupKey: string, pkgName: string) {
     const count = group.length;
     const cfg: Record<string, Omit<ConfirmDialogConfig, 'onConfirm'>> = {
-      completed: { title: 'Completar paquete', message: `¿Marcar los ${count} servicios del paquete "${pkgName}" como completados?`, confirmLabel: 'Sí, completar todo', confirmClass: 'bg-blue-600 hover:bg-blue-500' },
-      cancelled: { title: 'Cancelar paquete', message: `¿Cancelar los ${count} servicios del paquete "${pkgName}"? Esta acción no se puede deshacer.`, confirmLabel: 'Sí, cancelar todo', confirmClass: 'bg-red-600 hover:bg-red-500' },
-      no_show:   { title: 'No asistió', message: `¿Marcar que el cliente no asistió a los ${count} servicios del paquete "${pkgName}"?`, confirmLabel: 'Sí, marcar todo', confirmClass: 'bg-gray-600 hover:bg-gray-500' },
+      completed: { title: 'Completar paquete', message: <>¿Marcar los <HL>{count} servicios</HL> del paquete <HL>{pkgName}</HL> como <New>atendidos</New>?</>, confirmLabel: 'Sí, completar todo', confirmClass: 'bg-blue-600 hover:bg-blue-500' },
+      cancelled: { title: 'Cancelar paquete', message: <>¿Cancelar los <HL>{count} servicios</HL> del paquete <HL>{pkgName}</HL>? <Danger>No se puede deshacer.</Danger></>, confirmLabel: 'Sí, cancelar todo', confirmClass: 'bg-red-600 hover:bg-red-500' },
+      no_show:   { title: 'No asistió', message: <>¿Marcar que el cliente <Danger>no asistió</Danger> a los <HL>{count} servicios</HL> del paquete <HL>{pkgName}</HL>?</>, confirmLabel: 'Sí, marcar todo', confirmClass: 'bg-gray-600 hover:bg-gray-500' },
     };
     const c = cfg[newStatus];
     if (!c) return;
@@ -561,7 +564,11 @@ export default function AdminCitasPage() {
                           <button
                             onClick={async () => {
                               if (!pkg?.id || !ds || !customerKey) return;
-                              if (!confirm(`Confirmar ${group.length} citas del paquete "${pkgName}" para el ${ds}?`)) return;
+                              if (!(await confirmAction({
+                                title: 'Confirmar paquete',
+                                message: <>¿Confirmar las <HL>{group.length} citas</HL> del paquete <HL>{pkgName}</HL> para el <New>{ds}</New>? Se enviará el correo de confirmación al cliente.</>,
+                                confirmLabel: 'Sí, confirmar',
+                              }))) return;
                               try {
                                 setUpdating(key);
                                 await adminApi(localStorage.getItem('admin_token') || '').appointments.confirmGroup(pkg.id, ds, customerKey);
@@ -832,7 +839,7 @@ export default function AdminCitasPage() {
             setConfirmDialog({
               title: 'Reserva creada',
               message: receiptNumber
-                ? `La reserva de paquete fue registrada. Recibo ${receiptNumber}.`
+                ? <>La reserva de paquete fue registrada. Recibo <New>{receiptNumber}</New>.</>
                 : 'La reserva de paquete fue registrada.',
               confirmLabel: 'Entendido',
               onConfirm: () => setConfirmDialog(null),

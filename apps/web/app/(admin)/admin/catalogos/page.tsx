@@ -6,6 +6,8 @@ import { adminApi } from '@/lib/api';
 import { ChevronLeft, Plus, Pencil, Trash2, X, Save, BookOpen, ArrowRight } from 'lucide-react';
 import { Toast, type ToastState } from '@/components/ui/Toast';
 import { ImageUploader } from '@/components/ui/ImageUploader';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 type CatalogRow = {
   id: string;
@@ -84,7 +86,11 @@ export default function AdminCatalogosPage() {
     }
   }
   async function remove(c: CatalogRow) {
-    if (!confirm(`¿Eliminar el catálogo "${c.name}" y todos sus items?`)) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar catálogo?',
+      message: <>Se eliminará el catálogo <HL>{c.name}</HL> y <Danger>todos sus ítems</Danger>. <Danger>No se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     try {
       await adminApi().catalogs.delete(c.id);
       setToast({ type: 'success', msg: 'Catálogo eliminado' });

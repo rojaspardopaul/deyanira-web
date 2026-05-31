@@ -6,6 +6,8 @@ import { adminApi } from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Plus, Trash2, X, Save, Eye, EyeOff } from 'lucide-react';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 type GalleryItem = Record<string, unknown>;
 
@@ -67,7 +69,11 @@ export default function AdminGaleriaPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar esta foto de la galería?')) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar foto?',
+      message: <>Se eliminará esta <HL>foto de la galería</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     const token = localStorage.getItem('admin_token');
     if (!token) return;
     try {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { HL, Old, New } from '@/components/ui/highlight';
 import { CalendarToolbar } from './toolbar/CalendarToolbar';
 import { CalendarSidebar } from './sidebar/CalendarSidebar';
 import { MonthView } from './views/MonthView';
@@ -570,14 +571,21 @@ export function CalendarRoot({
           dialog={pendingMove.kind === 'resize'
             ? {
                 title: '¿Ajustar la duración?',
-                message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} terminará a las ${fmtTime12(pendingMove.newEnd)} (antes ${fmtTime12(pendingMove.apt.endTime)}). Se le avisará por correo.`,
+                message: (
+                  <>La cita de <HL>{pendingMove.apt.guestName || 'el cliente'}</HL> terminará a las{' '}
+                  <New>{fmtTime12(pendingMove.newEnd)}</New> (antes <Old>{fmtTime12(pendingMove.apt.endTime)}</Old>). Se le avisará por correo.</>
+                ),
                 confirmLabel: 'Sí, ajustar',
                 confirmClass: 'bg-gold-600 hover:bg-gold-500',
                 onConfirm: () => { void commitMove(); },
               }
             : {
                 title: '¿Mover esta cita?',
-                message: `La cita de ${pendingMove.apt.guestName || 'el cliente'} se moverá del ${aptDateStr(pendingMove.apt)} ${fmtTime12(pendingMove.apt.startTime)} al ${pendingMove.newDate} ${fmtTime12(pendingMove.newStart)}. Se le avisará por correo.`,
+                message: (
+                  <>La cita de <HL>{pendingMove.apt.guestName || 'el cliente'}</HL> se moverá de{' '}
+                  <Old>{aptDateStr(pendingMove.apt)} · {fmtTime12(pendingMove.apt.startTime)}</Old> a{' '}
+                  <New>{pendingMove.newDate} · {fmtTime12(pendingMove.newStart)}</New>. Se le avisará por correo.</>
+                ),
                 confirmLabel: 'Sí, mover',
                 confirmClass: 'bg-gold-600 hover:bg-gold-500',
                 onConfirm: () => { void commitMove(); },

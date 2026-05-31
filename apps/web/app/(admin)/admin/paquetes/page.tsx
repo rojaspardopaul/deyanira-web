@@ -6,6 +6,8 @@ import { adminApi } from '@/lib/api';
 import { ChevronLeft, Plus, Pencil, Trash2, X, Save, Package, Eye, EyeOff, Star, ArrowRight, Crown } from 'lucide-react';
 import { Toast, type ToastState } from '@/components/ui/Toast';
 import { ImageUploader } from '@/components/ui/ImageUploader';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 type EventTypeRow = {
   id: string;
@@ -121,7 +123,11 @@ export default function AdminPaquetesPage() {
   }
 
   async function remove(et: EventTypeRow) {
-    if (!confirm(`¿Eliminar el evento "${et.name}"? Se eliminarán sus paquetes y contenido. Esta acción no se puede deshacer.`)) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar evento?',
+      message: <>Se eliminará el evento <HL>{et.name}</HL> con <Danger>todos sus paquetes y contenido</Danger>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     try {
       await adminApi().eventTypes.delete(et.id);
       setToast({ type: 'success', msg: `Evento "${et.name}" eliminado` });

@@ -8,6 +8,8 @@ import {
   TrendingUp, TrendingDown, DollarSign, Percent,
   Plus, Pencil, Trash2, ChevronDown,
 } from 'lucide-react';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 // ─── Tipos ────────────────────────────────────────────────
 
@@ -513,7 +515,11 @@ export default function ContabilidadPage() {
   }
 
   async function deleteExpense(id: string) {
-    if (!confirm('¿Eliminar este egreso?')) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar egreso?',
+      message: <>Se eliminará este <HL>egreso</HL> de la contabilidad. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     await adminApi(token).accounting.expenses.delete(id);
     await Promise.all([fetchSummary(token, period), fetchExpenses(token, period)]);
   }
@@ -533,7 +539,11 @@ export default function ContabilidadPage() {
   }
 
   async function deleteOtherIncome(id: string) {
-    if (!confirm('¿Eliminar este ingreso?')) return;
+    if (!(await confirmAction({
+      title: '¿Eliminar ingreso?',
+      message: <>Se eliminará este <HL>ingreso</HL> de la contabilidad. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     await adminApi(token).accounting.otherIncome.delete(id);
     await Promise.all([fetchSummary(token, period), fetchOtherIncome(token, period)]);
   }

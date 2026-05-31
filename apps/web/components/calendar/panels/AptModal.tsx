@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
   X, Plus, Check, Clock, User, Scissors, Home, Phone, Mail,
   AlertCircle, Search, UserCheck, Pencil, Receipt, ExternalLink, ShieldCheck,
@@ -8,6 +8,7 @@ import {
 import { adminApi } from '@/lib/api';
 import DateTimePicker from '@/components/ui/datetime';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { HL, New, Danger, Money } from '@/components/ui/highlight';
 import { STATUS } from '../status';
 import { toYMD, clientName } from '../utils/date';
 import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
@@ -30,7 +31,7 @@ type AptModalProps = {
 type PendingAction = {
   type: AptStatus;
   title: string;
-  description?: string;
+  description?: ReactNode;
   confirmLabel: string;
   danger?: boolean;
 };
@@ -691,7 +692,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'confirmed', confirmLabel: 'Confirmar',
                       title: '¿Confirmar esta cita?',
-                      description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
                     })}
                     className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
@@ -705,7 +706,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'in_progress', confirmLabel: 'Iniciar',
                       title: '¿Marcar la cita en curso?',
-                      description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
                     })}
                     className="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
@@ -715,7 +716,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'completed', confirmLabel: 'Marcar atendida',
                       title: '¿Marcar como atendida?',
-                      description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
                     })}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
@@ -725,7 +726,7 @@ export function AptModal({
                     onClick={() => setPendingAction({
                       type: 'no_show', confirmLabel: 'Confirmar',
                       title: '¿El cliente no asistió?',
-                      description: 'Esta acción cambiará el estado a "No asistió".',
+                      description: (<>La cita de <HL>{clientName(apt)}</HL> pasará a <Danger>“No asistió”</Danger>.</>),
                     })}
                     className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors"
                   >
@@ -738,7 +739,7 @@ export function AptModal({
                   onClick={() => setPendingAction({
                     type: 'completed', confirmLabel: 'Marcar atendida',
                     title: '¿Marcar como atendida?',
-                    description: `${clientName(apt)} · ${fmtTime12(apt.startTime)}`,
+                    description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
                   })}
                   className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                 >
@@ -750,7 +751,7 @@ export function AptModal({
                   onClick={() => setPendingAction({
                     type: 'cancelled', confirmLabel: 'Cancelar cita', danger: true,
                     title: '¿Cancelar esta cita?',
-                    description: 'Esta acción no se puede deshacer.',
+                    description: (<>Se cancelará la cita de <HL>{clientName(apt)}</HL> del <HL>{fmtTime12(apt.startTime)}</HL>. <Danger>Esta acción no se puede deshacer</Danger> y se le avisará por correo.</>),
                   })}
                   className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl flex items-center justify-center gap-1 transition-colors"
                 >
@@ -768,14 +769,20 @@ export function AptModal({
           dialog={payConfirm === 'approve'
             ? {
                 title: '¿Confirmar el pago?',
-                message: `Verificarás el adelanto de ${money(payment.depositPen)} de ${clientName(apt)}. La cita quedará confirmada y se le enviará el correo de confirmación.`,
+                message: (
+                  <>Verificarás el adelanto de <Money>{money(payment.depositPen)}</Money> de <HL>{clientName(apt)}</HL>.{' '}
+                  La cita quedará <New>confirmada</New> y se enviará el correo de confirmación.</>
+                ),
                 confirmLabel: 'Sí, confirmar pago',
                 confirmClass: 'bg-emerald-600 hover:bg-emerald-500',
                 onConfirm: () => { void handleVerifyPayment(true); },
               }
             : {
                 title: '¿Rechazar el comprobante?',
-                message: `Marcarás el comprobante de ${clientName(apt)} como rechazado. La cita NO se confirmará. Esta acción se puede revertir pidiendo un nuevo comprobante.`,
+                message: (
+                  <>Marcarás el comprobante de <HL>{clientName(apt)}</HL> como <Danger>rechazado</Danger>.{' '}
+                  La cita <Danger>NO se confirmará</Danger>. Se puede revertir pidiendo un nuevo comprobante.</>
+                ),
                 confirmLabel: 'Sí, rechazar',
                 confirmClass: 'bg-red-600 hover:bg-red-500',
                 onConfirm: () => { void handleVerifyPayment(false); },

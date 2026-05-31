@@ -1,10 +1,12 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 export type ConfirmDialogConfig = {
   title: string;
-  message: string;
+  // Acepta texto o JSX enriquecido (datos dinámicos resaltados con highlight.tsx)
+  message: ReactNode;
   confirmLabel: string;
   confirmClass?: string;
   onConfirm: () => void;

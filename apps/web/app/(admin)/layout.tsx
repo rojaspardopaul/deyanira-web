@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { adminAuth } from '@/lib/api';
 import { useSidebarToggle } from '@/components/calendar/hooks/useSidebarToggle';
+import { ConfirmHost } from '@/lib/confirm';
 
 type AdminUser = { id: string; name: string; email: string; role: string; staffId: string | null };
 
@@ -277,6 +278,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </main>
       </div>
+
+      {/* Host de confirmaciones estilizadas (regla de oro) — una sola instancia */}
+      <ConfirmHost />
     </div>
   );
 }

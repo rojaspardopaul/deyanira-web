@@ -10,9 +10,15 @@ Estas reglas surgieron de correcciones del dueño. Respetarlas SIEMPRE sin que l
 ## 1. REGLA DE ORO — Confirmar antes de cualquier acción que cambie estado
 Cualquier acción de **aceptar / rechazar / verificar / confirmar / cancelar / eliminar / mover / reprogramar / cambiar de estado** DEBE pedir **confirmación previa** (un diálogo "¿Estás seguro?"), porque cualquiera se puede equivocar.
 - Vale tanto para la acción "positiva" (aceptar/confirmar) como la "negativa" (rechazar/cancelar). **Ambas** confirman.
-- Reusar `components/ui/ConfirmModal.tsx` (o el patrón `pendingAction` del `AptModal`). Nunca ejecutar la mutación directo en el `onClick`.
+- **Nunca usar `window.confirm()` nativo** (no se puede estilizar). Usar el confirm estilizado: `confirmAction({ title, message, danger })` de `apps/web/lib/confirm.tsx` (host `<ConfirmHost/>` montado en el layout admin), o `components/ui/ConfirmModal.tsx`, o el patrón `pendingAction` del `AptModal`. Nunca ejecutar la mutación directo en el `onClick`.
 - El mensaje del diálogo debe decir en claro qué pasará y a quién afecta (y si se avisa al cliente por correo).
 - Conservar redes de seguridad extra cuando aplique: toggle desactivado por defecto (arrastre del calendario) + confirmación + undo.
+
+## 1b. Mensajes de confirmación/advertencia — resaltar los datos dinámicos
+Los mensajes NO deben ser texto plano. Los **datos dinámicos** (nombres, fechas, horas, montos, estados) van **en negrita y con color** para entender de un vistazo qué quedará.
+- Usar los helpers de `apps/web/components/ui/highlight.tsx`: `<HL>` (negrita oscura, dato importante), `<Old>` (gris tachado, valor previo/que se reemplaza), `<New>` (verde, valor nuevo/resultado), `<Money>` (verde, montos), `<Danger>` (rojo, acción irreversible), `<Warn>` (ámbar).
+- Ejemplo (reprogramar): "…se moverá de **`<Old>`Vie 13 · 10:00 a.m.`</Old>`** a **`<New>`Sáb 14 · 4:00 p.m.`</New>`**". El gris=lo que se va, el verde=lo que queda.
+- `ConfirmModal.message` y `confirmAction({message})` aceptan **ReactNode**, así que se pasa JSX con esos helpers.
 
 ## 2. Hora SIEMPRE en formato 12h (a.m./p.m.)
 **Toda** hora visible (admin, cliente, correos, PDFs, tickets) se muestra en **12h con "a.m./p.m."**, nunca en 24h. Los estilistas y clientes no deben confundirse.

@@ -9,6 +9,8 @@ import Link from 'next/link';
 import { ChevronLeft, Save, Check, Upload, X, Plus, ArrowUp, ArrowDown, Trash2, Pencil } from 'lucide-react';
 import { ImageUploader } from '@/components/ui/ImageUploader';
 import DateTimePicker from '@/components/ui/datetime';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 type Slide = {
   badge?: string;
@@ -91,8 +93,12 @@ export default function AdminConfiguracionPage() {
     setSlides(next);
     setSlideIdx(next.length - 1);
   }
-  function removeSlide(idx: number) {
-    if (!confirm('¿Eliminar este slide?')) return;
+  async function removeSlide(idx: number) {
+    if (!(await confirmAction({
+      title: '¿Eliminar slide?',
+      message: <>Se eliminará el <HL>slide #{idx + 1}</HL> del carrusel. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     const next = slides.filter((_, i) => i !== idx);
     setSlides(next);
     setSlideIdx(null);
