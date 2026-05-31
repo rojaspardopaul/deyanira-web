@@ -80,10 +80,19 @@ const UnavailabilityCreate = z.object({
 );
 
 // ── Galería ────────────────────────────────────────────────────
+// Acepta dos modos:
+//   a) `imageUrl` ya subido a Cloudinary (flujo nuevo: subida múltiple imágenes/videos)
+//   b) `file` base64 (compat: el backend lo sube como imagen)
 const GalleryUpload = z.object({
-  file: z.string().min(1, 'Imagen requerida'),
+  file: z.string().min(1).optional(),
+  imageUrl: z.string().url().optional(),
+  thumbnailUrl: z.string().url().optional().nullable(),
+  mediaType: z.enum(['image', 'video']).optional(),
+  caption: z.string().max(200).optional().nullable(),
   category: z.enum(GALLERY_CATEGORIES, { errorMap: () => ({ message: 'Categoría de galería inválida' }) }).optional().nullable(),
-}).passthrough();
+}).passthrough().refine((d) => Boolean(d.file) || Boolean(d.imageUrl), {
+  message: 'Falta el archivo o la URL del medio', path: ['imageUrl'],
+});
 
 const GalleryUpdate = z.object({
   category: z.enum(GALLERY_CATEGORIES, { errorMap: () => ({ message: 'Categoría de galería inválida' }) }).optional().nullable(),

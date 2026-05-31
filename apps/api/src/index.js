@@ -115,23 +115,31 @@ app.use(cors({
 app.use(cookieParser());
 
 // ── Body parsers — límite por verbo, no por path ──────────────
-// JSON: 1mb por defecto. Endpoints de upload aceptan hasta 12mb.
+// JSON: 1mb por defecto. Upload de imágenes hasta 12mb. Upload de video (base64)
+// hasta 60mb (admin, baja frecuencia) — un MP4 de ~40MB ≈ 53MB en base64.
 const STANDARD_LIMIT = '1mb';
 const UPLOAD_LIMIT   = '12mb';
+const VIDEO_LIMIT    = '60mb';
 
 const standardJson = express.json({ limit: STANDARD_LIMIT, strict: true });
 const uploadJson   = express.json({ limit: UPLOAD_LIMIT,   strict: true });
+const videoJson    = express.json({ limit: VIDEO_LIMIT,    strict: true });
 
-// Rutas de upload conocidas (path exacto + admin)
+// Rutas de upload de imagen (path exacto + admin)
 const UPLOAD_PATHS = new Set([
   '/api/admin/upload',
   '/api/admin/gallery/upload',
+]);
+// Rutas de upload de video (base64 grande)
+const VIDEO_PATHS = new Set([
+  '/api/admin/upload-video',
 ]);
 // Rutas que necesitan el RAW body (verificación HMAC de webhook)
 const RAW_BODY_PREFIXES = ['/api/payments/webhook/'];
 
 app.use((req, res, next) => {
   if (RAW_BODY_PREFIXES.some(p => req.path.startsWith(p))) return next();
+  if (VIDEO_PATHS.has(req.path))  return videoJson(req, res, next);
   if (UPLOAD_PATHS.has(req.path)) return uploadJson(req, res, next);
   return standardJson(req, res, next);
 });

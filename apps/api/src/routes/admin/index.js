@@ -6,6 +6,7 @@ const cache = require('../../lib/cache');
 const { revalidateFrontend } = require('../../lib/revalidate');
 const { parsePagination, paginate } = require('../../lib/pagination');
 const { validate } = require('../../lib/validate');
+const { BadRequest } = require('../../lib/errors');
 const S = require('./schemas');
 const prisma = require('../../lib/prisma');
 const logger = require('../../lib/logger');
@@ -1263,13 +1264,37 @@ router.get('/gallery', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Hosts permitidos para URLs ya subidas (evita SSRF / URLs externas).
+function isCloudinaryUrl(u) {
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && (url.hostname === 'res.cloudinary.com' || url.hostname.endsWith('.cloudinary.com'));
+  } catch { return false; }
+}
+
 router.post('/gallery/upload', validate({ body: S.GalleryUpload }), async (req, res, next) => {
   try {
-    const { file, category, caption } = req.body;
-    const uploaded = await uploadImage(file, 'galeria');
+    const { file, imageUrl, thumbnailUrl, category, caption } = req.body;
+
+    let mediaUrl;
+    let posterUrl = null;
+    if (imageUrl) {
+      // Flujo nuevo: el medio (imagen o video) ya se subió a Cloudinary desde el
+      // cliente vía /admin/upload o /admin/upload-video. Solo se persiste el registro.
+      if (!isCloudinaryUrl(imageUrl)) return next(BadRequest('URL de medio no permitida'));
+      if (thumbnailUrl && !isCloudinaryUrl(thumbnailUrl)) return next(BadRequest('URL de miniatura no permitida'));
+      mediaUrl = imageUrl;
+      posterUrl = thumbnailUrl || null;
+    } else {
+      // Compat: base64 → se sube como imagen.
+      const uploaded = await uploadImage(file, 'galeria');
+      mediaUrl = uploaded.url;
+    }
+
     const photo = await prisma.gallery.create({
       data: {
-        imageUrl: uploaded.url,
+        imageUrl: mediaUrl,
+        thumbnailUrl: posterUrl,
         category: category || null,
         caption: caption ? String(caption).slice(0, 200) : null,
       },

@@ -33,7 +33,7 @@ export default async function GaleriaPage({
   const { category } = await searchParams;
   const photos = await api.gallery
     .list(category)
-    .catch(() => []) as { id: string; imageUrl: string; caption?: string | null; category?: string | null }[];
+    .catch(() => []) as { id: string; imageUrl: string; thumbnailUrl?: string | null; caption?: string | null; category?: string | null }[];
 
   return (
     <div className="min-h-screen bg-white pt-16">
