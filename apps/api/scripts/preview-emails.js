@@ -64,6 +64,7 @@ const order = {
 const payment = {
   id: 'pay-123', receiptNumber: 'R-0001', totalPen: 370, paidPen: 111, balancePen: 259,
   method: 'yape', depositPen: 111, customerName: 'Andrea', customerPhone: '999888777',
+  proofImageUrl: 'https://picsum.photos/seed/comprobante/400/520',
 };
 const email = 'preview@example.com';
 

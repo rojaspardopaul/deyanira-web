@@ -288,6 +288,9 @@ export function adminApi(_legacyToken?: string | null) {
     bookingPayments: {
       list: (status?: string) =>
         apiFetch<unknown[]>(`/admin/booking-payments${status ? `?status=${encodeURIComponent(status)}` : ''}`, getReq()),
+      // Pago (adelanto) asociado a un grupo de reserva — para el panel del calendario.
+      byGroup: (bookingGroupId: string) =>
+        apiFetch<unknown[]>(`/admin/booking-payments?bookingGroupId=${encodeURIComponent(bookingGroupId)}`, getReq()),
       verify: (id: string, approved: boolean, notes?: string) =>
         apiFetch<unknown>(`/admin/booking-payments/${encodeURIComponent(id)}/verify`, mut('POST', { approved, notes })),
       record: (id: string, data: { method?: string; paidPen?: number }) =>

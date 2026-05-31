@@ -351,6 +351,34 @@ function rescheduleChips(beforeLabel, afterLabel) {
   </tr></table>`;
 }
 
+// Comprobante de pago (adelanto) — imagen clicable embebida en el correo.
+function proofImage(url, label) {
+  const u = safeUrl(url);
+  if (!u) return '';
+  const isPdf = /\.pdf($|\?)/i.test(url);
+  if (isPdf) {
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px;"><tr><td align="center">
+      <p style="margin:0 0 8px;font-family:${T.font.sans};font-size:11px;text-transform:uppercase;letter-spacing:1px;color:${T.color.textFaint};">${esc(label || 'Comprobante de pago')}</p>
+      ${ctaBtnGhost('Ver comprobante (PDF)', u)}
+    </td></tr></table>`;
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 18px;"><tr><td align="center">
+    <p style="margin:0 0 8px;font-family:${T.font.sans};font-size:11px;text-transform:uppercase;letter-spacing:1px;color:${T.color.textFaint};">${esc(label || 'Comprobante de pago')}</p>
+    <a href="${u}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-block;">
+      <img src="${u}" alt="Comprobante de pago" width="280" style="max-width:280px;width:100%;border-radius:12px;border:1px solid ${T.color.panelLine};display:block;" />
+      <span style="display:inline-block;margin-top:8px;font-family:${T.font.sans};font-size:12px;color:${T.color.gold};">Ver comprobante en grande →</span>
+    </a>
+  </td></tr></table>`;
+}
+// Adjunto del comprobante para Resend (por URL). Devuelve [] si no hay URL válida.
+function proofAttachment(url) {
+  const u = safeUrl(url);
+  if (!u) return undefined;
+  const m = /\.(jpg|jpeg|png|webp|pdf)($|\?)/i.exec(url);
+  const ext = m ? m[1].toLowerCase() : 'jpg';
+  return [{ filename: `comprobante.${ext}`, path: url }];
+}
+
 // ── Resumen de cita ────────────────────────────────────────────
 function aptSummary(apt) {
   const date = fmtDate(apt.date);
@@ -896,6 +924,7 @@ async function sendDepositProofReceived({ payment, email, name }) {
     ${heading('🧾', 'Recibimos tu comprobante')}
     ${greeting(name || payment.customerName)}
     ${bodyText('Estamos verificando tu pago. Apenas lo confirmemos, tu reserva quedará confirmada y te enviaremos el recibo.')}
+    ${proofImage(payment.proofImageUrl, 'Tu comprobante')}
     ${infoTable([
       ['Adelanto', fmtPrice(payment.depositPen)],
       ['Estado', { html: `<strong style="color:${T.color.warning.fg};">En verificación</strong>` }],
@@ -906,6 +935,7 @@ async function sendDepositProofReceived({ payment, email, name }) {
     to: email,
     subject: `Comprobante recibido — ${SALON}`,
     html: baseHtml('Comprobante recibido', body, settings),
+    attachments: proofAttachment(payment.proofImageUrl),
   });
 }
 
@@ -916,19 +946,21 @@ async function sendDepositProofToSalon({ payment }) {
   const adminUrl = `${WEB_URL}/admin/pagos`;
   const body = `
     ${heading('🔎', 'Comprobante por verificar', T.color.gold)}
-    ${bodyText(`<strong style="color:#f6ecf0;">${esc(payment.customerName || 'Cliente')}</strong> subió un comprobante de adelanto.`)}
+    ${bodyText(`<strong style="color:#f6ecf0;">${esc(payment.customerName || 'Cliente')}</strong> subió un comprobante de adelanto. Revísalo y confírmalo desde el panel.`)}
+    ${proofImage(payment.proofImageUrl, 'Comprobante recibido')}
     ${infoTable([
       ['Cliente', payment.customerName || '—'],
       ['Teléfono', payment.customerPhone || '—'],
       ['Adelanto', fmtPrice(payment.depositPen)],
       ['Método', payment.method || '—'],
     ])}
-    ${ctaBtn('Revisar en el panel', adminUrl)}
+    ${ctaBtn('Revisar y confirmar pago', adminUrl)}
   `;
   await safeSend('deposit_proof_salon', {
     to: adminEmail,
     subject: `Comprobante por verificar: ${payment.customerName || 'Cliente'}`,
     html: baseHtml('Comprobante por verificar', body, settings),
+    attachments: proofAttachment(payment.proofImageUrl),
   });
 }
 

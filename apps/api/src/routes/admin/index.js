@@ -557,14 +557,15 @@ router.post('/appointments/package', async (req, res, next) => {
 // ── Adelantos / pagos de reserva ──────────────────────────────
 router.get('/booking-payments', async (req, res, next) => {
   try {
-    const { status } = req.query;
+    const { status, bookingGroupId } = req.query;
     const where = {};
     if (status && ['pending', 'awaiting_verification', 'paid', 'rejected', 'expired'].includes(status)) where.status = status;
+    if (bookingGroupId && UUID_RE.test(bookingGroupId)) where.bookingGroupId = bookingGroupId;
     const payments = await prisma.bookingPayment.findMany({
       where,
       include: { package: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'desc' },
-      take: 200,
+      take: bookingGroupId ? 1 : 200,
     });
     res.json(payments);
   } catch (err) { next(err); }

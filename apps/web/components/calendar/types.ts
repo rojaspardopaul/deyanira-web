@@ -18,9 +18,25 @@ export type Appointment = {
   atHome?: boolean;
   atHomeDistrict?: string;
   onDutyStaff?: boolean;
+  bookingGroupId?: string | null;
+  packageId?: string | null;
   service: { id: string; name: string; duration: number };
   staff: { id: string; name: string } | null;
   customer?: { name?: string; phone?: string; email?: string } | null;
+};
+
+// Pago/adelanto asociado a un grupo de reserva (paquete con adelanto)
+export type BookingPaymentInfo = {
+  id: string;
+  status: 'pending' | 'awaiting_verification' | 'paid' | 'rejected' | 'expired';
+  proofImageUrl?: string | null;
+  method?: string | null;
+  totalPen: number | string;
+  depositPen: number | string;
+  paidPen: number | string;
+  balancePen: number | string;
+  receiptNumber?: string | null;
+  customerName?: string | null;
 };
 
 export type StaffMember = { id: string; name: string };
