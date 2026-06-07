@@ -4,7 +4,6 @@ const servicesRouter = require('./public/services');
 const eventTypesRouter = require('./public/event-types');
 const catalogsRouter = require('./public/catalogs');
 const staffRouter = require('./public/staff');
-const appointmentsRouter = require('./public/appointments');
 const productsRouter = require('./public/products');
 const ordersRouter = require('./public/orders');
 const paymentsRouter = require('./public/payments');
@@ -20,19 +19,13 @@ const paymentsWebhookRouter = require('./public/payments-webhook');
 
 const adminRouter = require('./admin');
 
-const { citasModuloNuevoActivo } = require('../shared/config/entorno');
+// Citas: módulo nuevo (DDD/Clean). Migración Strangler completada (Fase 1D); el
+// router legacy fue retirado tras verificar paridad con datos reales.
+const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
 
 const router = Router();
 
-// ── Cutover del módulo de citas (Strangler, Fase 1C) ──────
-// Si CITAS_MODULO_NUEVO=true se monta el módulo nuevo (modules/appointments),
-// que maneja POST / y PATCH /:id/cancel y delega el resto al router legacy.
-// Apagado por defecto => ruta legacy intacta. Rollback = apagar el flag.
-let citasRouter = appointmentsRouter;
-if (citasModuloNuevoActivo()) {
-  const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
-  citasRouter = crearRouterCitas(appointmentsRouter);
-}
+const citasRouter = crearRouterCitas();
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);

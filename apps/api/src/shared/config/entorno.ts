@@ -46,14 +46,7 @@ export interface Entorno {
   BCRYPT_COST?: string;
   TURNSTILE_SECRET_KEY?: string;
   REVALIDATE_SECRET?: string;
-
-  // Feature flag de cutover del piloto (Strangler). Cuando es 'true', se monta
-  // el módulo nuevo `modules/appointments`; si no, sigue el router viejo.
-  CITAS_MODULO_NUEVO?: string;
 }
-
-/** Flag de cutover del módulo de citas (Fase 1). */
-export const citasModuloNuevoActivo = (): boolean => env.CITAS_MODULO_NUEVO === 'true';
 
 export { env };
 export default env;

@@ -10,7 +10,6 @@ import express, {
   type Request,
   type Response,
   type NextFunction,
-  type Router,
   type RequestHandler,
 } from 'express';
 import { crearModuloCitas, CrearCitaComando, CrearReservaComando } from '../index';
@@ -40,8 +39,8 @@ function derivarNombre(user: SupabaseUser): string {
   return user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Cliente';
 }
 
-/** Construye el router del módulo nuevo, delegando lo no migrado al router legacy. */
-export function crearRouterCitas(legacyRouter: Router): Router {
+/** Construye el router del módulo de citas (los 5 endpoints). */
+export function crearRouterCitas(): express.Router {
   const { crearCita, cancelarCita, consultarDisponibilidad, listarMisCitas, crearReservaEnLote } = crearModuloCitas();
   const router = express.Router();
 
@@ -141,10 +140,6 @@ export function crearRouterCitas(legacyRouter: Router): Router {
       }
     },
   );
-
-  // Red de seguridad temporal: cualquier endpoint no migrado cae al router legacy.
-  // Tras verificar paridad (Fase 1D) se retira junto con appointments.js.
-  router.use(legacyRouter);
 
   return router;
 }
