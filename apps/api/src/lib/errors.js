@@ -1,5 +1,8 @@
 // Errores tipados con código HTTP. Usar en lugar de Error nativo para
 // mantener contrato consistente y evitar fugas en 5xx.
+//
+// NOTA (Fase 0): implementación canónica en este .js para resolución nativa
+// (legacy + tests). El código nuevo en TS la consume tipada vía shared/http/HttpError.ts.
 
 class HttpError extends Error {
   constructor(status, code, message, meta) {

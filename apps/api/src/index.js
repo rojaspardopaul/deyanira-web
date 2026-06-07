@@ -114,6 +114,12 @@ app.use(cors({
 // ── Cookie parser ─────────────────────────────────────────────
 app.use(cookieParser());
 
+// ── Seam multi-tenant ─────────────────────────────────────────
+// Establece req.tenant (hoy = tenant único). Listo para resolver por host/JWT
+// cuando el proyecto evolucione a SaaS multiempresa.
+const { contextoTenant } = require('./shared/context/tenantMiddleware');
+app.use(contextoTenant);
+
 // ── Body parsers — límite por verbo, no por path ──────────────
 // JSON: 1mb por defecto. Upload de imágenes hasta 12mb. Upload de video (base64)
 // hasta 60mb (admin, baja frecuencia) — un MP4 de ~40MB ≈ 53MB en base64.
