@@ -3,11 +3,12 @@
 // los errores solo se loguean).
 
 import type { CitaPersistida } from '../domain/ports/CitaRepositorio';
-import type { Notificador, Contacto } from '../domain/ports/Notificador';
+import type { Notificador, Contacto, InfoPaquete } from '../domain/ports/Notificador';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
 const email = require('../../../lib/notifications/email') as {
   sendAppointmentRequested: (a: unknown) => Promise<unknown>;
+  sendBookingRequested: (a: unknown) => Promise<unknown>;
   sendNewBookingToSalon: (a: unknown) => Promise<unknown>;
   sendAppointmentCancelled: (a: unknown) => Promise<unknown>;
 };
@@ -20,6 +21,23 @@ function fireAndForget(p: Promise<unknown>): void {
 export class NotificadorEmail implements Notificador {
   citaSolicitada(cita: CitaPersistida, contacto: Contacto): void {
     fireAndForget(email.sendAppointmentRequested({ appointment: cita, email: contacto.email, name: contacto.nombre }));
+  }
+
+  reservaSolicitada(
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+    atHomeExtraPen: number | null,
+  ): void {
+    fireAndForget(
+      email.sendBookingRequested({
+        appointments: citas,
+        packageInfo: paquete,
+        email: contacto.email,
+        name: contacto.nombre,
+        atHomeExtraPen,
+      }),
+    );
   }
 
   nuevaReservaAlSalon(cita: CitaPersistida): void {

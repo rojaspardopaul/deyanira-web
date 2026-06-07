@@ -13,8 +13,8 @@ import express, {
   type Router,
   type RequestHandler,
 } from 'express';
-import { crearModuloCitas, CrearCitaComando } from '../index';
-import { CrearCitaSchema, DisponibilidadQuerySchema } from './appointments.schemas';
+import { crearModuloCitas, CrearCitaComando, CrearReservaComando } from '../index';
+import { CrearCitaSchema, DisponibilidadQuerySchema, CrearReservaSchema } from './appointments.schemas';
 import { traducirError } from '../../../shared/http/traducirError';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
@@ -42,7 +42,7 @@ function derivarNombre(user: SupabaseUser): string {
 
 /** Construye el router del módulo nuevo, delegando lo no migrado al router legacy. */
 export function crearRouterCitas(legacyRouter: Router): Router {
-  const { crearCita, cancelarCita, consultarDisponibilidad, listarMisCitas } = crearModuloCitas();
+  const { crearCita, cancelarCita, consultarDisponibilidad, listarMisCitas, crearReservaEnLote } = crearModuloCitas();
   const router = express.Router();
 
   // GET /api/appointments/availability — slots disponibles (MIGRADO)
@@ -120,7 +120,30 @@ export function crearRouterCitas(legacyRouter: Router): Router {
     }
   });
 
-  // Resto de endpoints aún no migrados (availability, /me, batch) -> router legacy.
+  // POST /api/appointments/batch — reserva en lote / paquete (MIGRADO)
+  router.post(
+    '/batch',
+    optionalCustomer,
+    honeypot('website'),
+    turnstile(),
+    validate({ body: CrearReservaSchema }),
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const r = req as Request & { user?: SupabaseUser; tenant: { tenantId: string } };
+        const usuario = r.user
+          ? { id: r.user.id, email: r.user.email ?? null, nombre: derivarNombre(r.user) }
+          : null;
+        const comando = CrearReservaComando.desdeHttp(r.body, usuario);
+        const resultado = await crearReservaEnLote.ejecutar(r.tenant, comando);
+        res.status(201).json(resultado.aJSON());
+      } catch (err) {
+        next(traducirError(err));
+      }
+    },
+  );
+
+  // Red de seguridad temporal: cualquier endpoint no migrado cae al router legacy.
+  // Tras verificar paridad (Fase 1D) se retira junto con appointments.js.
   router.use(legacyRouter);
 
   return router;

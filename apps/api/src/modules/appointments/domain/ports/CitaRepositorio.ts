@@ -19,6 +19,39 @@ export interface DatosCliente {
   readonly email: string | null;
 }
 
+/** Una línea de la reserva en lote, ya programada y precificada. */
+export interface LineaReserva {
+  readonly onDutyStaff: boolean;
+  readonly staffId: string | null;
+  readonly serviceId: string;
+  readonly date: string;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly totalPen: number;
+}
+
+export interface DatosReservaLote {
+  readonly lineas: LineaReserva[];
+  readonly packageId: string | null;
+  readonly bookingGroupId: string;
+  readonly notas: string | null; // solo a la primera cita
+  readonly solicitante: {
+    customerId: string | null;
+    guestName: string | null;
+    guestPhone: string | null;
+    guestEmail: string | null;
+  };
+  readonly domicilio: { aDomicilio: boolean; direccion: string | null; distrito: string | null };
+  readonly recargoMonto: number | null;
+  readonly mainDate: string;
+  readonly deposito: { requerido: boolean; percent: number; pen: number; grandTotal: number } | null;
+}
+
+export interface ResultadoLote {
+  readonly created: CitaPersistida[];
+  readonly payment: { id: string } | null;
+}
+
 export interface CitaRepositorio {
   /** ¿La estilista realiza ese servicio? (tabla StaffService) */
   estilistaRealizaServicio(ctx: ContextoTenant, staffId: string, servicioId: string): Promise<boolean>;
@@ -40,6 +73,10 @@ export interface CitaRepositorio {
 
   /** Persiste la cita y devuelve la fila con service+staff incluidos. */
   guardar(ctx: ContextoTenant, cita: Cita): Promise<CitaPersistida>;
+
+  /** Crea una reserva en lote (N citas + pago de adelanto) en una transacción,
+   *  verificando conflictos por estilista. */
+  crearLote(ctx: ContextoTenant, datos: DatosReservaLote): Promise<ResultadoLote>;
 
   /** Lista las citas de un cliente (por customerId o por email de invitado). */
   listarDeCliente(

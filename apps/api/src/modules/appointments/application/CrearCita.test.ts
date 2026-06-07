@@ -58,6 +58,7 @@ function crearDeps(o: DepsOverrides = {}) {
       return persistida(cita);
     }),
     listarDeCliente: vi.fn(async () => []),
+    crearLote: vi.fn(async () => ({ created: [], payment: null })),
     buscarPorId: vi.fn(async () => null),
     cambiarEstado: vi.fn(async () => persistida(guardadas[0])),
   };
@@ -90,6 +91,7 @@ function crearDeps(o: DepsOverrides = {}) {
 
   const notificador: Notificador = {
     citaSolicitada: vi.fn(),
+    reservaSolicitada: vi.fn(),
     nuevaReservaAlSalon: vi.fn(),
     citaCancelada: vi.fn(),
   };

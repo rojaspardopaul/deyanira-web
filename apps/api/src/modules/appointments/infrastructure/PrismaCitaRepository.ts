@@ -7,8 +7,20 @@ import type { Cita } from '../domain/Cita';
 import type { FranjaHoraria } from '../domain/FranjaHoraria';
 import type { EstadoCita } from '../domain/EstadoCita';
 import { aEstadoBd } from '../domain/mapeoEstado';
-import type { CitaRepositorio, CitaPersistida, DatosCliente } from '../domain/ports/CitaRepositorio';
+import type {
+  CitaRepositorio,
+  CitaPersistida,
+  DatosCliente,
+  DatosReservaLote,
+  ResultadoLote,
+} from '../domain/ports/CitaRepositorio';
 import { toPersistence } from './mappers';
+
+/* eslint-disable @typescript-eslint/no-var-requires */
+// assertNoConflicts vive en lib/booking/scheduleBatch.js (compartido con el admin).
+const { assertNoConflicts } = require('../../../lib/booking/scheduleBatch') as {
+  assertNoConflicts: (tx: unknown, scheduled: unknown[]) => Promise<void>;
+};
 
 // service+staff incluidos: la fila resultante alimenta el DTO -> contrato HTTP legacy.
 const INCLUDE = { service: true, staff: true } as const;
@@ -66,6 +78,68 @@ export class PrismaCitaRepository implements CitaRepositorio {
   async guardar(_ctx: ContextoTenant, cita: Cita): Promise<CitaPersistida> {
     const row = await this.prisma.appointment.create({ data: toPersistence(cita), include: INCLUDE });
     return row as unknown as CitaPersistida;
+  }
+
+  async crearLote(_ctx: ContextoTenant, d: DatosReservaLote): Promise<ResultadoLote> {
+    return this.prisma.$transaction(async (tx) => {
+      // Verifica conflictos por estilista (lógica compartida con el admin).
+      await assertNoConflicts(tx, d.lineas);
+
+      const created: CitaPersistida[] = [];
+      for (let i = 0; i < d.lineas.length; i++) {
+        const ln = d.lineas[i];
+        const esPrimeraDelDiaPrincipal = ln.date === d.mainDate && i === 0;
+        const row = await tx.appointment.create({
+          data: {
+            onDutyStaff: ln.onDutyStaff,
+            staffId: ln.staffId,
+            serviceId: ln.serviceId,
+            packageId: d.packageId,
+            bookingGroupId: d.bookingGroupId,
+            date: new Date(`${ln.date}T12:00:00Z`),
+            startTime: ln.startTime,
+            endTime: ln.endTime,
+            status: 'pending',
+            totalPen: ln.totalPen,
+            notes: i === 0 ? d.notas : null,
+            customerId: d.solicitante.customerId,
+            guestName: d.solicitante.guestName,
+            guestPhone: d.solicitante.guestPhone,
+            guestEmail: d.solicitante.guestEmail,
+            atHome: d.domicilio.aDomicilio,
+            atHomeAddress: d.domicilio.aDomicilio ? d.domicilio.direccion : null,
+            atHomeDistrict: d.domicilio.aDomicilio ? d.domicilio.distrito : null,
+            atHomeExtraPen: esPrimeraDelDiaPrincipal && d.domicilio.aDomicilio ? d.recargoMonto : null,
+          },
+          include: INCLUDE,
+        });
+        created.push(row as unknown as CitaPersistida);
+      }
+
+      let payment: { id: string } | null = null;
+      if (d.deposito?.requerido && d.packageId) {
+        const created0 = created[0] as unknown as { guestName?: string | null };
+        const pago = await tx.bookingPayment.create({
+          data: {
+            bookingGroupId: d.bookingGroupId,
+            packageId: d.packageId,
+            customerId: d.solicitante.customerId,
+            customerName: d.solicitante.guestName || created0.guestName || 'Cliente',
+            customerEmail: d.solicitante.guestEmail,
+            customerPhone: d.solicitante.guestPhone,
+            totalPen: d.deposito.grandTotal,
+            depositPercent: d.deposito.percent,
+            depositPen: d.deposito.pen,
+            paidPen: 0,
+            balancePen: d.deposito.grandTotal,
+            status: 'pending',
+          },
+        });
+        payment = { id: pago.id };
+      }
+
+      return { created, payment };
+    });
   }
 
   async listarDeCliente(

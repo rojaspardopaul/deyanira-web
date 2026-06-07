@@ -73,3 +73,19 @@ export class CitaNoCancelableError extends ErrorDominio {
   readonly codigo = 'cita_no_cancelable';
   readonly status = 400;
 }
+
+// ── Reserva en lote (paquetes) ────────────────────────────────
+export class PaqueteNoEncontradoError extends ErrorDominio {
+  readonly codigo = 'paquete_no_encontrado';
+  readonly status = 404;
+}
+
+export class ServicioNoEncontradoError extends ErrorDominio {
+  readonly codigo = 'servicio_no_encontrado';
+  readonly status = 404;
+}
+
+export class FechaItemInvalidaError extends ErrorDominio {
+  readonly codigo = 'fecha_item_invalida';
+  readonly status = 400;
+}

@@ -10,6 +10,7 @@ import { CrearCita } from './application/CrearCita';
 import { CancelarCita } from './application/CancelarCita';
 import { ConsultarDisponibilidad } from './application/ConsultarDisponibilidad';
 import { ListarMisCitas } from './application/ListarMisCitas';
+import { CrearReservaEnLote } from './application/CrearReservaEnLote';
 
 import { PrismaCitaRepository } from './infrastructure/PrismaCitaRepository';
 import { PrismaCalculadoraPrecios } from './infrastructure/PrismaCalculadoraPrecios';
@@ -17,12 +18,15 @@ import { ConfiguracionDomicilioPrisma } from './infrastructure/ConfiguracionDomi
 import { NotificadorEmail } from './infrastructure/NotificadorEmail';
 import { RelojLima } from './infrastructure/RelojLima';
 import { DisponibilidadSlotsLib } from './infrastructure/DisponibilidadSlotsLib';
+import { CatalogoReservasPrisma } from './infrastructure/CatalogoReservasPrisma';
+import { SchedulerLib } from './infrastructure/SchedulerLib';
 
 export interface ModuloCitas {
   readonly crearCita: CrearCita;
   readonly cancelarCita: CancelarCita;
   readonly consultarDisponibilidad: ConsultarDisponibilidad;
   readonly listarMisCitas: ListarMisCitas;
+  readonly crearReservaEnLote: CrearReservaEnLote;
 }
 
 /** Construye el módulo de citas con sus dependencias reales (Prisma, email, reloj). */
@@ -33,15 +37,20 @@ export function crearModuloCitas(): ModuloCitas {
   const notificador = new NotificadorEmail();
   const reloj = new RelojLima();
   const disponibilidad = new DisponibilidadSlotsLib();
+  const catalogo = new CatalogoReservasPrisma(prisma);
+  const scheduler = new SchedulerLib();
 
   return {
     crearCita: new CrearCita(repo, precios, configDomicilio, notificador, reloj),
     cancelarCita: new CancelarCita(repo, notificador),
     consultarDisponibilidad: new ConsultarDisponibilidad(disponibilidad),
     listarMisCitas: new ListarMisCitas(repo),
+    crearReservaEnLote: new CrearReservaEnLote(catalogo, repo, configDomicilio, precios, scheduler, notificador, reloj),
   };
 }
 
-// Tipos públicos que la presentación (Fase 1C) necesita.
+// Tipos públicos que la presentación necesita.
 export { CrearCitaComando } from './application/dto/CrearCitaComando';
 export type { CuerpoCrearCita, UsuarioAutenticado } from './application/dto/CrearCitaComando';
+export { CrearReservaComando } from './application/dto/CrearReservaComando';
+export type { CuerpoCrearReserva } from './application/dto/CrearReservaComando';
