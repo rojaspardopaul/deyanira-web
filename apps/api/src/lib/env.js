@@ -59,6 +59,10 @@ const EnvSchema = z.object({
   // (purga de caché Next on-demand tras mutaciones admin). Opcional: sin él,
   // la revalidación on-demand queda deshabilitada (solo revalidate por tiempo).
   REVALIDATE_SECRET: z.string().optional(),
+
+  // Feature flag de cutover del módulo de pedidos (Strangler, Fase 2).
+  // 'true' monta modules/orders; 'false' (default) mantiene el router legacy.
+  PEDIDOS_MODULO_NUEVO: z.enum(['true', 'false']).default('false'),
 });
 
 // Reglas de obligatoriedad en producción

@@ -46,7 +46,13 @@ export interface Entorno {
   BCRYPT_COST?: string;
   TURNSTILE_SECRET_KEY?: string;
   REVALIDATE_SECRET?: string;
+
+  // Feature flag de cutover del módulo de pedidos (Strangler, Fase 2).
+  PEDIDOS_MODULO_NUEVO?: string;
 }
+
+/** Flag de cutover del módulo de pedidos (Fase 2). */
+export const pedidosModuloNuevoActivo = (): boolean => env.PEDIDOS_MODULO_NUEVO === 'true';
 
 export { env };
 export default env;

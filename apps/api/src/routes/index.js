@@ -23,9 +23,19 @@ const adminRouter = require('./admin');
 // router legacy fue retirado tras verificar paridad con datos reales.
 const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
 
+// Pedidos: cutover en curso (Fase 2). PEDIDOS_MODULO_NUEVO=true monta modules/orders
+// (delega al legacy lo no migrado); apagado por defecto => router legacy intacto.
+const { pedidosModuloNuevoActivo } = require('../shared/config/entorno');
+
 const router = Router();
 
 const citasRouter = crearRouterCitas();
+
+let pedidosRouter = ordersRouter;
+if (pedidosModuloNuevoActivo()) {
+  const { crearRouterPedidos } = require('../modules/orders/presentation/orders.routes');
+  pedidosRouter = crearRouterPedidos(ordersRouter);
+}
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);
@@ -35,7 +45,7 @@ router.use('/catalogs', catalogsRouter);
 router.use('/staff', staffRouter);
 router.use('/appointments', citasRouter);
 router.use('/products', productsRouter);
-router.use('/orders', ordersRouter);
+router.use('/orders', pedidosRouter);
 router.use('/payments', paymentsRouter);
 router.use('/payments/webhook', paymentsWebhookRouter);   // POST /api/payments/webhook/culqi
 router.use('/gallery', galleryRouter);
