@@ -20,7 +20,19 @@ const paymentsWebhookRouter = require('./public/payments-webhook');
 
 const adminRouter = require('./admin');
 
+const { citasModuloNuevoActivo } = require('../shared/config/entorno');
+
 const router = Router();
+
+// ── Cutover del módulo de citas (Strangler, Fase 1C) ──────
+// Si CITAS_MODULO_NUEVO=true se monta el módulo nuevo (modules/appointments),
+// que maneja POST / y PATCH /:id/cancel y delega el resto al router legacy.
+// Apagado por defecto => ruta legacy intacta. Rollback = apagar el flag.
+let citasRouter = appointmentsRouter;
+if (citasModuloNuevoActivo()) {
+  const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
+  citasRouter = crearRouterCitas(appointmentsRouter);
+}
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);
@@ -28,7 +40,7 @@ router.use('/services', servicesRouter);
 router.use('/event-types', eventTypesRouter);
 router.use('/catalogs', catalogsRouter);
 router.use('/staff', staffRouter);
-router.use('/appointments', appointmentsRouter);
+router.use('/appointments', citasRouter);
 router.use('/products', productsRouter);
 router.use('/orders', ordersRouter);
 router.use('/payments', paymentsRouter);
