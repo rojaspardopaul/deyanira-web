@@ -57,6 +57,7 @@ function crearDeps(o: DepsOverrides = {}) {
       guardadas.push(cita);
       return persistida(cita);
     }),
+    listarDeCliente: vi.fn(async () => []),
     buscarPorId: vi.fn(async () => null),
     cambiarEstado: vi.fn(async () => persistida(guardadas[0])),
   };

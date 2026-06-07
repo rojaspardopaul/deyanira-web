@@ -8,16 +8,21 @@ import prisma from '../../shared/database/prisma';
 
 import { CrearCita } from './application/CrearCita';
 import { CancelarCita } from './application/CancelarCita';
+import { ConsultarDisponibilidad } from './application/ConsultarDisponibilidad';
+import { ListarMisCitas } from './application/ListarMisCitas';
 
 import { PrismaCitaRepository } from './infrastructure/PrismaCitaRepository';
 import { PrismaCalculadoraPrecios } from './infrastructure/PrismaCalculadoraPrecios';
 import { ConfiguracionDomicilioPrisma } from './infrastructure/ConfiguracionDomicilioPrisma';
 import { NotificadorEmail } from './infrastructure/NotificadorEmail';
 import { RelojLima } from './infrastructure/RelojLima';
+import { DisponibilidadSlotsLib } from './infrastructure/DisponibilidadSlotsLib';
 
 export interface ModuloCitas {
   readonly crearCita: CrearCita;
   readonly cancelarCita: CancelarCita;
+  readonly consultarDisponibilidad: ConsultarDisponibilidad;
+  readonly listarMisCitas: ListarMisCitas;
 }
 
 /** Construye el módulo de citas con sus dependencias reales (Prisma, email, reloj). */
@@ -27,10 +32,13 @@ export function crearModuloCitas(): ModuloCitas {
   const configDomicilio = new ConfiguracionDomicilioPrisma(prisma);
   const notificador = new NotificadorEmail();
   const reloj = new RelojLima();
+  const disponibilidad = new DisponibilidadSlotsLib();
 
   return {
     crearCita: new CrearCita(repo, precios, configDomicilio, notificador, reloj),
     cancelarCita: new CancelarCita(repo, notificador),
+    consultarDisponibilidad: new ConsultarDisponibilidad(disponibilidad),
+    listarMisCitas: new ListarMisCitas(repo),
   };
 }
 

@@ -68,6 +68,20 @@ export class PrismaCitaRepository implements CitaRepositorio {
     return row as unknown as CitaPersistida;
   }
 
+  async listarDeCliente(
+    _ctx: ContextoTenant,
+    params: { customerId: string; email: string | null },
+  ): Promise<CitaPersistida[]> {
+    const or: Array<{ customerId: string } | { guestEmail: string }> = [{ customerId: params.customerId }];
+    if (params.email) or.push({ guestEmail: params.email });
+    const rows = await this.prisma.appointment.findMany({
+      where: { OR: or },
+      include: INCLUDE,
+      orderBy: [{ date: 'desc' }, { startTime: 'asc' }],
+    });
+    return rows as unknown as CitaPersistida[];
+  }
+
   async buscarPorId(_ctx: ContextoTenant, id: string): Promise<CitaPersistida | null> {
     const row = await this.prisma.appointment.findUnique({ where: { id }, include: INCLUDE });
     return row ? (row as unknown as CitaPersistida) : null;

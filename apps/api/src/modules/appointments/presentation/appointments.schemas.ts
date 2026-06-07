@@ -12,6 +12,14 @@ const { UUID_RE, TIME_RE, DATE_RE, EMAIL_RE, PHONE_RE } = require('../../../lib/
   PHONE_RE: RegExp;
 };
 
+export const DisponibilidadQuerySchema = z.object({
+  staffId: z.string().optional(),
+  serviceId: z.string().regex(UUID_RE),
+  date: z.string().regex(DATE_RE),
+  duration: z.string().regex(/^\d+$/).optional(),
+  forPackage: z.enum(['1', 'true']).optional(),
+});
+
 export const CrearCitaSchema = z
   .object({
     staffId: z.string().optional().nullable(),

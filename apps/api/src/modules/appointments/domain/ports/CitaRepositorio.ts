@@ -41,6 +41,12 @@ export interface CitaRepositorio {
   /** Persiste la cita y devuelve la fila con service+staff incluidos. */
   guardar(ctx: ContextoTenant, cita: Cita): Promise<CitaPersistida>;
 
+  /** Lista las citas de un cliente (por customerId o por email de invitado). */
+  listarDeCliente(
+    ctx: ContextoTenant,
+    params: { customerId: string; email: string | null },
+  ): Promise<CitaPersistida[]>;
+
   /** Busca una cita por id (para cancelar). null si no existe. */
   buscarPorId(ctx: ContextoTenant, id: string): Promise<CitaPersistida | null>;
 

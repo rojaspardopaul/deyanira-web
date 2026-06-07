@@ -14,7 +14,7 @@ import express, {
   type RequestHandler,
 } from 'express';
 import { crearModuloCitas, CrearCitaComando } from '../index';
-import { CrearCitaSchema } from './appointments.schemas';
+import { CrearCitaSchema, DisponibilidadQuerySchema } from './appointments.schemas';
 import { traducirError } from '../../../shared/http/traducirError';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
@@ -42,8 +42,43 @@ function derivarNombre(user: SupabaseUser): string {
 
 /** Construye el router del módulo nuevo, delegando lo no migrado al router legacy. */
 export function crearRouterCitas(legacyRouter: Router): Router {
-  const { crearCita, cancelarCita } = crearModuloCitas();
+  const { crearCita, cancelarCita, consultarDisponibilidad, listarMisCitas } = crearModuloCitas();
   const router = express.Router();
+
+  // GET /api/appointments/availability — slots disponibles (MIGRADO)
+  router.get('/availability', validate({ query: DisponibilidadQuerySchema }), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = req as Request & { tenant: { tenantId: string } };
+      const { staffId, serviceId, date, duration, forPackage } = r.query as Record<string, string | undefined>;
+      const resolvedStaffId = !staffId || staffId === 'on-duty' ? null : staffId;
+      if (resolvedStaffId && !UUID_RE.test(resolvedStaffId)) return next(BadRequest('staffId inválido'));
+      const durationOverride = duration ? parseInt(duration, 10) : null;
+      if (durationOverride !== null && (isNaN(durationOverride) || durationOverride < 1 || durationOverride > 480)) {
+        return next(BadRequest('Duración inválida (1–480 min)'));
+      }
+      const slots = await consultarDisponibilidad.ejecutar(r.tenant, {
+        staffId: resolvedStaffId,
+        serviceId: serviceId as string,
+        fecha: date as string,
+        duracionOverride: durationOverride,
+        forPackage: forPackage === '1' || forPackage === 'true',
+      });
+      res.json(slots);
+    } catch (err) {
+      next(traducirError(err));
+    }
+  });
+
+  // GET /api/appointments/me — citas del cliente autenticado (MIGRADO)
+  router.get('/me', isCustomer, async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = req as Request & { user: SupabaseUser; tenant: { tenantId: string } };
+      const citas = await listarMisCitas.ejecutar(r.tenant, { customerId: r.user.id, email: r.user.email ?? null });
+      res.json(citas);
+    } catch (err) {
+      next(traducirError(err));
+    }
+  });
 
   // POST /api/appointments — crear cita individual (MIGRADO)
   router.post(
