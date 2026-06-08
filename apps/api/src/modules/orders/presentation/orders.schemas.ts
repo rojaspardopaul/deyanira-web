@@ -18,15 +18,18 @@ const OrderItemSchema = z.object({
   qty: z.number().int().min(1).max(MAX_QTY_PER_ITEM),
 });
 
-export const CrearPedidoSchema = z
-  .object({
-    items: z.array(OrderItemSchema).min(1).max(MAX_ITEMS),
-    shipName: z.string().trim().min(1).max(100),
-    shipPhone: z.string().regex(PHONE_RE, 'Teléfono inválido'),
-    shipEmail: z.string().regex(EMAIL_RE, 'Email inválido').max(150).optional().nullable(),
-    shipAddress: z.string().trim().min(5).max(200),
-    shipDistrict: z.string().trim().min(2).max(50),
-    paymentMethod: z.enum(PAYMENT_METHODS).optional(),
-    couponCode: z.string().trim().min(1).max(50).optional().nullable(),
-  })
-  .strict();
+// NO usamos .strict(): el frontend envía además totales calculados (subtotalPen,
+// shippingPen, discountPen, totalPen, shipCity) que el servidor RECALCULA y por
+// tanto ignora (anti-tampering). Zod, por defecto, descarta esas claves desconocidas
+// en vez de rechazar el pedido. (El OrderBody legacy era .strict() y rompía con
+// este mismo body.)
+export const CrearPedidoSchema = z.object({
+  items: z.array(OrderItemSchema).min(1).max(MAX_ITEMS),
+  shipName: z.string().trim().min(1).max(100),
+  shipPhone: z.string().regex(PHONE_RE, 'Teléfono inválido'),
+  shipEmail: z.string().regex(EMAIL_RE, 'Email inválido').max(150).optional().nullable(),
+  shipAddress: z.string().trim().min(5).max(200),
+  shipDistrict: z.string().trim().min(2).max(50),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  couponCode: z.string().trim().min(1).max(50).optional().nullable(),
+});
