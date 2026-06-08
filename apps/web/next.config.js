@@ -54,6 +54,10 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
+  // Transpila el paquete de contratos compartidos (TS sin build) cuando se importe
+  // en el cliente (p. ej. validar formularios con los esquemas Zod).
+  transpilePackages: ['@deyanira/contracts'],
+
   // En prod NO ignoramos errores de tipo ni ESLint — bloquea código inseguro.
   // En CI puedes setear SKIP_TS=true / SKIP_LINT=true como escape hatch.
   typescript: { ignoreBuildErrors: process.env.SKIP_TS === 'true' },
