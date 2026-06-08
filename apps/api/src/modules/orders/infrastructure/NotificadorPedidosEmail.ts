@@ -8,6 +8,7 @@ import type { NotificadorPedidos } from '../domain/ports/NotificadorPedidos';
 /* eslint-disable @typescript-eslint/no-var-requires */
 const email = require('../../../lib/notifications/email') as {
   sendOrderPendingPayment: (a: unknown) => Promise<unknown>;
+  sendOrderProofToSalon: (a: unknown) => Promise<unknown>;
 };
 const logger = require('../../../lib/logger') as { error: (msg: string, meta?: unknown) => void };
 
@@ -16,6 +17,12 @@ export class NotificadorPedidosEmail implements NotificadorPedidos {
     const yapeNumber = (env.YAPE_NUMBER || env.SALON_WHATSAPP || '').replace(/\D/g, '');
     email
       .sendOrderPendingPayment({ order: pedido, email: emailTo, yapeNumber })
+      .catch((err: Error) => logger.error('email_failed', { msg: err.message }));
+  }
+
+  comprobanteRecibido(pedido: PedidoPersistido): void {
+    email
+      .sendOrderProofToSalon({ order: pedido })
       .catch((err: Error) => logger.error('email_failed', { msg: err.message }));
   }
 }

@@ -188,6 +188,24 @@ export default function AdminPedidosPage() {
                     )}
                   </div>
 
+                  {/* Comprobante de pago (Yape/Plin) */}
+                  {order.proofImageUrl != null && String(order.proofImageUrl) !== '' && (
+                    <a
+                      href={String(order.proofImageUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-purple-700 hover:text-purple-900"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={String(order.proofImageUrl)}
+                        alt="Comprobante"
+                        className="w-12 h-12 object-cover rounded-lg border border-purple-200"
+                      />
+                      Ver comprobante de pago
+                    </a>
+                  )}
+
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <span className="font-black text-gray-900">S/ {Number(order.totalPen).toFixed(2)}</span>
                     <div className="flex gap-2">

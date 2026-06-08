@@ -13,6 +13,14 @@ const PAYMENT_METHODS = ['culqi', 'yape'] as const;
 const MAX_ITEMS = 50;
 const MAX_QTY_PER_ITEM = 99;
 
+// Comprobante de pago (Yape/Plin/transferencia). Imagen como data URL base64.
+export const ComprobanteSchema = z
+  .object({
+    image: z.string().startsWith('data:image/').max(8 * 1024 * 1024),
+    method: z.enum(['yape', 'plin', 'transfer']).optional(),
+  })
+  .strict();
+
 const OrderItemSchema = z.object({
   productId: z.string().regex(UUID_RE),
   qty: z.number().int().min(1).max(MAX_QTY_PER_ITEM),

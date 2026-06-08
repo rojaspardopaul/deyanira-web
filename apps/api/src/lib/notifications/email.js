@@ -923,8 +923,7 @@ async function sendDepositProofReceived({ payment, email, name }) {
   const body = `
     ${heading('🧾', 'Recibimos tu comprobante')}
     ${greeting(name || payment.customerName)}
-    ${bodyText('Estamos verificando tu pago. Apenas lo confirmemos, tu reserva quedará confirmada y te enviaremos el recibo.')}
-    ${proofImage(payment.proofImageUrl, 'Tu comprobante')}
+    ${bodyText('Estamos verificando tu pago. Adjuntamos tu comprobante a este correo. Apenas lo confirmemos, tu reserva quedará confirmada y te enviaremos el recibo.')}
     ${infoTable([
       ['Adelanto', fmtPrice(payment.depositPen)],
       ['Estado', { html: `<strong style="color:${T.color.warning.fg};">En verificación</strong>` }],
@@ -964,6 +963,33 @@ async function sendDepositProofToSalon({ payment }) {
   });
 }
 
+// Aviso al salón: el cliente subió el comprobante de pago de un pedido de tienda.
+async function sendOrderProofToSalon({ order }) {
+  const adminEmail = env.SALON_ADMIN_EMAIL;
+  if (!canSend() || !adminEmail) return;
+  const settings = await getEmailSettings();
+  const adminUrl = `${WEB_URL}/admin/pedidos`;
+  const shortId = String(order.id || '').slice(-6).toUpperCase();
+  const body = `
+    ${heading('🔎', 'Comprobante de pedido por verificar', T.color.gold)}
+    ${bodyText(`<strong style="color:#f6ecf0;">${esc(order.shipName || 'Cliente')}</strong> subió el comprobante de pago del pedido <strong>#${shortId}</strong>. Revísalo desde el panel.`)}
+    ${proofImage(order.proofImageUrl, 'Comprobante recibido')}
+    ${infoTable([
+      ['Pedido', `#${shortId}`],
+      ['Cliente', order.shipName || '—'],
+      ['Teléfono', order.shipPhone || '—'],
+      ['Total', fmtPrice(order.totalPen)],
+    ])}
+    ${ctaBtn('Revisar pedido', adminUrl)}
+  `;
+  await safeSend('order_proof_salon', {
+    to: adminEmail,
+    subject: `Comprobante de pedido por verificar: #${shortId}`,
+    html: baseHtml('Comprobante de pedido por verificar', body, settings),
+    attachments: proofAttachment(order.proofImageUrl),
+  });
+}
+
 module.exports = {
   // línea principal (stepper)
   sendAppointmentRequested,
@@ -985,6 +1011,7 @@ module.exports = {
   sendDepositReceipt,
   sendDepositProofReceived,
   sendDepositProofToSalon,
+  sendOrderProofToSalon,
   // helpers exportados por si se reutilizan
   baseHtml, getEmailSettings,
   heading, greeting, bodyText, ctaBtn, ctaBtnGhost, alertBox, goldDivider,

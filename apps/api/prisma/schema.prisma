@@ -486,6 +486,7 @@ model Order {
   paymentMethod String?     @map("payment_method") // culqi | yape
   paymentStatus String      @default("pending") @map("payment_status")
   paymentRef    String?     @map("payment_ref")
+  proofImageUrl String?     @map("proof_image_url") // comprobante Yape/Plin/transferencia (Cloudinary)
   shipName      String?     @map("ship_name")
   shipPhone     String?     @map("ship_phone")
   shipEmail     String?     @map("ship_email")

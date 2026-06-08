@@ -179,6 +179,8 @@ export const api = {
     mine: (token: string) => apiFetch<unknown[]>('/orders/me', { token, ...LIVE }),
     get: (id: string, email?: string) =>
       apiFetch<unknown>(`/orders/${encodeURIComponent(id)}${email ? `?email=${encodeURIComponent(email)}` : ''}`, LIVE),
+    uploadProof: (id: string, data: { image: string; method?: 'yape' | 'plin' | 'transfer' }) =>
+      apiFetch<{ success: boolean; status: string }>(`/orders/${encodeURIComponent(id)}/proof`, { method: 'POST', body: data }),
   },
   payments: {
     culqi: (data: { orderId: string; culqiToken: string; email: string }) =>

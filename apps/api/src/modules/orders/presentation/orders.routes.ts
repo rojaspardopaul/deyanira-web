@@ -4,7 +4,7 @@
 
 import express, { type Request, type Response, type NextFunction, type Router, type RequestHandler } from 'express';
 import { crearModuloPedidos, CrearPedidoComando } from '../index';
-import { CrearPedidoSchema } from './orders.schemas';
+import { CrearPedidoSchema, ComprobanteSchema } from './orders.schemas';
 import { traducirError } from '../../../shared/http/traducirError';
 
 /* eslint-disable @typescript-eslint/no-var-requires */
@@ -19,7 +19,7 @@ const { validate, UUID_RE } = require('../../../lib/validate') as {
 const { BadRequest } = require('../../../lib/errors') as { BadRequest: (msg: string) => Error };
 
 export function crearRouterPedidos(legacyRouter: Router): Router {
-  const { crearPedido, listarMisPedidos, obtenerPedido } = crearModuloPedidos();
+  const { crearPedido, listarMisPedidos, obtenerPedido, subirComprobante } = crearModuloPedidos();
   const router = express.Router();
 
   // POST /api/orders — crear pedido (MIGRADO)
@@ -57,6 +57,18 @@ export function crearRouterPedidos(legacyRouter: Router): Router {
         guestEmail: typeof r.query.email === 'string' ? r.query.email : null,
       });
       res.json(pedido);
+    } catch (err) {
+      next(traducirError(err));
+    }
+  });
+
+  // POST /api/orders/:id/proof — subir comprobante de pago Yape/Plin (NUEVO)
+  router.post('/:id/proof', validate({ body: ComprobanteSchema }), async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = req as Request & { tenant: { tenantId: string } };
+      if (!UUID_RE.test(r.params.id)) return next(BadRequest('ID inválido'));
+      const pedido = await subirComprobante.ejecutar(r.tenant, { id: r.params.id, imagenDataUrl: r.body.image });
+      res.json({ success: true, status: 'awaiting_verification', order: pedido });
     } catch (err) {
       next(traducirError(err));
     }

@@ -115,4 +115,16 @@ export class PrismaPedidoRepository implements PedidoRepositorio {
     const row = await this.prisma.order.findUnique({ where: { id }, include: { items: true } });
     return row ? (row as unknown as PedidoPersistido) : null;
   }
+
+  async adjuntarComprobante(_ctx: ContextoTenant, id: string, proofUrl: string): Promise<PedidoPersistido> {
+    // `proofImageUrl` es columna nueva; el `as` evita depender de la regeneración
+    // del cliente Prisma (la columna ya existe en la BD).
+    const data = { proofImageUrl: proofUrl, paymentStatus: 'awaiting_verification' };
+    const row = await this.prisma.order.update({
+      where: { id },
+      data: data as unknown as Prisma.OrderUpdateInput,
+      include: { items: true },
+    });
+    return row as unknown as PedidoPersistido;
+  }
 }

@@ -51,4 +51,7 @@ export interface PedidoRepositorio {
 
   listarDeCliente(ctx: ContextoTenant, customerId: string): Promise<PedidoPersistido[]>;
   buscarPorId(ctx: ContextoTenant, id: string): Promise<PedidoPersistido | null>;
+
+  /** Adjunta el comprobante (URL) y deja el pago en verificación del admin. */
+  adjuntarComprobante(ctx: ContextoTenant, id: string, proofUrl: string): Promise<PedidoPersistido>;
 }

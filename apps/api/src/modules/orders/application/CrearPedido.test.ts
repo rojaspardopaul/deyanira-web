@@ -35,7 +35,7 @@ function crearDeps(o: Overrides = {}) {
     cargarProductos: vi.fn(async () => o.productos ?? [prod()]),
     cargarPromocion: vi.fn(async () => o.promo ?? null),
   };
-  const notificador: NotificadorPedidos = { pedidoPendientePago: vi.fn() };
+  const notificador: NotificadorPedidos = { pedidoPendientePago: vi.fn(), comprobanteRecibido: vi.fn() };
   return { pedidos, catalogo, notificador, getPedido: () => ultimoPedido };
 }
 

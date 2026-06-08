@@ -146,7 +146,8 @@ const RAW_BODY_PREFIXES = ['/api/payments/webhook/'];
 app.use((req, res, next) => {
   if (RAW_BODY_PREFIXES.some(p => req.path.startsWith(p))) return next();
   if (VIDEO_PATHS.has(req.path))  return videoJson(req, res, next);
-  if (UPLOAD_PATHS.has(req.path)) return uploadJson(req, res, next);
+  // Subida de comprobantes (Yape/Plin): /api/.../:id/proof lleva imagen base64.
+  if (UPLOAD_PATHS.has(req.path) || req.path.endsWith('/proof')) return uploadJson(req, res, next);
   return standardJson(req, res, next);
 });
 

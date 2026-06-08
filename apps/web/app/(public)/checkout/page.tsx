@@ -32,7 +32,11 @@ function CheckoutContent() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [fullOrderId, setFullOrderId] = useState('');
   const [error, setError] = useState('');
+  const [proofBusy, setProofBusy] = useState(false);
+  const [proofDone, setProofDone] = useState(false);
+  const [proofError, setProofError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -98,6 +102,7 @@ function CheckoutContent() {
       };
 
       const result = await api.orders.create(orderData) as Record<string, unknown>;
+      setFullOrderId(result.id as string);
       setOrderId((result.id as string).slice(-6).toUpperCase());
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cart-updated'));
@@ -106,6 +111,28 @@ function CheckoutContent() {
       setError(e instanceof Error ? e.message : 'Error al procesar el pedido');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Subida del comprobante Yape/Plin en la pantalla de éxito.
+  async function onPickProof(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !fullOrderId) return;
+    if (file.size > 8 * 1024 * 1024) { setProofError('La imagen no debe superar 8MB'); return; }
+    setProofError(''); setProofBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error('No se pudo leer la imagen'));
+        r.readAsDataURL(file);
+      });
+      await api.orders.uploadProof(fullOrderId, { image: dataUrl, method: 'yape' });
+      setProofDone(true);
+    } catch (err) {
+      setProofError(err instanceof Error ? err.message : 'No se pudo subir el comprobante');
+    } finally {
+      setProofBusy(false);
     }
   }
 
@@ -130,7 +157,21 @@ function CheckoutContent() {
               <p className="font-bold text-purple-800 mb-2">📱 Paga por Yape</p>
               <p className="text-sm text-purple-700 mb-1">Número Yape: <strong>{form.phone}</strong></p>
               <p className="text-sm text-purple-700 mb-3">Monto: <strong>S/ {total.toFixed(2)}</strong></p>
-              <p className="text-xs text-purple-600">Envía el comprobante de pago por WhatsApp con tu número de pedido.</p>
+
+              {proofDone ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700 font-medium flex items-center gap-2">
+                  <Check className="w-4 h-4" /> Comprobante recibido. Lo verificaremos y te confirmamos.
+                </div>
+              ) : (
+                <>
+                  <label className={`block w-full text-center cursor-pointer bg-purple-600 text-white font-semibold px-4 py-3 rounded-xl text-sm hover:bg-purple-700 transition-colors ${proofBusy ? 'opacity-60 pointer-events-none' : ''}`}>
+                    {proofBusy ? 'Subiendo…' : '📎 Adjuntar comprobante de pago'}
+                    <input type="file" accept="image/*" onChange={onPickProof} disabled={proofBusy} className="hidden" />
+                  </label>
+                  {proofError && <p className="text-xs text-red-600 mt-2">{proofError}</p>}
+                  <p className="text-xs text-purple-600 mt-2">O envíalo por WhatsApp con tu número de pedido.</p>
+                </>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-sm my-5">Tu pago con tarjeta fue procesado. Recibirás confirmación por email.</p>
