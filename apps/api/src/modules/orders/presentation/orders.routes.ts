@@ -2,7 +2,7 @@
 // traducidos a HttpError en un punto. Durante el cutover delega lo no manejado al
 // router legacy (Strangler); se retira tras verificar paridad.
 
-import express, { type Request, type Response, type NextFunction, type Router, type RequestHandler } from 'express';
+import express, { type Request, type Response, type NextFunction, type RequestHandler } from 'express';
 import { crearModuloPedidos, CrearPedidoComando } from '../index';
 import { CrearPedidoSchema, ComprobanteSchema } from './orders.schemas';
 import { traducirError } from '../../../shared/http/traducirError';
@@ -18,7 +18,7 @@ const { validate, UUID_RE } = require('../../../lib/validate') as {
 };
 const { BadRequest } = require('../../../lib/errors') as { BadRequest: (msg: string) => Error };
 
-export function crearRouterPedidos(legacyRouter: Router): Router {
+export function crearRouterPedidos(): express.Router {
   const { crearPedido, listarMisPedidos, obtenerPedido, subirComprobante } = crearModuloPedidos();
   const router = express.Router();
 
@@ -73,9 +73,6 @@ export function crearRouterPedidos(legacyRouter: Router): Router {
       next(traducirError(err));
     }
   });
-
-  // Red de seguridad durante el cutover.
-  router.use(legacyRouter);
 
   return router;
 }

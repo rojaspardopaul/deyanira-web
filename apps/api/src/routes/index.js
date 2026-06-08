@@ -5,7 +5,6 @@ const eventTypesRouter = require('./public/event-types');
 const catalogsRouter = require('./public/catalogs');
 const staffRouter = require('./public/staff');
 const productsRouter = require('./public/products');
-const ordersRouter = require('./public/orders');
 const paymentsRouter = require('./public/payments');
 const galleryRouter = require('./public/gallery');
 const blogRouter = require('./public/blog');
@@ -19,23 +18,15 @@ const paymentsWebhookRouter = require('./public/payments-webhook');
 
 const adminRouter = require('./admin');
 
-// Citas: módulo nuevo (DDD/Clean). Migración Strangler completada (Fase 1D); el
-// router legacy fue retirado tras verificar paridad con datos reales.
+// Módulos nuevos (DDD/Clean). Migraciones Strangler completadas: los routers
+// legacy fueron retirados tras verificar paridad con datos reales.
 const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
-
-// Pedidos: cutover en curso (Fase 2). PEDIDOS_MODULO_NUEVO=true monta modules/orders
-// (delega al legacy lo no migrado); apagado por defecto => router legacy intacto.
-const { pedidosModuloNuevoActivo } = require('../shared/config/entorno');
+const { crearRouterPedidos } = require('../modules/orders/presentation/orders.routes');
 
 const router = Router();
 
 const citasRouter = crearRouterCitas();
-
-let pedidosRouter = ordersRouter;
-if (pedidosModuloNuevoActivo()) {
-  const { crearRouterPedidos } = require('../modules/orders/presentation/orders.routes');
-  pedidosRouter = crearRouterPedidos(ordersRouter);
-}
+const pedidosRouter = crearRouterPedidos();
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);
