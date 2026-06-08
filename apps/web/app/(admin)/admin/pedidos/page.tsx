@@ -75,6 +75,20 @@ export default function AdminPedidosPage() {
     }
   }
 
+  async function doConfirmPayment(id: string) {
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    setUpdating(id);
+    try {
+      await adminApi(token).orders.update(id, { paymentStatus: 'paid' });
+      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, paymentStatus: 'paid' } : o));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al confirmar el pago');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
   function askStatus(id: string, status: string, orderNum: string) {
     const isCancelling = status === 'cancelled';
     setConfirmDialog({
@@ -210,6 +224,15 @@ export default function AdminPedidosPage() {
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <span className="font-black text-gray-900">S/ {Number(order.totalPen).toFixed(2)}</span>
                     <div className="flex gap-2">
+                      {order.paymentStatus === 'awaiting_verification' && (
+                        <button
+                          onClick={() => doConfirmPayment(order.id as string)}
+                          disabled={updating === order.id}
+                          className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors disabled:opacity-50"
+                        >
+                          ✓ Confirmar pago
+                        </button>
+                      )}
                       {canAdvance && nextStatus[order.status as string] && (
                         <button
                           onClick={() => askStatus(order.id as string, nextStatus[order.status as string], `#${(order.id as string).slice(-6).toUpperCase()}`)}

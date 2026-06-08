@@ -13,7 +13,7 @@ const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const PROMOTION_TYPES = ['percent', 'fixed'];
 const GALLERY_CATEGORIES = ['maquillaje', 'cabello', 'unas', 'cejas', 'general'];
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-const PAYMENT_STATUSES = ['pending', 'paid', 'failed'];
+const PAYMENT_STATUSES = ['pending', 'awaiting_verification', 'paid', 'failed'];
 
 const uuid = z.string().regex(UUID_RE, 'ID inválido');
 const IdParam = z.object({ id: uuid });
