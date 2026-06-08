@@ -20,6 +20,7 @@ const STATUS_MAP = {
 
 const PAY_MAP: Record<string, string> = {
   pending: 'Pago pendiente',
+  awaiting_verification: 'Comprobante por verificar',
   paid: 'Pagado',
   failed: 'Fallido',
 };
