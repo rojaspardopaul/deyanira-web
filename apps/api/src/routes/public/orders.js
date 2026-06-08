@@ -29,7 +29,9 @@ const OrderBody = z.object({
   shipDistrict: z.string().trim().min(2).max(50),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   couponCode: z.string().trim().min(1).max(50).optional().nullable(),
-}).strict();
+  // NO .strict(): el frontend envía totales calculados (subtotalPen, shippingPen,
+  // discountPen, totalPen, shipCity) que el servidor recalcula e ignora. Zod los descarta.
+});
 
 // POST /api/orders — crear pedido
 // Rate-limited en index.js (8 pedidos / 10 min por IP).
