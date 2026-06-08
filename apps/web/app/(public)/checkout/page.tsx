@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ChevronLeft, Check, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
+import { useSalonSettings } from '@/lib/useSalonSettings';
 
 type CartItem = { id: string; slug: string; name: string; pricePen: number; image: string | null; qty: number };
 
@@ -20,6 +21,7 @@ const DISTRITOS = [
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const settings = useSalonSettings();
   const discountParam = parseFloat(searchParams.get('discount') || '0');
 
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -155,7 +157,17 @@ function CheckoutContent() {
           {payMethod === 'yape' ? (
             <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 my-5 text-left">
               <p className="font-bold text-purple-800 mb-2">📱 Paga por Yape</p>
-              <p className="text-sm text-purple-700 mb-1">Número Yape: <strong>{form.phone}</strong></p>
+              {settings?.yapeNumber ? (
+                <p className="text-sm text-purple-700 mb-1">
+                  Yapea a: <strong>{settings.yapeNumber}</strong>
+                  {settings.yapeName ? <> ({settings.yapeName})</> : null}
+                </p>
+              ) : (
+                <p className="text-sm text-purple-700 mb-1">Pídenos el número de Yape por WhatsApp.</p>
+              )}
+              {settings?.plinNumber ? (
+                <p className="text-sm text-purple-700 mb-1">o Plin: <strong>{settings.plinNumber}</strong></p>
+              ) : null}
               <p className="text-sm text-purple-700 mb-3">Monto: <strong>S/ {total.toFixed(2)}</strong></p>
 
               {proofDone ? (

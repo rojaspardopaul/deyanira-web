@@ -28,6 +28,10 @@ export type SalonSettings = {
   atHomeBaseKm?: number;
   atHomeRatePen?: string | number;
   bookingTimerSeconds?: number;
+  // Datos de pago para abonar por transferencia/Yape/Plin
+  yapeNumber?: string;
+  yapeName?: string;
+  plinNumber?: string;
   [key: string]: unknown;
 };
 
