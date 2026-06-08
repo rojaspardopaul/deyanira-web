@@ -23,10 +23,23 @@ const adminRouter = require('./admin');
 const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
 const { crearRouterPedidos } = require('../modules/orders/presentation/orders.routes');
 
+// Pagos: cutover en curso. PAGOS_MODULO_NUEVO=true monta modules/payments
+// (tarjeta + webhook); apagado por defecto => routers legacy intactos.
+const { pagosModuloNuevoActivo } = require('../shared/config/entorno');
+
 const router = Router();
 
 const citasRouter = crearRouterCitas();
 const pedidosRouter = crearRouterPedidos();
+
+let pagosRouter = paymentsRouter;
+let webhookRouter = paymentsWebhookRouter;
+if (pagosModuloNuevoActivo()) {
+  const { crearRouterPagos } = require('../modules/payments/presentation/payments.routes');
+  const { crearRouterWebhookPagos } = require('../modules/payments/presentation/payments-webhook.routes');
+  pagosRouter = crearRouterPagos();
+  webhookRouter = crearRouterWebhookPagos();
+}
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);
@@ -37,8 +50,8 @@ router.use('/staff', staffRouter);
 router.use('/appointments', citasRouter);
 router.use('/products', productsRouter);
 router.use('/orders', pedidosRouter);
-router.use('/payments', paymentsRouter);
-router.use('/payments/webhook', paymentsWebhookRouter);   // POST /api/payments/webhook/culqi
+router.use('/payments', pagosRouter);
+router.use('/payments/webhook', webhookRouter);   // POST /api/payments/webhook/culqi
 router.use('/gallery', galleryRouter);
 router.use('/blog', blogRouter);
 router.use('/settings', settingsRouter);
