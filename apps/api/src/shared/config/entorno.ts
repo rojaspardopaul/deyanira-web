@@ -46,13 +46,7 @@ export interface Entorno {
   BCRYPT_COST?: string;
   TURNSTILE_SECRET_KEY?: string;
   REVALIDATE_SECRET?: string;
-
-  // Feature flag de cutover del módulo de pagos (Strangler).
-  PAGOS_MODULO_NUEVO?: string;
 }
-
-/** Flag de cutover del módulo de pagos. */
-export const pagosModuloNuevoActivo = (): boolean => env.PAGOS_MODULO_NUEVO === 'true';
 
 export { env };
 export default env;
