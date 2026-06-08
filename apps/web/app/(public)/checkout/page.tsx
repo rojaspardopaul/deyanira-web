@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Check, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 
 type CartItem = { id: string; slug: string; name: string; pricePen: number; image: string | null; qty: number };
 
@@ -39,6 +40,33 @@ function CheckoutContent() {
     if (raw) setCart(JSON.parse(raw));
     else router.push('/carrito');
   }, [router]);
+
+  // Autocompletar los datos de entrega con el perfil del usuario logueado.
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const { data: { session } } = await createClient().auth.getSession();
+        if (!session?.user || cancel) return;
+        const meta = session.user.user_metadata || {};
+        let name = (meta.name as string) || (meta.full_name as string) || '';
+        let phone = (meta.phone as string) || '';
+        try {
+          const me = await api.customers.me(session.access_token);
+          name = me.name || name;
+          phone = me.phone || phone;
+        } catch { /* el perfil de cliente es opcional */ }
+        if (cancel) return;
+        setForm(f => ({
+          ...f,
+          name: f.name || name,
+          phone: f.phone || phone,
+          email: f.email || session.user.email || '',
+        }));
+      } catch { /* sin sesión: se deja el formulario vacío */ }
+    })();
+    return () => { cancel = true; };
+  }, []);
 
   const subtotal = cart.reduce((acc, i) => acc + i.pricePen * i.qty, 0);
   const shipping = subtotal > 100 ? 0 : 10;
