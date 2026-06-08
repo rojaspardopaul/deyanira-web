@@ -1,108 +1,23 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+// God-file en migración a feature-first. El cliente HTTP base vive en
+// @/shared/api/client y las features ya migradas (appointments, orders, payments)
+// en @/features/*/api. Este archivo COMPONE el objeto `api` (barrel) para no romper
+// los imports existentes; el resto de namespaces se irá extrayendo igual.
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+import {
+  apiFetch,
+  STATIC,
+  SHOP,
+  LIVE,
+  pageQuery,
+  type HttpMethod,
+  type RequestOptions,
+  type Paged,
+} from '@/shared/api/client';
+import { appointmentsApi } from '@/features/appointments/api/appointments.api';
+import { ordersApi } from '@/features/orders/api/orders.api';
+import { paymentsApi } from '@/features/payments/api/payments.api';
 
-type RequestOptions = {
-  method?: HttpMethod;
-  body?: unknown;
-  token?: string;          // Supabase access_token (clientes)
-  revalidate?: number | false;
-  /**
-   * Admin mode: usa cookies (credentials: 'include') + header X-CSRF-Token.
-   * El JWT del admin va en cookie HttpOnly — nunca tocamos localStorage.
-   */
-  admin?: boolean;
-  signal?: AbortSignal;
-  // Tags de caché de Next para revalidación on-demand (purgables vía /api/revalidate).
-  tags?: string[];
-};
-
-// Lee la cookie admin_csrf (no HttpOnly) en el cliente.
-function readCsrfCookie(): string {
-  if (typeof document === 'undefined') return '';
-  const m = document.cookie.match(/(?:^|;\s*)admin_csrf=([^;]+)/);
-  return m ? decodeURIComponent(m[1]) : '';
-}
-
-async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, token, revalidate = 60, admin, signal, tags } = options;
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (admin && method !== 'GET') {
-    const csrf = readCsrfCookie();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-  }
-
-  const init: RequestInit = {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    signal,
-  };
-
-  // Para admin: enviar cookies. Para llamadas estáticas SSR: usar revalidate.
-  if (admin) {
-    init.credentials = 'include';
-    init.cache = 'no-store';
-  } else if (typeof window === 'undefined') {
-    (init as RequestInit & { next?: { revalidate: number | false; tags?: string[] } }).next = {
-      revalidate,
-      ...(tags && tags.length ? { tags } : {}),
-    };
-  }
-
-  const res = await fetch(`${API_URL}/api${path}`, init);
-
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({ error: 'Error desconocido' }));
-    const err = new Error(errBody.error || `Error ${res.status}`) as Error & { status?: number; code?: string };
-    err.status = res.status;
-    err.code = errBody.code;
-
-    // Auto-redirect a /admin/login si la sesión admin caducó.
-    // Disparamos un CustomEvent que el AdminLayout escucha.
-    if (admin && res.status === 401 && typeof window !== 'undefined') {
-      try {
-        // Limpia el flag legacy (por si existiera)
-        window.localStorage?.removeItem('admin_token');
-        window.localStorage?.removeItem('admin_user');
-        window.dispatchEvent(new CustomEvent('admin:session-expired'));
-      } catch { /* ignore */ }
-    }
-    throw err;
-  }
-
-  // No-content responses
-  if (res.status === 204) return undefined as T;
-  return res.json();
-}
-
-// Cache presets
-const STATIC = { revalidate: 3600 } as const;
-const SHOP   = { revalidate: 1800 } as const;
-const LIVE   = { revalidate: 0   } as const;
-
-// Envelope de paginación (cuando se llama un listado admin con ?page).
-export type Paged<T> = {
-  items: T[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-};
-
-// Construye el query string de paginación (+ filtros extra opcionales).
-function pageQuery(opts?: { page?: number; pageSize?: number } & Record<string, string | number | undefined>): string {
-  const p = new URLSearchParams();
-  if (opts) {
-    for (const [k, v] of Object.entries(opts)) {
-      if (v !== undefined && v !== '') p.set(k, String(v));
-    }
-  }
-  const s = p.toString();
-  return s ? `?${s}` : '';
-}
+export type { Paged };
 
 // ── API pública ───────────────────────────────────────────
 export const api = {
@@ -147,45 +62,14 @@ export const api = {
     list: () => apiFetch<unknown[]>('/staff', { ...STATIC, tags: ['staff'] }),
     byService: (serviceId: string) => apiFetch<unknown[]>(`/staff/by-service/${encodeURIComponent(serviceId)}`, { ...STATIC, tags: ['staff'] }),
   },
-  appointments: {
-    availability: (staffId: string | null | undefined, serviceId: string, date: string, duration?: number, forPackage?: boolean) => {
-      const params = new URLSearchParams({ serviceId, date });
-      if (staffId) params.set('staffId', staffId);
-      if (duration) params.set('duration', String(duration));
-      if (forPackage) params.set('forPackage', '1');
-      return apiFetch<{ start: string; end: string }[]>(`/appointments/availability?${params}`, LIVE);
-    },
-    create: (data: unknown, token?: string) =>
-      apiFetch<unknown>('/appointments', { method: 'POST', body: data, token }),
-    // Crea N citas en una sola transacción (paquete + extras) y envía un único email
-    batch: (data: unknown, token?: string) =>
-      apiFetch<{ appointments: unknown[]; total: number; atHomeExtraPen: number | null; package: { id: string; name: string; pricePen: number } | null }>(
-        '/appointments/batch',
-        { method: 'POST', body: data, token },
-      ),
-    mine: (token: string) =>
-      apiFetch<unknown[]>('/appointments/me', { token, ...LIVE }),
-    cancel: (id: string, token: string) =>
-      apiFetch<unknown>(`/appointments/${encodeURIComponent(id)}/cancel`, { method: 'PATCH', token }),
-  },
+  appointments: appointmentsApi,
   products: {
     list: (params?: string) => apiFetch<unknown[]>(`/products${params ? `?${params}` : ''}`, { ...SHOP, tags: ['products'] }),
     get: (slug: string) => apiFetch<unknown>(`/products/${encodeURIComponent(slug)}`, { ...SHOP, tags: ['products'] }),
     categories: () => apiFetch<unknown[]>('/products/categories', { ...STATIC, tags: ['products'] }),
   },
-  orders: {
-    create: (data: unknown, token?: string) =>
-      apiFetch<unknown>('/orders', { method: 'POST', body: data, token }),
-    mine: (token: string) => apiFetch<unknown[]>('/orders/me', { token, ...LIVE }),
-    get: (id: string, email?: string) =>
-      apiFetch<unknown>(`/orders/${encodeURIComponent(id)}${email ? `?email=${encodeURIComponent(email)}` : ''}`, LIVE),
-    uploadProof: (id: string, data: { image: string; method?: 'yape' | 'plin' | 'transfer' }) =>
-      apiFetch<{ success: boolean; status: string }>(`/orders/${encodeURIComponent(id)}/proof`, { method: 'POST', body: data }),
-  },
-  payments: {
-    culqi: (data: { orderId: string; culqiToken: string; email: string }) =>
-      apiFetch<unknown>('/payments/culqi', { method: 'POST', body: data }),
-  },
+  orders: ordersApi,
+  payments: paymentsApi,
   gallery: {
     list: (category?: string) =>
       apiFetch<unknown[]>(`/gallery${category ? `?category=${encodeURIComponent(category)}` : ''}`, { ...STATIC, tags: ['gallery'] }),
