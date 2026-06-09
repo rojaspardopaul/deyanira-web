@@ -12,16 +12,16 @@ const promotionsRouter = require('./public/promotions');
 const authRouter = require('./public/auth');
 const customersRouter = require('./public/customers');
 const bookingsRouter = require('./public/bookings');
-const bookingPaymentsRouter = require('./public/booking-payments');
 
 const adminRouter = require('./admin');
 
 // Módulos nuevos (DDD/Clean). Migraciones Strangler completadas: los routers
-// legacy (citas, pedidos, pagos) fueron retirados tras verificar paridad real.
+// legacy (citas, pedidos, pagos, adelantos) fueron retirados tras verificar paridad real.
 const { crearRouterCitas } = require('../modules/appointments/presentation/appointments.routes');
 const { crearRouterPedidos } = require('../modules/orders/presentation/orders.routes');
 const { crearRouterPagos } = require('../modules/payments/presentation/payments.routes');
 const { crearRouterWebhookPagos } = require('../modules/payments/presentation/payments-webhook.routes');
+const { crearRouterAdelantos } = require('../modules/booking-payments/presentation/booking-payments.routes');
 
 const router = Router();
 
@@ -29,6 +29,7 @@ const citasRouter = crearRouterCitas();
 const pedidosRouter = crearRouterPedidos();
 const pagosRouter = crearRouterPagos();
 const webhookRouter = crearRouterWebhookPagos();
+const adelantosRouter = crearRouterAdelantos();
 
 // ── Públicas ──────────────────────────────────────────────
 router.use('/auth', authRouter);
@@ -47,7 +48,7 @@ router.use('/settings', settingsRouter);
 router.use('/promotions', promotionsRouter);
 router.use('/customers', customersRouter);
 router.use('/bookings', bookingsRouter);
-router.use('/booking-payments', bookingPaymentsRouter);
+router.use('/booking-payments', adelantosRouter);
 
 // ── Admin ─────────────────────────────────────────────────
 router.use('/admin', adminRouter);

@@ -14,12 +14,8 @@ const accountingRouter = require('./accounting');
 const mfaRouter = require('./mfa');
 const eventTypesAdminRouter = require('./event-types');
 const { crearRouterAdminCitas } = require('../../modules/appointments/presentation/appointments.admin.routes');
-const {
-  sendOrderStatusUpdate,
-  sendBookingConfirmation,
-  sendDepositReceipt,
-} = require('../../lib/notifications/email');
-const { markDepositPaid } = require('../../lib/payments/bookingDeposit');
+const { crearRouterAdminAdelantos } = require('../../modules/booking-payments/presentation/booking-payments.admin.routes');
+const { sendOrderStatusUpdate } = require('../../lib/notifications/email');
 const { randomUUID } = require('crypto');
 
 const router = Router();
@@ -134,76 +130,11 @@ router.get('/dashboard', async (_req, res, next) => {
 // citas en este god-file. Lo de abajo (/booking-payments/*) es gestión de adelantos.
 router.use(crearRouterAdminCitas());
 
-// ── Adelantos / pagos de reserva ──────────────────────────────
-router.get('/booking-payments', async (req, res, next) => {
-  try {
-    const { status, bookingGroupId } = req.query;
-    const where = {};
-    if (status && ['pending', 'awaiting_verification', 'paid', 'rejected', 'expired'].includes(status)) where.status = status;
-    if (bookingGroupId && UUID_RE.test(bookingGroupId)) where.bookingGroupId = bookingGroupId;
-    const payments = await prisma.bookingPayment.findMany({
-      where,
-      include: { package: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: bookingGroupId ? 1 : 200,
-    });
-    res.json(payments);
-  } catch (err) { next(err); }
-});
-
-// Verificar/rechazar un comprobante subido por el cliente
-router.post('/booking-payments/:id/verify', async (req, res, next) => {
-  try {
-    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'id inválido' });
-    const { approved, notes } = req.body;
-    const payment = await prisma.bookingPayment.findUnique({ where: { id: req.params.id } });
-    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
-
-    if (!approved) {
-      const rejected = await prisma.bookingPayment.update({
-        where: { id: payment.id },
-        data: { status: 'rejected', notes: notes ? String(notes).slice(0, 500) : payment.notes, verifiedBy: req.admin?.id || null, verifiedAt: new Date() },
-      });
-      // (Opcional) email al cliente para re-subir — se omite para no spamear.
-      return res.json(rejected);
-    }
-
-    let settled;
-    try {
-      settled = await markDepositPaid(prisma, payment.id, { method: payment.method, verifiedBy: req.admin?.id || null });
-    } catch (e) {
-      if (e.status === 409) return res.status(409).json({ error: e.message });
-      throw e;
-    }
-    const email = settled.payment.customerEmail;
-    if (email) {
-      sendBookingConfirmation({ appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName, atHomeExtraPen: 0 }).catch((e) => logger.error('email_failed', { msg: e.message }));
-      sendDepositReceipt({ payment: settled.payment, appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-    }
-    res.json(settled.payment);
-  } catch (err) { next(err); }
-});
-
-// Registrar manualmente un adelanto sobre un grupo existente (efectivo/yape/etc)
-router.post('/booking-payments/:id/record', async (req, res, next) => {
-  try {
-    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'id inválido' });
-    const { method, paidPen } = req.body;
-    let settled;
-    try {
-      settled = await markDepositPaid(prisma, req.params.id, { method: method || 'cash', paidPen, verifiedBy: req.admin?.id || null });
-    } catch (e) {
-      if (e.status === 404) return res.status(404).json({ error: e.message });
-      if (e.status === 409) return res.status(409).json({ error: e.message });
-      throw e;
-    }
-    const email = settled.payment.customerEmail;
-    if (email) {
-      sendDepositReceipt({ payment: settled.payment, appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-    }
-    res.json(settled.payment);
-  } catch (err) { next(err); }
-});
+// ── Adelantos / pagos de reserva (módulo booking-payments) ────
+// Toda la gestión admin de adelantos vive en el módulo booking-payments:
+// GET /booking-payments (listado), POST /booking-payments/:id/verify (aprobar/
+// rechazar comprobante) y POST /booking-payments/:id/record (registro manual).
+router.use(crearRouterAdminAdelantos());
 
 // ── Servicios ─────────────────────────────────────────────────
 router.get('/services', async (_req, res, next) => {
