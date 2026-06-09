@@ -109,7 +109,8 @@ export function CalendarRoot({
   const { dragState, handleDragStart } = useDrag({ onRequestCommit: dragOnRequestCommit, onRollback: dragOnRollback });
 
   // Confirmado por el admin → optimistic update + API (guarda fecha/hora, antes
-  // ignoradas) + undo. El backend envía el email "Reprogramada" al cliente.
+  // ignoradas) + undo. El backend envía el email "Reprogramada" SOLO si cambia el
+  // inicio (mover); un resize (solo el fin) es ajuste interno y no notifica.
   const commitMove = useCallback(async () => {
     if (!pendingMove) return;
     const { apt, newDate, newStart, newEnd, newStaffId } = pendingMove;
@@ -573,7 +574,7 @@ export function CalendarRoot({
                 title: '¿Ajustar la duración?',
                 message: (
                   <>La cita de <HL>{pendingMove.apt.guestName || 'el cliente'}</HL> terminará a las{' '}
-                  <New>{fmtTime12(pendingMove.newEnd)}</New> (antes <Old>{fmtTime12(pendingMove.apt.endTime)}</Old>). Se le avisará por correo.</>
+                  <New>{fmtTime12(pendingMove.newEnd)}</New> (antes <Old>{fmtTime12(pendingMove.apt.endTime)}</Old>). Es un ajuste interno de duración: <HL>no se le enviará correo</HL> al cliente.</>
                 ),
                 confirmLabel: 'Sí, ajustar',
                 confirmClass: 'bg-gold-600 hover:bg-gold-500',
