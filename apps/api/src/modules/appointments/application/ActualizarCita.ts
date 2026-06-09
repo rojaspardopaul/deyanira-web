@@ -80,10 +80,18 @@ export class ActualizarCita {
     if (targetStart >= targetEnd) {
       throw new SolicitudCitaInvalidaError('La hora de fin debe ser posterior a la de inicio');
     }
-    const isReschedule =
+    // Cualquier cambio de fecha/hora (incluido SOLO el fin) puede crear un solape,
+    // así que se revalida el conflicto. Pero la "reprogramación" que se notifica al
+    // cliente es SOLO un cambio del INICIO (fecha u hora de inicio): alargar/acortar
+    // el fin es un ajuste interno de duración del servicio, no mueve la cita para el
+    // cliente y NO genera correo.
+    const cambioFechaHora =
       (c.date !== undefined && c.date !== curIso) ||
       (c.startTime !== undefined && c.startTime !== current.startTime) ||
       (c.endTime !== undefined && c.endTime !== current.endTime);
+    const esReprogramacion =
+      (c.date !== undefined && c.date !== curIso) ||
+      (c.startTime !== undefined && c.startTime !== current.startTime);
 
     // ── Reasignación de estilista ──
     if (c.staffId !== undefined) {
@@ -93,7 +101,7 @@ export class ActualizarCita {
 
     // ── Conflicto en el destino (estilista + fecha/hora), excluyendo la propia ──
     const targetStaff = c.staffId !== undefined ? c.staffId || null : (current.staffId as string | null);
-    if (targetStaff && (isReschedule || (c.staffId !== undefined && c.staffId))) {
+    if (targetStaff && (cambioFechaHora || (c.staffId !== undefined && c.staffId))) {
       const franja = FranjaHoraria.de(targetStart, targetEnd);
       const conflicto = await this.citas.buscarConflictoAdmin(ctx, {
         staffId: targetStaff,
@@ -126,7 +134,7 @@ export class ActualizarCita {
     const nombre = (updated.guestName as string | null) || 'Cliente';
     const isPackage = !!updated.packageId;
 
-    if (isReschedule && email) {
+    if (esReprogramacion && email) {
       this.notificador.citaReprogramada(
         updated,
         { email, nombre },

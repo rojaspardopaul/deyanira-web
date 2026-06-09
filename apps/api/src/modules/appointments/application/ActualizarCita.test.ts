@@ -100,6 +100,20 @@ describe('ActualizarCita', () => {
     expect(arg).toMatchObject({ hora: '10:00' });
   });
 
+  it('alargar SOLO el fin (duración) no es reprogramación: no notifica, pero sí valida conflicto', async () => {
+    const { uc, citas, notificador, actualizarAdmin } = crearDeps({ updated: { endTime: '11:30' } });
+    await uc.ejecutar(ctx, { citaId: 'apt-1', endTime: '11:30' });
+    expect(notificador.citaReprogramada).not.toHaveBeenCalled(); // ajuste interno
+    expect(citas.buscarConflictoAdmin).toHaveBeenCalledTimes(1); // alargar puede solapar la siguiente
+    expect(actualizarAdmin).toHaveBeenCalledWith(ctx, 'apt-1', expect.objectContaining({ endTime: '11:30' }));
+  });
+
+  it('cambiar la hora de INICIO sí es reprogramación: notifica', async () => {
+    const { uc, notificador } = crearDeps({ updated: { startTime: '12:00', endTime: '13:00' } });
+    await uc.ejecutar(ctx, { citaId: 'apt-1', startTime: '12:00', endTime: '13:00' });
+    expect(notificador.citaReprogramada).toHaveBeenCalledTimes(1);
+  });
+
   it('bloquea la reprogramación si hay conflicto en el destino', async () => {
     const { uc } = crearDeps({ conflicto: { servicioNombre: 'Corte', inicio: '14:30', fin: '15:30' } });
     await expect(
