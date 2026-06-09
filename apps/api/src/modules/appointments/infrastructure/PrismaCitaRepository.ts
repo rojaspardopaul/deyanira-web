@@ -18,6 +18,9 @@ import type {
   DatosCitaAdmin,
   CambiosCitaAdmin,
   ConflictoCita,
+  DatosPaqueteAdmin,
+  ResultadoPaqueteAdmin,
+  PagoPersistido,
 } from '../domain/ports/CitaRepositorio';
 import { toPersistence } from './mappers';
 
@@ -25,6 +28,10 @@ import { toPersistence } from './mappers';
 // assertNoConflicts vive en lib/booking/scheduleBatch.js (compartido con el admin).
 const { assertNoConflicts } = require('../../../lib/booking/scheduleBatch') as {
   assertNoConflicts: (tx: unknown, scheduled: unknown[]) => Promise<void>;
+};
+// generateReceiptNumber: número de recibo secuencial por día (lib de adelantos).
+const { generateReceiptNumber } = require('../../../lib/payments/bookingDeposit') as {
+  generateReceiptNumber: (db: unknown) => Promise<string>;
 };
 // Paginación admin (mismo contrato que el resto del panel): array sin ?page, envelope con ?page.
 const { parsePagination, paginate } = require('../../../lib/pagination') as {
@@ -341,5 +348,67 @@ export class PrismaCitaRepository implements CitaRepositorio {
       include: INCLUDE_EDIT_ADMIN,
     });
     return row as unknown as CitaPersistida;
+  }
+
+  async crearPaqueteAdmin(_ctx: ContextoTenant, d: DatosPaqueteAdmin): Promise<ResultadoPaqueteAdmin> {
+    return this.prisma.$transaction(async (tx) => {
+      // Verifica conflictos por estilista (lógica compartida con el lote).
+      await assertNoConflicts(tx, d.lineas);
+
+      const created: CitaPersistida[] = [];
+      for (let i = 0; i < d.lineas.length; i++) {
+        const ln = d.lineas[i];
+        const row = await tx.appointment.create({
+          data: {
+            onDutyStaff: ln.onDutyStaff,
+            staffId: ln.staffId,
+            serviceId: ln.serviceId,
+            packageId: d.packageId,
+            bookingGroupId: d.bookingGroupId,
+            date: new Date(`${ln.date}T12:00:00Z`),
+            startTime: ln.startTime,
+            endTime: ln.endTime,
+            status: 'confirmed', // alta admin = confirmada
+            totalPen: ln.totalPen,
+            notes: i === 0 ? d.notas : null,
+            customerId: d.solicitante.customerId,
+            guestName: d.solicitante.guestName,
+            guestPhone: d.solicitante.guestPhone,
+            guestEmail: d.solicitante.guestEmail,
+          },
+          include: INCLUDE,
+        });
+        created.push(row as unknown as CitaPersistida);
+      }
+
+      let payment: PagoPersistido | null = null;
+      if (d.deposito) {
+        const receiptNumber = await generateReceiptNumber(tx);
+        const pago = await tx.bookingPayment.create({
+          data: {
+            bookingGroupId: d.bookingGroupId,
+            packageId: d.packageId,
+            customerId: d.solicitante.customerId,
+            customerName: d.solicitante.guestName,
+            customerEmail: d.solicitante.guestEmail,
+            customerPhone: d.solicitante.guestPhone,
+            totalPen: d.deposito.total,
+            depositPercent: d.deposito.depositPercent,
+            depositPen: d.deposito.depositPen,
+            paidPen: d.deposito.paidPen,
+            balancePen: d.deposito.balancePen,
+            method: d.deposito.method,
+            status: 'paid',
+            proofImageUrl: d.deposito.proofImageUrl,
+            receiptNumber,
+            verifiedBy: d.deposito.verifiedBy,
+            verifiedAt: new Date(),
+          },
+        });
+        payment = pago as unknown as PagoPersistido;
+      }
+
+      return { created, payment };
+    });
   }
 }

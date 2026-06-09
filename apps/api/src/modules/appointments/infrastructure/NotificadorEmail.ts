@@ -17,6 +17,7 @@ const email = require('../../../lib/notifications/email') as {
   sendAppointmentNoShow: (a: unknown) => Promise<unknown>;
   sendAppointmentRescheduled: (a: unknown) => Promise<unknown>;
   sendBookingConfirmation: (a: unknown) => Promise<unknown>;
+  sendDepositReceipt: (a: unknown) => Promise<unknown>;
 };
 const logger = require('../../../lib/logger') as { error: (msg: string, meta?: unknown) => void };
 
@@ -103,6 +104,23 @@ export class NotificadorEmail implements Notificador {
         email: contacto.email,
         name: contacto.nombre,
         atHomeExtraPen,
+      }),
+    );
+  }
+
+  reciboAdelanto(
+    pago: { id: string } & Record<string, unknown>,
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+  ): void {
+    fireAndForget(
+      email.sendDepositReceipt({
+        payment: pago,
+        appointments: citas,
+        packageInfo: paquete,
+        email: contacto.email,
+        name: contacto.nombre,
       }),
     );
   }

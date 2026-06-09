@@ -38,6 +38,7 @@ function crearDeps(o: {
     citaNoAsistio: vi.fn(),
     citaReprogramada: vi.fn(),
     reservaConfirmada: vi.fn(),
+    reciboAdelanto: vi.fn(),
   };
   const actualizarAdmin = vi.fn(
     async (_c: ContextoTenant, id: string): Promise<CitaPersistida> => ({

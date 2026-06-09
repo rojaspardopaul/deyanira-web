@@ -15,6 +15,7 @@ import { ListarCitasAdmin } from './application/ListarCitasAdmin';
 import { CrearCitaAdmin } from './application/CrearCitaAdmin';
 import { ConfirmarGrupoCitas } from './application/ConfirmarGrupoCitas';
 import { ActualizarCita } from './application/ActualizarCita';
+import { CrearPaqueteAdmin } from './application/CrearPaqueteAdmin';
 
 import { PrismaCitaRepository } from './infrastructure/PrismaCitaRepository';
 import { PrismaCalculadoraPrecios } from './infrastructure/PrismaCalculadoraPrecios';
@@ -36,6 +37,7 @@ export interface ModuloCitas {
   readonly crearCitaAdmin: CrearCitaAdmin;
   readonly confirmarGrupoCitas: ConfirmarGrupoCitas;
   readonly actualizarCita: ActualizarCita;
+  readonly crearPaqueteAdmin: CrearPaqueteAdmin;
 }
 
 /** Construye el módulo de citas con sus dependencias reales (Prisma, email, reloj). */
@@ -59,6 +61,7 @@ export function crearModuloCitas(): ModuloCitas {
     crearCitaAdmin: new CrearCitaAdmin(repo, reloj),
     confirmarGrupoCitas: new ConfirmarGrupoCitas(repo, notificador),
     actualizarCita: new ActualizarCita(repo, notificador),
+    crearPaqueteAdmin: new CrearPaqueteAdmin(catalogo, repo, scheduler, reloj, notificador),
   };
 }
 

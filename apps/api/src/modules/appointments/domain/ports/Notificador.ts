@@ -62,4 +62,12 @@ export interface Notificador {
     paquete: InfoPaquete | null,
     atHomeExtraPen: number | null,
   ): void;
+
+  /** Recibo de adelanto (alta admin de paquete con adelanto pagado). */
+  reciboAdelanto(
+    pago: { id: string } & Record<string, unknown>,
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+  ): void;
 }

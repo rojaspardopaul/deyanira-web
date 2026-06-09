@@ -69,6 +69,7 @@ function crearDeps(o: DepsOverrides = {}) {
     confirmarPendientesDelGrupo: vi.fn(async () => {}),
     recargarCitas: vi.fn(async () => []),
     actualizarAdmin: vi.fn(async () => ({ id: 'apt-admin' }) as CitaPersistida),
+    crearPaqueteAdmin: vi.fn(async () => ({ created: [], payment: null })),
   };
 
   const precios: CalculadoraPrecios = {
@@ -108,6 +109,7 @@ function crearDeps(o: DepsOverrides = {}) {
     citaNoAsistio: vi.fn(),
     citaReprogramada: vi.fn(),
     reservaConfirmada: vi.fn(),
+    reciboAdelanto: vi.fn(),
   };
 
   const reloj: Reloj = {

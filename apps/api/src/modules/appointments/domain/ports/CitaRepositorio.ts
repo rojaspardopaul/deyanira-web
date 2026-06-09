@@ -110,6 +110,41 @@ export interface ConflictoCita {
   readonly fin: string;
 }
 
+/** Adelanto YA pagado (alta admin de paquete): se registra como 'paid' + recibo. */
+export interface DepositoAdminInput {
+  readonly total: number;
+  readonly depositPercent: number;
+  readonly depositPen: number;
+  readonly paidPen: number;
+  readonly balancePen: number;
+  readonly method: string;
+  readonly proofImageUrl: string | null;
+  readonly verifiedBy: string | null;
+}
+
+/** Datos del alta admin de un paquete (N citas confirmadas + adelanto opcional). */
+export interface DatosPaqueteAdmin {
+  readonly lineas: LineaReserva[];
+  readonly packageId: string;
+  readonly bookingGroupId: string;
+  readonly notas: string | null;
+  readonly solicitante: {
+    customerId: string | null;
+    guestName: string;
+    guestPhone: string | null;
+    guestEmail: string | null;
+  };
+  readonly deposito: DepositoAdminInput | null;
+}
+
+/** BookingPayment ya persistido (forma laxa: el recibo necesita id + receiptNumber). */
+export type PagoPersistido = { id: string; receiptNumber: string | null } & Record<string, unknown>;
+
+export interface ResultadoPaqueteAdmin {
+  readonly created: CitaPersistida[];
+  readonly payment: PagoPersistido | null;
+}
+
 export interface CitaRepositorio {
   /** ¿La estilista realiza ese servicio? (tabla StaffService) */
   estilistaRealizaServicio(ctx: ContextoTenant, staffId: string, servicioId: string): Promise<boolean>;
@@ -193,4 +228,8 @@ export interface CitaRepositorio {
   /** Aplica una edición admin (estado/fecha/hora/estilista/notas) y devuelve la
    *  fila con service+staff+package.eventType. */
   actualizarAdmin(ctx: ContextoTenant, id: string, cambios: CambiosCitaAdmin): Promise<CitaPersistida>;
+
+  /** Alta admin de un paquete: crea N citas CONFIRMADAS (verificando conflictos) y,
+   *  si hay adelanto, su BookingPayment 'paid' + número de recibo, en una transacción. */
+  crearPaqueteAdmin(ctx: ContextoTenant, datos: DatosPaqueteAdmin): Promise<ResultadoPaqueteAdmin>;
 }

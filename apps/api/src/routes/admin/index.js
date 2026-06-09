@@ -19,8 +19,7 @@ const {
   sendBookingConfirmation,
   sendDepositReceipt,
 } = require('../../lib/notifications/email');
-const { scheduleItems, assertNoConflicts } = require('../../lib/booking/scheduleBatch');
-const { markDepositPaid, generateReceiptNumber } = require('../../lib/payments/bookingDeposit');
+const { markDepositPaid } = require('../../lib/payments/bookingDeposit');
 const { randomUUID } = require('crypto');
 
 const router = Router();
@@ -130,131 +129,10 @@ router.get('/dashboard', async (_req, res, next) => {
 
 // ── Gestión admin de citas (módulo, Strangler Fig completado) ─
 // El módulo appointments es la ÚNICA implementación de la gestión admin de citas:
-// intercepta GET/POST /appointments, POST /appointments/confirm-group y
-// PATCH /appointments/:id. El alta de paquetes con adelanto (POST
-// /appointments/package, abajo) sigue en legacy: pertenece a booking-payments.
+// GET/POST /appointments, POST /appointments/confirm-group, PATCH /appointments/:id
+// y POST /appointments/package (alta de paquete + adelanto). Ya no queda lógica de
+// citas en este god-file. Lo de abajo (/booking-payments/*) es gestión de adelantos.
 router.use(crearRouterAdminCitas());
-
-// ── Alta de reserva de PAQUETE (multi-servicio) + adelanto opcional ──
-// Crea N citas confirmadas en un grupo y, si se registra adelanto, su BookingPayment + recibo.
-router.post('/appointments/package', async (req, res, next) => {
-  try {
-    const {
-      packageId, items, date, startTime,
-      guestName, guestPhone, guestEmail, customerId, notes,
-      recordDeposit, depositPaidPen, method, proofImageUrl,
-    } = req.body;
-
-    if (!packageId || !UUID_RE.test(packageId)) return res.status(400).json({ error: 'packageId inválido' });
-    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items requerido' });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'date debe ser YYYY-MM-DD' });
-    if (!/^\d{2}:\d{2}$/.test(startTime || '')) return res.status(400).json({ error: 'startTime inválido' });
-    if (!guestName || !String(guestName).trim()) return res.status(400).json({ error: 'Nombre del cliente requerido' });
-
-    const todayLima = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    if (date < todayLima) return res.status(400).json({ error: 'No se pueden crear citas en el pasado' });
-
-    const pkg = await prisma.servicePackage.findUnique({
-      where: { id: packageId },
-      include: { eventType: { select: { id: true, name: true, slug: true } } },
-    });
-    if (!pkg) return res.status(404).json({ error: 'Paquete no encontrado' });
-
-    // Cargar servicios de los items (acepta inactivos por ser de paquete)
-    const serviceIds = Array.from(new Set(items.map((i) => i.serviceId)));
-    const services = await prisma.service.findMany({
-      where: { id: { in: serviceIds } },
-      include: { modifierGroups: { include: { options: true } } },
-    });
-    const serviceById = new Map(services.map((s) => [s.id, s]));
-    for (const it of items) {
-      if (!it.serviceId || !UUID_RE.test(it.serviceId) || !serviceById.has(it.serviceId)) {
-        return res.status(404).json({ error: `Servicio inválido en items` });
-      }
-    }
-
-    const scheduled = scheduleItems({ items, serviceById, date, startTime });
-    const bookingGroupId = randomUUID();
-    const total = Number(pkg.pricePen);
-
-    let created;
-    try {
-      created = await prisma.$transaction(async (tx) => {
-        await assertNoConflicts(tx, scheduled);
-        const rows = [];
-        for (let i = 0; i < scheduled.length; i++) {
-          const s = scheduled[i];
-          const appt = await tx.appointment.create({
-            data: {
-              onDutyStaff: s.onDutyStaff,
-              staffId: s.staffId,
-              serviceId: s.serviceId,
-              packageId: pkg.id,
-              bookingGroupId,
-              date: new Date(s.date + 'T12:00:00Z'),
-              startTime: s.startTime,
-              endTime: s.endTime,
-              status: 'confirmed', // alta admin = confirmada
-              totalPen: i === 0 ? total : 0,
-              notes: i === 0 ? (notes ? String(notes).slice(0, 500) : null) : null,
-              customerId: (customerId && UUID_RE.test(customerId)) ? customerId : null,
-              guestName: String(guestName).slice(0, 100),
-              guestPhone: guestPhone ? String(guestPhone).slice(0, 20) : null,
-              guestEmail: guestEmail ? String(guestEmail).slice(0, 100) : null,
-            },
-            include: { service: true, staff: true },
-          });
-          rows.push(appt);
-        }
-        return rows;
-      });
-    } catch (err) {
-      if (err.status === 409) return res.status(409).json({ error: err.message });
-      throw err;
-    }
-
-    // Registro de adelanto (si aplica)
-    let payment = null;
-    if (recordDeposit) {
-      const depositPercent = pkg.depositPercent ?? 50;
-      const depositPen = Math.round(total * depositPercent) / 100;
-      const paid = depositPaidPen != null ? Number(depositPaidPen) : depositPen;
-      const balance = Math.max(0, Math.round((total - paid) * 100) / 100);
-      const receiptNumber = await generateReceiptNumber(prisma);
-      payment = await prisma.bookingPayment.create({
-        data: {
-          bookingGroupId,
-          packageId: pkg.id,
-          customerId: (customerId && UUID_RE.test(customerId)) ? customerId : null,
-          customerName: String(guestName).slice(0, 100),
-          customerEmail: guestEmail || null,
-          customerPhone: guestPhone || null,
-          totalPen: total,
-          depositPercent,
-          depositPen,
-          paidPen: paid,
-          balancePen: balance,
-          method: method || 'cash',
-          status: 'paid',
-          proofImageUrl: proofImageUrl || null,
-          receiptNumber,
-          verifiedBy: req.admin?.id || null,
-          verifiedAt: new Date(),
-        },
-      });
-      if (guestEmail) {
-        const appts = await prisma.appointment.findMany({
-          where: { bookingGroupId }, include: { service: true, staff: true },
-          orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-        });
-        const packageInfo = { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType };
-        sendDepositReceipt({ payment, appointments: appts, packageInfo, email: guestEmail, name: guestName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-      }
-    }
-
-    res.status(201).json({ bookingGroupId, appointments: created, bookingPaymentId: payment?.id || null, receiptNumber: payment?.receiptNumber || null });
-  } catch (err) { next(err); }
-});
 
 // ── Adelantos / pagos de reserva ──────────────────────────────
 router.get('/booking-payments', async (req, res, next) => {

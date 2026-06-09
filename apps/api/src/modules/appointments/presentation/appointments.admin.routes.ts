@@ -20,7 +20,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ESTADOS_BD = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'];
 
 interface AdminReq extends Request {
-  admin: { role?: string; staffId?: string | null };
+  admin: { id?: string; role?: string; staffId?: string | null };
   tenant: { tenantId: string };
 }
 
@@ -31,7 +31,7 @@ function texto(v: unknown): string | undefined {
 /** Router de gestión admin de citas. Pensado para montarse con `router.use(...)`
  *  dentro del router admin (sin prefijo: define rutas `/appointments...`). */
 export function crearRouterAdminCitas(): express.Router {
-  const { listarCitasAdmin, crearCitaAdmin, confirmarGrupoCitas, actualizarCita } = crearModuloCitas();
+  const { listarCitasAdmin, crearCitaAdmin, confirmarGrupoCitas, actualizarCita, crearPaqueteAdmin } = crearModuloCitas();
   const router = express.Router();
 
   // GET /api/admin/appointments — listado con filtros + scoping por estilista
@@ -76,6 +76,17 @@ export function crearRouterAdminCitas(): express.Router {
       const r = req as AdminReq;
       const resultado = await confirmarGrupoCitas.ejecutar(r.tenant, r.body);
       res.json(resultado);
+    } catch (err) {
+      next(traducirError(err));
+    }
+  }) as RequestHandler);
+
+  // POST /api/admin/appointments/package — alta de paquete (N citas) + adelanto opcional
+  router.post('/appointments/package', (async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = req as AdminReq;
+      const resultado = await crearPaqueteAdmin.ejecutar(r.tenant, { ...r.body, adminId: r.admin.id ?? null });
+      res.status(201).json(resultado);
     } catch (err) {
       next(traducirError(err));
     }
