@@ -51,6 +51,9 @@ export interface TimeProps extends Base {
   hourFormat?: '12h' | '24h';
   /** Rangos de hora deshabilitados (se muestran en gris, no seleccionables). */
   disabledTimeRanges?: { start: string; end: string }[];
+  /** Pre-selecciona el primer horario disponible (el más temprano no ocupado) si
+   *  no hay valor. En modo libre por defecto NO (déjalo vacío). */
+  autoSelectEarliest?: boolean;
 }
 
 export interface DateTimeProps extends Base {
@@ -67,6 +70,9 @@ export interface DateTimeProps extends Base {
   hourFormat?: '12h' | '24h';
   /** Rangos de hora deshabilitados (modo libre). */
   disabledTimeRanges?: { start: string; end: string }[];
+  /** Pre-selecciona el primer slot disponible si no hay hora elegida. En modo
+   *  slots va activo por defecto (evita el "12:00" no viable). */
+  autoSelectEarliest?: boolean;
 }
 
 export interface RangeProps extends Base {

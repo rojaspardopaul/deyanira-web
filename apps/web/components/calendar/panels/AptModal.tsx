@@ -342,7 +342,8 @@ export function AptModal({
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Servicio *</label>
-              <select value={form.serviceId} onChange={e => field('serviceId', e.target.value)}
+              <select value={form.serviceId}
+                onChange={e => { setForm(f => ({ ...f, serviceId: e.target.value, startTime: '', endTime: '' })); setError(''); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white">
                 <option value="">Seleccionar servicio...</option>
                 {services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration} min)</option>)}
@@ -351,7 +352,8 @@ export function AptModal({
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Estilista</label>
-              <select value={form.staffId} onChange={e => field('staffId', e.target.value)}
+              <select value={form.staffId}
+                onChange={e => { setForm(f => ({ ...f, staffId: e.target.value, startTime: '', endTime: '' })); setError(''); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white">
                 <option value="">Estilista de turno (asignar luego)</option>
                 {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}

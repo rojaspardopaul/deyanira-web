@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Clock } from 'lucide-react';
 import {
   generateTimeOptions, timeToMinutes, minutesToTime, inDisabledRanges, formatTimeLabel,
@@ -28,6 +28,7 @@ type Props = {
   disabledTimeRanges?: { start: string; end: string }[];
   theme?: DateTimeTheme;
   emptyLabel?: string;
+  autoSelectEarliest?: boolean;
 };
 
 export default function TimeList({
@@ -35,6 +36,7 @@ export default function TimeList({
   minuteStep = 5, minTime, maxTime, hourFormat = '12h',
   disabledTimeRanges, theme = 'light',
   emptyLabel = 'No hay horarios disponibles para esta fecha',
+  autoSelectEarliest,
 }: Props) {
   const t = getTokens(theme);
   const [showWheel, setShowWheel] = useState(false);
@@ -89,6 +91,23 @@ export default function TimeList({
     }
     return grid;
   }, [slots, minuteStep, value, allowed]);
+
+  // Default inteligente: si no hay valor, pre-selecciona el PRIMER horario
+  // disponible (el más temprano que no esté ocupado/deshabilitado, tomado de
+  // `candidates` ya ordenado). Evita el "12:00" no viable. En modo slots va activo
+  // por defecto; en modo libre solo si el llamador lo pide explícitamente.
+  const autoSelect = autoSelectEarliest ?? (slots != null);
+  const yaAutoSeleccionado = useRef(false);
+  useEffect(() => {
+    if (!autoSelect) return;
+    if (value) { yaAutoSeleccionado.current = false; return; }
+    if (slotsLoading || yaAutoSeleccionado.current) return;
+    const primero = candidates.find(c => !c.disabled);
+    if (primero) {
+      yaAutoSeleccionado.current = true;
+      onSelect(primero.value, slotEnd.get(primero.value));
+    }
+  }, [autoSelect, value, slotsLoading, candidates, onSelect, slotEnd]);
 
   function handleManual(hhmm: string) {
     if (!allowed(hhmm)) { setError(`${formatTimeLabel(hhmm, hourFormat)} no está disponible.`); return; }
