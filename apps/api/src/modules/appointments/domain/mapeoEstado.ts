@@ -7,6 +7,7 @@ import type { EstadoCita } from './EstadoCita';
 export const ESTADO_A_BD: Record<EstadoCita, string> = {
   pendiente: 'pending',
   confirmada: 'confirmed',
+  en_proceso: 'in_progress',
   cancelada: 'cancelled',
   completada: 'completed',
   no_asistio: 'no_show',
@@ -15,6 +16,7 @@ export const ESTADO_A_BD: Record<EstadoCita, string> = {
 const BD_A_ESTADO: Record<string, EstadoCita> = {
   pending: 'pendiente',
   confirmed: 'confirmada',
+  in_progress: 'en_proceso',
   cancelled: 'cancelada',
   completed: 'completada',
   no_show: 'no_asistio',

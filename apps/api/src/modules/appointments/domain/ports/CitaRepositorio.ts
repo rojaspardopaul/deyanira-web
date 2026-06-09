@@ -52,6 +52,64 @@ export interface ResultadoLote {
   readonly payment: { id: string } | null;
 }
 
+// ── Gestión admin ─────────────────────────────────────────────
+
+/** Filtros del listado admin de citas (todos opcionales). */
+export interface FiltrosCitasAdmin {
+  /** Día exacto 'YYYY-MM-DD' (tiene prioridad sobre el rango). */
+  readonly fecha?: string | null;
+  readonly fechaDesde?: string | null;
+  readonly fechaHasta?: string | null;
+  /** Filtro explícito por estilista (solo roles que ven a todos). */
+  readonly staffId?: string | null;
+  /** Estado en valor BD ('pending'|'confirmed'|...). */
+  readonly estadoBd?: string | null;
+  /** Scoping: si no es null, restringe a las citas de ese estilista (rol estilista). */
+  readonly soloStaffId?: string | null;
+}
+
+/** Envelope paginado (cuando la query trae ?page); ver lib/pagination. */
+export interface PaginadoCitas {
+  readonly items: CitaPersistida[];
+  readonly total: number;
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalPages: number;
+}
+
+/** Datos para el alta manual admin de una cita individual. */
+export interface DatosCitaAdmin {
+  readonly staffId: string | null; // null = estilista de turno (onDutyStaff)
+  readonly serviceId: string;
+  readonly fecha: string; // 'YYYY-MM-DD'
+  readonly franja: FranjaHoraria;
+  readonly estadoBd: string; // estado resuelto en valor BD
+  readonly totalPen: unknown; // service.pricePen
+  readonly notas: string | null;
+  readonly guestName: string;
+  readonly guestPhone: string | null;
+  readonly guestEmail: string | null;
+}
+
+/** Cambios de una edición admin (PATCH). Una clave presente = se actualiza ese
+ *  campo; ausente = se deja igual. staff/notas usan wrapper porque `null` es un
+ *  valor válido (estilista de turno / quitar notas). */
+export interface CambiosCitaAdmin {
+  readonly estado?: EstadoCita;
+  readonly fecha?: string; // 'YYYY-MM-DD'
+  readonly startTime?: string;
+  readonly endTime?: string;
+  readonly staff?: { readonly staffId: string | null };
+  readonly notas?: { readonly valor: string | null };
+}
+
+/** Detalle del conflicto encontrado (para el mensaje "La estilista ya tiene..."). */
+export interface ConflictoCita {
+  readonly servicioNombre: string;
+  readonly inicio: string;
+  readonly fin: string;
+}
+
 export interface CitaRepositorio {
   /** ¿La estilista realiza ese servicio? (tabla StaffService) */
   estilistaRealizaServicio(ctx: ContextoTenant, staffId: string, servicioId: string): Promise<boolean>;
@@ -89,4 +147,50 @@ export interface CitaRepositorio {
 
   /** Cambia el estado de una cita (estado de dominio; el mapper traduce a BD). */
   cambiarEstado(ctx: ContextoTenant, id: string, estado: EstadoCita): Promise<CitaPersistida>;
+
+  // ── Gestión admin ───────────────────────────────────────────
+
+  /** Listado admin con filtros + scoping por estilista. Devuelve un envelope
+   *  paginado si `query.page` viene; si no, un array (contrato legacy). */
+  listarAdmin(
+    ctx: ContextoTenant,
+    filtros: FiltrosCitasAdmin,
+    query: Record<string, unknown>,
+  ): Promise<CitaPersistida[] | PaginadoCitas>;
+
+  /** Precio/datos básicos de un servicio para el alta manual. null si no existe. */
+  buscarServicioBasico(ctx: ContextoTenant, serviceId: string): Promise<{ pricePen: unknown } | null>;
+
+  /** Alta manual admin de una cita individual. */
+  crearAdmin(ctx: ContextoTenant, datos: DatosCitaAdmin): Promise<CitaPersistida>;
+
+  /** Busca una cita activa que solape (staff+fecha+franja). `incluirEnProceso`
+   *  añade 'in_progress' al set (reprogramación admin); `exceptId` la excluye. */
+  buscarConflictoAdmin(
+    ctx: ContextoTenant,
+    params: {
+      staffId: string;
+      fecha: string;
+      franja: FranjaHoraria;
+      exceptId?: string | null;
+      incluirEnProceso?: boolean;
+    },
+  ): Promise<ConflictoCita | null>;
+
+  /** Citas pendientes/confirmadas de un paquete en una fecha y cliente (guestEmail
+   *  o customerId), con service+staff+package.eventType, ordenadas por startTime. */
+  buscarGrupoPaquete(
+    ctx: ContextoTenant,
+    params: { packageId: string; fecha: string; customerKey: string },
+  ): Promise<CitaPersistida[]>;
+
+  /** Confirma (pending→confirmed) las citas indicadas. */
+  confirmarPendientesDelGrupo(ctx: ContextoTenant, ids: string[]): Promise<void>;
+
+  /** Recarga citas por id con service+staff (para el correo consolidado). */
+  recargarCitas(ctx: ContextoTenant, ids: string[]): Promise<CitaPersistida[]>;
+
+  /** Aplica una edición admin (estado/fecha/hora/estilista/notas) y devuelve la
+   *  fila con service+staff+package.eventType. */
+  actualizarAdmin(ctx: ContextoTenant, id: string, cambios: CambiosCitaAdmin): Promise<CitaPersistida>;
 }

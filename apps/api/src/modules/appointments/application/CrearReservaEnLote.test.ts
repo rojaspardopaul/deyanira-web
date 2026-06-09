@@ -54,6 +54,12 @@ function crearDeps(o: Overrides = {}) {
     reservaSolicitada: vi.fn(),
     nuevaReservaAlSalon: vi.fn(),
     citaCancelada: vi.fn(),
+    citaConfirmada: vi.fn(),
+    citaEnProceso: vi.fn(),
+    citaCompletada: vi.fn(),
+    citaNoAsistio: vi.fn(),
+    citaReprogramada: vi.fn(),
+    reservaConfirmada: vi.fn(),
   };
   const reloj: Reloj = { ahoraLima: () => ({ fecha: '2026-06-10', hora: '08:00', ms: Date.parse('2026-06-10T08:00:00') }) };
   const scheduler: Scheduler = {

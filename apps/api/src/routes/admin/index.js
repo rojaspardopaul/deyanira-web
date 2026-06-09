@@ -13,6 +13,7 @@ const logger = require('../../lib/logger');
 const accountingRouter = require('./accounting');
 const mfaRouter = require('./mfa');
 const eventTypesAdminRouter = require('./event-types');
+const { crearRouterAdminCitas } = require('../../modules/appointments/presentation/appointments.admin.routes');
 const {
   sendAppointmentConfirmation,
   sendAppointmentCancelled,
@@ -133,6 +134,16 @@ router.get('/dashboard', async (_req, res, next) => {
     res.json({ appointmentsToday, pendingOrders, totalCustomers, recentAppointments });
   } catch (err) { next(err); }
 });
+
+// ── Gestión admin de citas (módulo) tras feature flag ─────────
+// Con CITAS_ADMIN_MODULO_NUEVO=true el módulo intercepta GET/POST /appointments,
+// POST /appointments/confirm-group y PATCH /appointments/:id (Strangler Fig).
+// El alta de paquetes con adelanto (POST /appointments/package) NO se intercepta:
+// cae a los handlers legacy de abajo (pertenece al futuro módulo booking-payments).
+// Rollback = apagar el flag (sin redeploy). Por defecto: legacy.
+if (process.env.CITAS_ADMIN_MODULO_NUEVO === 'true') {
+  router.use(crearRouterAdminCitas());
+}
 
 // ── Citas ─────────────────────────────────────────────────────
 router.post('/appointments', async (req, res, next) => {

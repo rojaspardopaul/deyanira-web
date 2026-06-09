@@ -74,6 +74,15 @@ export class CitaNoCancelableError extends ErrorDominio {
   readonly status = 400;
 }
 
+// ── Gestión admin ─────────────────────────────────────────────
+// Validaciones de entrada del flujo admin (alta manual, edición). Un único código
+// con mensaje específico por caso (formato de fecha/hora, estado inválido, staffId
+// inválido, "nada que actualizar"...), preservando los mensajes del handler legacy.
+export class SolicitudCitaInvalidaError extends ErrorDominio {
+  readonly codigo = 'solicitud_cita_invalida';
+  readonly status = 400;
+}
+
 // ── Reserva en lote (paquetes) ────────────────────────────────
 export class PaqueteNoEncontradoError extends ErrorDominio {
   readonly codigo = 'paquete_no_encontrado';

@@ -33,4 +33,33 @@ export interface Notificador {
 
   /** Aviso al cliente de cancelación. */
   citaCancelada(cita: CitaPersistida, contacto: Contacto, motivo: string): void;
+
+  // ── Gestión admin ───────────────────────────────────────────
+
+  /** Confirmación individual al cliente (el salón confirmó su cita). */
+  citaConfirmada(cita: CitaPersistida, contacto: Contacto): void;
+
+  /** La cita entró en proceso (en cabina). */
+  citaEnProceso(cita: CitaPersistida, contacto: Contacto): void;
+
+  /** La cita se completó. */
+  citaCompletada(cita: CitaPersistida, contacto: Contacto): void;
+
+  /** El cliente no asistió. */
+  citaNoAsistio(cita: CitaPersistida, contacto: Contacto): void;
+
+  /** Reprogramación: incluye la fecha/hora anterior para el "de X a Y". */
+  citaReprogramada(
+    cita: CitaPersistida,
+    contacto: Contacto,
+    anterior: { fecha: Date | string; hora: string },
+  ): void;
+
+  /** Confirmación consolidada de un grupo de paquete (un solo correo). */
+  reservaConfirmada(
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+    atHomeExtraPen: number | null,
+  ): void;
 }

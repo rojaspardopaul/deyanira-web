@@ -13,6 +13,11 @@ import type {
   DatosCliente,
   DatosReservaLote,
   ResultadoLote,
+  FiltrosCitasAdmin,
+  PaginadoCitas,
+  DatosCitaAdmin,
+  CambiosCitaAdmin,
+  ConflictoCita,
 } from '../domain/ports/CitaRepositorio';
 import { toPersistence } from './mappers';
 
@@ -21,10 +26,38 @@ import { toPersistence } from './mappers';
 const { assertNoConflicts } = require('../../../lib/booking/scheduleBatch') as {
   assertNoConflicts: (tx: unknown, scheduled: unknown[]) => Promise<void>;
 };
+// Paginación admin (mismo contrato que el resto del panel): array sin ?page, envelope con ?page.
+const { parsePagination, paginate } = require('../../../lib/pagination') as {
+  parsePagination: (q: unknown) => { hasPage: boolean; page: number; pageSize: number; skip: number; take: number };
+  paginate: (model: unknown, args: unknown, pg: unknown) => Promise<PaginadoCitas>;
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // service+staff incluidos: la fila resultante alimenta el DTO -> contrato HTTP legacy.
 const INCLUDE = { service: true, staff: true } as const;
+// Includes admin: el listado y la edición arrastran customer/package.eventType para la UI/correos.
+const INCLUDE_LISTA_ADMIN = {
+  service: true,
+  staff: true,
+  customer: true,
+  package: {
+    select: {
+      id: true,
+      name: true,
+      eventType: { select: { id: true, name: true, slug: true, accentColor: true, icon: true } },
+    },
+  },
+} as const;
+const INCLUDE_EDIT_ADMIN = { service: true, staff: true, package: { include: { eventType: true } } } as const;
+const INCLUDE_GRUPO_ADMIN = {
+  service: true,
+  staff: true,
+  customer: true,
+  package: { include: { eventType: true } },
+} as const;
 const ESTADOS_ACTIVOS_BD = ['pending', 'confirmed'];
+const ESTADOS_CONFLICTO_ADMIN = ['pending', 'confirmed', 'in_progress'];
 
 export class PrismaCitaRepository implements CitaRepositorio {
   constructor(private readonly prisma: PrismaClient) {}
@@ -166,6 +199,146 @@ export class PrismaCitaRepository implements CitaRepositorio {
       where: { id },
       data: { status: aEstadoBd(estado) },
       include: INCLUDE,
+    });
+    return row as unknown as CitaPersistida;
+  }
+
+  // ── Gestión admin ───────────────────────────────────────────
+
+  async listarAdmin(
+    _ctx: ContextoTenant,
+    filtros: FiltrosCitasAdmin,
+    query: Record<string, unknown>,
+  ): Promise<CitaPersistida[] | PaginadoCitas> {
+    const where: Record<string, unknown> = {};
+    if (filtros.fecha) {
+      where.date = new Date(`${filtros.fecha}T12:00:00Z`);
+    } else if (filtros.fechaDesde || filtros.fechaHasta) {
+      const rango: { gte?: Date; lte?: Date } = {};
+      if (filtros.fechaDesde) rango.gte = new Date(`${filtros.fechaDesde}T00:00:00Z`);
+      if (filtros.fechaHasta) rango.lte = new Date(`${filtros.fechaHasta}T23:59:59Z`);
+      where.date = rango;
+    }
+    if (filtros.soloStaffId != null) where.staffId = filtros.soloStaffId;
+    else if (filtros.staffId) where.staffId = filtros.staffId;
+    if (filtros.estadoBd) where.status = filtros.estadoBd;
+
+    const orderBy = [{ date: 'asc' as const }, { startTime: 'asc' as const }];
+    const pg = parsePagination(query);
+    if (pg.hasPage) {
+      return paginate(this.prisma.appointment, { where, include: INCLUDE_LISTA_ADMIN, orderBy }, pg);
+    }
+    const rows = await this.prisma.appointment.findMany({
+      where,
+      include: INCLUDE_LISTA_ADMIN,
+      orderBy,
+      take: 2000,
+    });
+    return rows as unknown as CitaPersistida[];
+  }
+
+  async buscarServicioBasico(_ctx: ContextoTenant, serviceId: string): Promise<{ pricePen: unknown } | null> {
+    const s = await this.prisma.service.findUnique({ where: { id: serviceId }, select: { pricePen: true } });
+    return s ? { pricePen: s.pricePen } : null;
+  }
+
+  async crearAdmin(_ctx: ContextoTenant, d: DatosCitaAdmin): Promise<CitaPersistida> {
+    const row = await this.prisma.appointment.create({
+      data: {
+        staffId: d.staffId,
+        onDutyStaff: !d.staffId,
+        serviceId: d.serviceId,
+        date: new Date(`${d.fecha}T12:00:00Z`),
+        startTime: d.franja.inicio,
+        endTime: d.franja.fin,
+        status: d.estadoBd,
+        totalPen: d.totalPen as never,
+        notes: d.notas,
+        guestName: d.guestName,
+        guestPhone: d.guestPhone,
+        guestEmail: d.guestEmail,
+      },
+      include: INCLUDE,
+    });
+    return row as unknown as CitaPersistida;
+  }
+
+  async buscarConflictoAdmin(
+    _ctx: ContextoTenant,
+    params: {
+      staffId: string;
+      fecha: string;
+      franja: FranjaHoraria;
+      exceptId?: string | null;
+      incluirEnProceso?: boolean;
+    },
+  ): Promise<ConflictoCita | null> {
+    const where: Record<string, unknown> = {
+      staffId: params.staffId,
+      date: new Date(`${params.fecha}T12:00:00Z`),
+      status: { in: params.incluirEnProceso ? ESTADOS_CONFLICTO_ADMIN : ESTADOS_ACTIVOS_BD },
+      startTime: { lt: params.franja.fin },
+      endTime: { gt: params.franja.inicio },
+    };
+    if (params.exceptId) where.id = { not: params.exceptId };
+    const c = await this.prisma.appointment.findFirst({ where, include: { service: true } });
+    if (!c) return null;
+    const conflicto = c as unknown as { service: { name: string }; startTime: string; endTime: string };
+    return { servicioNombre: conflicto.service.name, inicio: conflicto.startTime, fin: conflicto.endTime };
+  }
+
+  async buscarGrupoPaquete(
+    _ctx: ContextoTenant,
+    params: { packageId: string; fecha: string; customerKey: string },
+  ): Promise<CitaPersistida[]> {
+    const filtroCliente = UUID_RE.test(params.customerKey)
+      ? { customerId: params.customerKey }
+      : { guestEmail: params.customerKey };
+    const rows = await this.prisma.appointment.findMany({
+      where: {
+        packageId: params.packageId,
+        date: new Date(`${params.fecha}T12:00:00Z`),
+        status: { in: ESTADOS_ACTIVOS_BD },
+        ...filtroCliente,
+      },
+      include: INCLUDE_GRUPO_ADMIN,
+      orderBy: { startTime: 'asc' },
+    });
+    return rows as unknown as CitaPersistida[];
+  }
+
+  async confirmarPendientesDelGrupo(_ctx: ContextoTenant, ids: string[]): Promise<void> {
+    await this.prisma.appointment.updateMany({
+      where: { id: { in: ids }, status: 'pending' },
+      data: { status: 'confirmed' },
+    });
+  }
+
+  async recargarCitas(_ctx: ContextoTenant, ids: string[]): Promise<CitaPersistida[]> {
+    const rows = await this.prisma.appointment.findMany({
+      where: { id: { in: ids } },
+      include: INCLUDE,
+      orderBy: { startTime: 'asc' },
+    });
+    return rows as unknown as CitaPersistida[];
+  }
+
+  async actualizarAdmin(_ctx: ContextoTenant, id: string, cambios: CambiosCitaAdmin): Promise<CitaPersistida> {
+    const data: Record<string, unknown> = {};
+    if (cambios.estado) data.status = aEstadoBd(cambios.estado);
+    if (cambios.fecha) data.date = new Date(`${cambios.fecha}T12:00:00Z`);
+    if (cambios.startTime) data.startTime = cambios.startTime;
+    if (cambios.endTime) data.endTime = cambios.endTime;
+    if (cambios.staff) {
+      data.staffId = cambios.staff.staffId;
+      data.onDutyStaff = !cambios.staff.staffId;
+    }
+    if (cambios.notas) data.notes = cambios.notas.valor;
+
+    const row = await this.prisma.appointment.update({
+      where: { id },
+      data,
+      include: INCLUDE_EDIT_ADMIN,
     });
     return row as unknown as CitaPersistida;
   }

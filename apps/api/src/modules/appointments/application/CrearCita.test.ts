@@ -61,6 +61,14 @@ function crearDeps(o: DepsOverrides = {}) {
     crearLote: vi.fn(async () => ({ created: [], payment: null })),
     buscarPorId: vi.fn(async () => null),
     cambiarEstado: vi.fn(async () => persistida(guardadas[0])),
+    listarAdmin: vi.fn(async () => []),
+    buscarServicioBasico: vi.fn(async () => ({ pricePen: 100 })),
+    crearAdmin: vi.fn(async () => ({ id: 'apt-admin' }) as CitaPersistida),
+    buscarConflictoAdmin: vi.fn(async () => null),
+    buscarGrupoPaquete: vi.fn(async () => []),
+    confirmarPendientesDelGrupo: vi.fn(async () => {}),
+    recargarCitas: vi.fn(async () => []),
+    actualizarAdmin: vi.fn(async () => ({ id: 'apt-admin' }) as CitaPersistida),
   };
 
   const precios: CalculadoraPrecios = {
@@ -94,6 +102,12 @@ function crearDeps(o: DepsOverrides = {}) {
     reservaSolicitada: vi.fn(),
     nuevaReservaAlSalon: vi.fn(),
     citaCancelada: vi.fn(),
+    citaConfirmada: vi.fn(),
+    citaEnProceso: vi.fn(),
+    citaCompletada: vi.fn(),
+    citaNoAsistio: vi.fn(),
+    citaReprogramada: vi.fn(),
+    reservaConfirmada: vi.fn(),
   };
 
   const reloj: Reloj = {

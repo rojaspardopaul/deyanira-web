@@ -11,6 +11,10 @@ import { CancelarCita } from './application/CancelarCita';
 import { ConsultarDisponibilidad } from './application/ConsultarDisponibilidad';
 import { ListarMisCitas } from './application/ListarMisCitas';
 import { CrearReservaEnLote } from './application/CrearReservaEnLote';
+import { ListarCitasAdmin } from './application/ListarCitasAdmin';
+import { CrearCitaAdmin } from './application/CrearCitaAdmin';
+import { ConfirmarGrupoCitas } from './application/ConfirmarGrupoCitas';
+import { ActualizarCita } from './application/ActualizarCita';
 
 import { PrismaCitaRepository } from './infrastructure/PrismaCitaRepository';
 import { PrismaCalculadoraPrecios } from './infrastructure/PrismaCalculadoraPrecios';
@@ -27,6 +31,11 @@ export interface ModuloCitas {
   readonly consultarDisponibilidad: ConsultarDisponibilidad;
   readonly listarMisCitas: ListarMisCitas;
   readonly crearReservaEnLote: CrearReservaEnLote;
+  // Gestión admin
+  readonly listarCitasAdmin: ListarCitasAdmin;
+  readonly crearCitaAdmin: CrearCitaAdmin;
+  readonly confirmarGrupoCitas: ConfirmarGrupoCitas;
+  readonly actualizarCita: ActualizarCita;
 }
 
 /** Construye el módulo de citas con sus dependencias reales (Prisma, email, reloj). */
@@ -46,6 +55,10 @@ export function crearModuloCitas(): ModuloCitas {
     consultarDisponibilidad: new ConsultarDisponibilidad(disponibilidad),
     listarMisCitas: new ListarMisCitas(repo),
     crearReservaEnLote: new CrearReservaEnLote(catalogo, repo, configDomicilio, precios, scheduler, notificador, reloj),
+    listarCitasAdmin: new ListarCitasAdmin(repo),
+    crearCitaAdmin: new CrearCitaAdmin(repo, reloj),
+    confirmarGrupoCitas: new ConfirmarGrupoCitas(repo, notificador),
+    actualizarCita: new ActualizarCita(repo, notificador),
   };
 }
 
