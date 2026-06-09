@@ -11,6 +11,7 @@ import {
 import BookingCalendar from '@/components/ui/BookingCalendar';
 import DateTimePicker from '@/components/ui/datetime';
 import TimeList from '@/components/ui/datetime/TimeList';
+import Select from '@/components/ui/Select';
 import ServiceOptionsForm from '@/components/booking/ServiceOptionsForm';
 
 // Modales pesados cargados bajo demanda (solo al abrirlos) → aligeran el bundle inicial de /reservar.
@@ -1688,10 +1689,14 @@ export function ConfirmStep({
           </div>
           <div>
             <label className="block text-xs font-semibold mb-1.5 text-white">Distrito</label>
-            <select value={atHomeDistrict} onChange={e => setAtHomeDistrict(e.target.value)}
-              className="select-dark text-sm">
-              {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            <Select
+              theme="dark"
+              value={atHomeDistrict}
+              onChange={setAtHomeDistrict}
+              options={LIMA_DISTRICTS}
+              searchable
+              ariaLabel="Distrito"
+            />
           </div>
           <div className="rounded-xl p-3 text-xs"
             style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'rgba(147,197,253,0.9)' }}>
