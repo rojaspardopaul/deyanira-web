@@ -80,6 +80,14 @@ export default function TimeField({
     return is12 ? n >= 1 && n <= 12 : n >= 0 && n <= 23;
   }
 
+  // ¿Un dígito suelto puede ser el inicio de una hora válida de 2 dígitos?
+  // 12h: solo "0" (→01-09) y "1" (→10-12). 24h: "0","1","2". El resto (p. ej. "9")
+  // ya está completo como hora de un dígito → conviene avanzar de inmediato.
+  function puedeExtenderse(d: number) {
+    for (let x = 0; x <= 9; x++) if (isValidHour(d * 10 + x)) return true;
+    return false;
+  }
+
   function onHours(raw: string) {
     let digits = raw.replace(/\D/g, '');
     // Primera tecla tras enfocar: empezar de cero con el dígito recién escrito.
@@ -90,10 +98,11 @@ export default function TimeField({
     // el primero. Nunca saltamos por esto.
     if (d.length === 2 && !isValidHour(parseInt(d, 10))) d = d[0];
     setH(d);
-    const complete = d.length === 2 && isValidHour(parseInt(d, 10));
+    const n = parseInt(d, 10);
+    const complete = isValidHour(n) && (d.length === 2 || !puedeExtenderse(n));
     if (complete) {
       advancing.current = true;
-      mRef.current?.focus(); // avanzar SOLO con la hora completa (2 dígitos)
+      mRef.current?.focus(); // hora completa: 2 dígitos, o 1 dígito no extensible
     }
     if (m && d) buildAndCommit(d, m, period);
   }
@@ -122,7 +131,9 @@ export default function TimeField({
       let next = base.length >= 2 ? e.key : base + e.key;
       if (next.length === 2 && !isValidHour(parseInt(next, 10))) next = e.key; // reinicia
       setH(next);
-      const complete = next.length === 2 && isValidHour(parseInt(next, 10));
+      const n = parseInt(next, 10);
+      // Completo = 2 dígitos válidos, O 1 dígito válido que no admite 2.º dígito.
+      const complete = isValidHour(n) && (next.length === 2 || !puedeExtenderse(n));
       if (complete) { advancing.current = true; mRef.current?.focus(); }
       if (m && next) buildAndCommit(next, m, period);
     } else if (e.key === 'Backspace') {
