@@ -39,6 +39,10 @@ export default function TimeField({
   // por defecto) complete 2 dígitos al primer toque y salte de campo sin dejar
   // escribir el segundo dígito (no dependemos de que select() reemplace).
   const fresh = useRef(false);
+  // Avance interno hora→min (o backspace min→hora): el focus() dispara un blur
+  // síncrono cuyo closure tiene el valor ANTERIOR. Esta bandera evita que
+  // normalizeOnBlur normalice/recommitee con ese valor viejo y pise el recién puesto.
+  const advancing = useRef(false);
 
   // Sincronizar con el valor externo cuando no se está editando
   useEffect(() => {
@@ -88,6 +92,7 @@ export default function TimeField({
     setH(d);
     const complete = d.length === 2 && isValidHour(parseInt(d, 10));
     if (complete) {
+      advancing.current = true;
       mRef.current?.focus(); // avanzar SOLO con la hora completa (2 dígitos)
     }
     if (m && d) buildAndCommit(d, m, period);
@@ -118,7 +123,7 @@ export default function TimeField({
       if (next.length === 2 && !isValidHour(parseInt(next, 10))) next = e.key; // reinicia
       setH(next);
       const complete = next.length === 2 && isValidHour(parseInt(next, 10));
-      if (complete) mRef.current?.focus();
+      if (complete) { advancing.current = true; mRef.current?.focus(); }
       if (m && next) buildAndCommit(next, m, period);
     } else if (e.key === 'Backspace') {
       e.preventDefault();
@@ -140,7 +145,7 @@ export default function TimeField({
       if (h && next.length === 2) buildAndCommit(h, next, period);
     } else if (e.key === 'Backspace') {
       e.preventDefault();
-      if (m === '') { hRef.current?.focus(); }
+      if (m === '') { advancing.current = true; hRef.current?.focus(); }
       else { fresh.current = false; setM(m.slice(0, -1)); }
     }
   }
@@ -152,6 +157,9 @@ export default function TimeField({
   }
 
   function normalizeOnBlur() {
+    // Avance interno hora↔min: no es una salida real del control. No normalizar
+    // (el closure tiene el valor viejo y pisaría el recién tecleado).
+    if (advancing.current) { advancing.current = false; return; }
     setFocus(false);
     if (h && m) {
       const hh = pad2(parseInt(h, 10));
