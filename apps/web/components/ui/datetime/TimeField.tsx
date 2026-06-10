@@ -34,6 +34,11 @@ export default function TimeField({
   const hRef = useRef<HTMLInputElement>(null);
   const mRef = useRef<HTMLInputElement>(null);
   const focused = useRef(false);
+  // La primera edición tras enfocar un segmento empieza de cero (toma solo el
+  // dígito recién tecleado). Evita que un campo PRE-RELLENADO (p. ej. el horario
+  // por defecto) complete 2 dígitos al primer toque y salte de campo sin dejar
+  // escribir el segundo dígito (no dependemos de que select() reemplace).
+  const fresh = useRef(false);
 
   // Sincronizar con el valor externo cuando no se está editando
   useEffect(() => {
@@ -72,7 +77,11 @@ export default function TimeField({
   }
 
   function onHours(raw: string) {
-    let d = raw.replace(/\D/g, '').slice(0, 2);
+    let digits = raw.replace(/\D/g, '');
+    // Primera tecla tras enfocar: empezar de cero con el dígito recién escrito.
+    if (fresh.current) digits = digits.slice(-1);
+    fresh.current = false;
+    let d = digits.slice(0, 2);
     // Si hay 2 dígitos pero no forman una hora válida (ej. "93"), conservar solo
     // el primero. Nunca saltamos por esto.
     if (d.length === 2 && !isValidHour(parseInt(d, 10))) d = d[0];
@@ -85,7 +94,10 @@ export default function TimeField({
   }
 
   function onMinutes(raw: string) {
-    let d = raw.replace(/\D/g, '').slice(0, 2);
+    let digits = raw.replace(/\D/g, '');
+    if (fresh.current) digits = digits.slice(-1);
+    fresh.current = false;
+    let d = digits.slice(0, 2);
     // Si el primer dígito es > 5, no puede ser decena → interpretar como 0X
     if (d.length === 1 && parseInt(d, 10) > 5) d = '0' + d;
     setM(d);
@@ -132,7 +144,7 @@ export default function TimeField({
           value={h}
           placeholder={is12 ? '12' : '00'}
           aria-label="Hora"
-          onFocus={e => { setFocus(true); e.currentTarget.select(); }}
+          onFocus={e => { setFocus(true); fresh.current = true; e.currentTarget.select(); }}
           onMouseUp={e => e.preventDefault()}
           onBlur={normalizeOnBlur}
           onChange={e => onHours(e.target.value)}
@@ -152,7 +164,7 @@ export default function TimeField({
           value={m}
           placeholder="00"
           aria-label="Minutos"
-          onFocus={e => { setFocus(true); e.currentTarget.select(); }}
+          onFocus={e => { setFocus(true); fresh.current = true; e.currentTarget.select(); }}
           onMouseUp={e => e.preventDefault()}
           onBlur={normalizeOnBlur}
           onChange={e => onMinutes(e.target.value)}
