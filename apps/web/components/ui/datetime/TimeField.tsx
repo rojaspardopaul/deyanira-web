@@ -140,7 +140,6 @@ export default function TimeField({
           ref={hRef}
           type="text"
           inputMode="numeric"
-          maxLength={2}
           value={h}
           placeholder={is12 ? '12' : '00'}
           aria-label="Hora"
@@ -160,7 +159,6 @@ export default function TimeField({
           ref={mRef}
           type="text"
           inputMode="numeric"
-          maxLength={2}
           value={m}
           placeholder="00"
           aria-label="Minutos"
