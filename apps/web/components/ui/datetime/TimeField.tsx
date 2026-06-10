@@ -106,8 +106,43 @@ export default function TimeField({
     if (h && d.length === 2) buildAndCommit(h, d, period);
   }
 
+  // ── Entrada determinista por tecla (desktop) ──────────────────
+  // No dependemos de onChange/select()/cursor: construimos el buffer en JS. En
+  // móvil (keydown sin tecla concreta) cae al onChange de respaldo.
+  function onHoursKey(e: React.KeyboardEvent) {
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      const base = fresh.current ? '' : h;
+      fresh.current = false;
+      let next = base.length >= 2 ? e.key : base + e.key;
+      if (next.length === 2 && !isValidHour(parseInt(next, 10))) next = e.key; // reinicia
+      setH(next);
+      const complete = next.length === 2 && isValidHour(parseInt(next, 10));
+      if (complete) mRef.current?.focus();
+      if (m && next) buildAndCommit(next, m, period);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      fresh.current = false;
+      setH(h.slice(0, -1));
+    }
+  }
+
   function onMinutesKey(e: React.KeyboardEvent) {
-    if (e.key === 'Backspace' && m === '') { e.preventDefault(); hRef.current?.focus(); }
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      const base = fresh.current ? '' : m;
+      fresh.current = false;
+      let next = base.length >= 2 ? e.key : base + e.key;
+      if (next.length === 1 && parseInt(next, 10) > 5) next = '0' + next; // 6-9 → 06-09
+      next = next.slice(0, 2);
+      if (parseInt(next, 10) > 59) next = e.key;
+      setM(next);
+      if (h && next.length === 2) buildAndCommit(h, next, period);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (m === '') { hRef.current?.focus(); }
+      else { fresh.current = false; setM(m.slice(0, -1)); }
+    }
   }
 
   function togglePeriod() {
@@ -146,6 +181,7 @@ export default function TimeField({
           onFocus={e => { setFocus(true); fresh.current = true; e.currentTarget.select(); }}
           onMouseUp={e => e.preventDefault()}
           onBlur={normalizeOnBlur}
+          onKeyDown={onHoursKey}
           onChange={e => onHours(e.target.value)}
           className={`${boxBase} w-14 py-2`}
         />
