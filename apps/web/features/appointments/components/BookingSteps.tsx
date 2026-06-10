@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { api } from '@/lib/api';
 import {
@@ -1112,6 +1112,8 @@ export function SlotStep({
 }) {
   const [slots, setSlots]               = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [advanceSlots, setAdvanceSlots]     = useState<Record<number, Slot[]>>({});
+  const [advanceLoading, setAdvanceLoading] = useState<Record<number, boolean>>({});
   const today    = new Date().toISOString().split('T')[0];
   const totalAmt = totalWithPackage(assignments.map(a => a.service), packageInfo, modifierSelections) +
                    (trialEnabled && packageInfo?.trialAddon ? packageInfo.trialAddon.extraPricePen : 0);
@@ -1120,28 +1122,30 @@ export function SlotStep({
     0,
   );
 
-  // Detectar grupos de anticipación (servicios con daysBeforeMain > 0)
-  const advanceGroups = (() => {
-    const map = new Map<number, { label: string; services: string[] }>();
+  // Detectar grupos de anticipación (servicios con daysBeforeMain > 0). Cada grupo
+  // guarda sus `items` (serviceId + duración) para calcular su disponibilidad real.
+  const advanceGroups = useMemo(() => {
+    type Grupo = { label: string; services: string[]; items: Array<{ serviceId: string; duration: number }> };
+    const map = new Map<number, Grupo>();
+    const add = (dbm: number, name: string, serviceId: string, duration: number) => {
+      const g = map.get(dbm) || { label: '', services: [], items: [] };
+      if (!g.services.includes(name)) g.services.push(name);
+      if (!g.items.some(x => x.serviceId === serviceId)) g.items.push({ serviceId, duration });
+      g.label = `Mínimo ${dbm} día${dbm > 1 ? 's' : ''} antes`;
+      map.set(dbm, g);
+    };
     if (packageInfo) {
       for (const bs of packageInfo.bookableServices) {
         const dbm = bs.daysBeforeMain ?? 0;
-        if (dbm <= 0) continue;
-        const g = map.get(dbm) || { label: '', services: [] };
-        if (!g.services.includes(bs.name)) g.services.push(bs.name);
-        g.label = `Mínimo ${dbm} día${dbm > 1 ? 's' : ''} antes`;
-        map.set(dbm, g);
+        if (dbm > 0) add(dbm, bs.name, bs.serviceId, bs.duration);
       }
-      if (trialEnabled && packageInfo.trialAddon && (packageInfo.trialAddon.daysBeforeMain || 0) > 0) {
-        const dbm = packageInfo.trialAddon.daysBeforeMain!;
-        const g = map.get(dbm) || { label: '', services: [] };
-        if (!g.services.includes(packageInfo.trialAddon.name)) g.services.push(packageInfo.trialAddon.name);
-        g.label = `Mínimo ${dbm} día${dbm > 1 ? 's' : ''} antes`;
-        map.set(dbm, g);
+      const ta = packageInfo.trialAddon;
+      if (trialEnabled && ta && (ta.daysBeforeMain || 0) > 0) {
+        add(ta.daysBeforeMain!, ta.name, ta.serviceId, ta.duration);
       }
     }
     return Array.from(map.entries()).sort((a, b) => b[0] - a[0]); // mayor anticipación primero
-  })();
+  }, [packageInfo, trialEnabled]);
 
   // Fecha máxima permitida por cada grupo: selectedDate - dbm
   function maxDateForGroup(dbm: number) {
@@ -1151,8 +1155,8 @@ export function SlotStep({
     return d.toISOString().slice(0, 10);
   }
 
-  // Validación: todas las fechas anticipadas deben estar fijadas
-  const allAdvanceFilled = advanceGroups.every(([dbm]) => !!advanceDates[dbm]?.date);
+  // Validación: cada fecha anticipada debe tener fecha Y hora (disponible) fijadas
+  const allAdvanceFilled = advanceGroups.every(([dbm]) => !!advanceDates[dbm]?.date && !!advanceDates[dbm]?.startTime);
 
   async function loadSlots(d: string) {
     onDateChange(d);
@@ -1173,6 +1177,37 @@ export function SlotStep({
     next[dbm] = { ...(next[dbm] || { date: '' }), ...patch };
     setAdvanceDates(next);
   }
+
+  // Disponibilidad REAL por fecha adicional: mismos slots del backend que el día
+  // central. Se calcula con los servicios del grupo como "de turno" (staff null).
+  async function loadAdvanceSlots(dbm: number, d: string, items: Array<{ serviceId: string; duration: number }>) {
+    setAdvanceLoading(prev => ({ ...prev, [dbm]: true }));
+    try {
+      const pseudo: Assignment[] = items.map(it => ({
+        service: { id: it.serviceId, name: '', duration: it.duration, pricePen: 0 } as Service,
+        staff: null,
+        onDuty: true,
+      }));
+      const data = await computeAvailableSlots(pseudo, d, true, modifierSelections);
+      setAdvanceSlots(prev => ({ ...prev, [dbm]: data }));
+    } catch {
+      setAdvanceSlots(prev => ({ ...prev, [dbm]: [] }));
+    } finally {
+      setAdvanceLoading(prev => ({ ...prev, [dbm]: false }));
+    }
+  }
+
+  // Carga inicial / al volver atrás: si una fecha adicional ya está fijada pero aún
+  // no tiene slots calculados, los pide (el cambio de fecha los recarga aparte).
+  useEffect(() => {
+    for (const [dbm, g] of advanceGroups) {
+      const d = advanceDates[dbm]?.date;
+      if (d && advanceSlots[dbm] === undefined && !advanceLoading[dbm]) {
+        loadAdvanceSlots(dbm, d, g.items);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [advanceGroups, advanceDates]);
 
   // Mínima fecha central permitida considerando la anticipación máxima requerida.
   // Ej. si hay un servicio con daysBeforeMain=15, la fecha central debe ser ≥ hoy+15.
@@ -1315,7 +1350,7 @@ export function SlotStep({
             </p>
             {advanceGroups.map(([dbm, g]) => {
               const maxD = date ? maxDateForGroup(dbm) : '';
-              const cur = advanceDates[dbm] || { date: '', startTime: '10:00' };
+              const cur = advanceDates[dbm] || { date: '', startTime: undefined };
               return (
                 <div key={dbm} className="rounded-xl p-3 sm:p-4 mb-3 last:mb-0" style={{ background: 'rgba(255,255,255,0.04)' }}>
                   <div className="flex items-baseline justify-between mb-3 gap-2">
@@ -1335,19 +1370,24 @@ export function SlotStep({
                         maxDate={maxD || undefined}
                         disabled={!slot}
                         value={cur.date || null}
-                        onChange={(d) => updateAdvanceDate(dbm, { date: d })}
+                        onChange={(d) => { updateAdvanceDate(dbm, { date: d, startTime: undefined }); loadAdvanceSlots(dbm, d, g.items); }}
                       />
                     </div>
                     <div>
                       <p className="text-[11px] font-semibold mb-2" style={{ color: cur.date ? 'rgba(255,255,255,0.45)' : 'rgba(255,255,255,0.25)' }}>Elige la hora</p>
-                      <DateTimePicker
-                        mode="time"
-                        theme="dark"
-                        minuteStep={30}
-                        disabled={!cur.date}
-                        value={cur.startTime || '10:00'}
-                        onChange={(time) => updateAdvanceDate(dbm, { startTime: time })}
-                      />
+                      {cur.date ? (
+                        <div className="flex justify-center">
+                          <TimeList
+                            slots={advanceSlots[dbm] ?? []}
+                            slotsLoading={advanceLoading[dbm]}
+                            value={cur.startTime ?? null}
+                            theme="dark"
+                            onSelect={(start) => updateAdvanceDate(dbm, { startTime: start })}
+                          />
+                        </div>
+                      ) : (
+                        <p className="text-[11px]" style={{ color: 'rgba(255,255,255,0.25)' }}>Primero elige el día.</p>
+                      )}
                     </div>
                   </div>
                 </div>
