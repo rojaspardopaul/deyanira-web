@@ -52,6 +52,9 @@ const INCLUDE_LISTA_ADMIN = {
     select: {
       id: true,
       name: true,
+      pricePen: true,
+      groupLabel: true,
+      trialAddonServiceId: true,
       eventType: { select: { id: true, name: true, slug: true, accentColor: true, icon: true } },
     },
   },
@@ -61,7 +64,7 @@ const INCLUDE_GRUPO_ADMIN = {
   service: true,
   staff: true,
   customer: true,
-  package: { include: { eventType: true } },
+  package: { include: { eventType: true, items: { select: { serviceId: true } } } },
 } as const;
 const ESTADOS_ACTIVOS_BD = ['pending', 'confirmed'];
 const ESTADOS_CONFLICTO_ADMIN = ['pending', 'confirmed', 'in_progress'];
@@ -314,10 +317,40 @@ export class PrismaCitaRepository implements CitaRepositorio {
     return rows as unknown as CitaPersistida[];
   }
 
+  async buscarGrupoPorBookingGroup(
+    _ctx: ContextoTenant,
+    params: { bookingGroupId: string; fecha: string },
+  ): Promise<CitaPersistida[]> {
+    const rows = await this.prisma.appointment.findMany({
+      where: {
+        bookingGroupId: params.bookingGroupId,
+        date: new Date(`${params.fecha}T12:00:00Z`),
+        status: { in: ESTADOS_ACTIVOS_BD },
+      },
+      include: INCLUDE_GRUPO_ADMIN,
+      orderBy: { startTime: 'asc' },
+    });
+    return rows as unknown as CitaPersistida[];
+  }
+
   async confirmarPendientesDelGrupo(_ctx: ContextoTenant, ids: string[]): Promise<void> {
     await this.prisma.appointment.updateMany({
       where: { id: { in: ids }, status: 'pending' },
       data: { status: 'confirmed' },
+    });
+  }
+
+  async cancelarActivasDelGrupo(_ctx: ContextoTenant, ids: string[]): Promise<void> {
+    await this.prisma.appointment.updateMany({
+      where: { id: { in: ids }, status: { in: ESTADOS_ACTIVOS_BD } },
+      data: { status: 'cancelled' },
+    });
+  }
+
+  async rechazarPagoPendienteDelGrupo(_ctx: ContextoTenant, bookingGroupId: string): Promise<void> {
+    await this.prisma.bookingPayment.updateMany({
+      where: { bookingGroupId, status: { in: ['pending', 'awaiting_verification'] } },
+      data: { status: 'rejected' },
     });
   }
 

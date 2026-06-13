@@ -4,14 +4,16 @@ import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
   X, Plus, Check, Clock, User, Scissors, Home, Phone, Mail,
   AlertCircle, Search, UserCheck, Pencil, Receipt, ExternalLink, ShieldCheck,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import DateTimePicker from '@/components/ui/datetime';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { HL, New, Danger, Money } from '@/components/ui/highlight';
 import { STATUS } from '../status';
-import { toYMD, clientName } from '../utils/date';
+import { toYMD, clientName, aptDateStr } from '../utils/date';
 import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
+import { eventTypeIcon, isPackageAddon } from '../utils/package';
 import type { Appointment, AptStatus, StaffMember, Slot, BookingPaymentInfo } from '../types';
 
 type AptModalProps = {
@@ -26,6 +28,10 @@ type AptModalProps = {
   onUpdated: (apt: Appointment) => void;
   onStatusChanged: (id: string, status: AptStatus) => Promise<void>;
   adminRole: 'super_admin' | 'admin' | 'estilista';
+  /** Citas hermanas del mismo bookingGroupId (las pasa CalendarRoot ya cargadas). */
+  groupApts?: Appointment[];
+  /** Recargar el calendario tras confirmar/rechazar el paquete completo. */
+  onGroupChanged?: () => void;
 };
 
 type PendingAction = {
@@ -44,6 +50,7 @@ const EMPTY_FORM = {
 export function AptModal({
   apt, defaultDate = '', defaultTime = '', defaultStaffId = '',
   staffList, onClose, onCreated, onUpdated, onStatusChanged, adminRole,
+  groupApts = [], onGroupChanged,
 }: AptModalProps) {
   const isEdit = !!apt;
   const todayStr = toYMD(new Date());
@@ -82,8 +89,14 @@ export function AptModal({
   const [verifyingPayment, setVerifyingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState('');
   const [proofOpen, setProofOpen] = useState(false);
+  // Comprobante en acordeón: colapsado por defecto (ocupa mucho espacio).
+  const [proofExpanded, setProofExpanded] = useState(false);
   // REGLA DE ORO: toda acción de aceptar/rechazar/verificar pide confirmación.
   const [payConfirm, setPayConfirm] = useState<'approve' | 'reject' | null>(null);
+  // Aceptar/rechazar el PAQUETE completo (grupo del mismo día) — con confirmación.
+  const [groupConfirm, setGroupConfirm] = useState<'accept' | 'reject' | null>(null);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [groupError, setGroupError] = useState('');
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -223,6 +236,24 @@ export function AptModal({
     } catch (e) {
       setPaymentError(e instanceof Error ? e.message : 'No se pudo procesar el pago');
     } finally { setVerifyingPayment(false); }
+  }
+
+  // Confirmar/rechazar el PAQUETE: opera sobre TODAS las citas del grupo del mismo
+  // día (el addon/prueba de otra fecha es independiente) y envía UN solo correo.
+  async function handleGroupAction(accept: boolean) {
+    if (!apt?.bookingGroupId) return;
+    setGroupLoading(true); setGroupError('');
+    try {
+      const date = aptDateStr(apt);
+      if (accept) await adminApi().appointments.confirmGroupByBooking(apt.bookingGroupId, date);
+      else await adminApi().appointments.rejectGroup(apt.bookingGroupId, date);
+      setGroupConfirm(null);
+      toast(accept ? 'Paquete confirmado — se avisó al cliente por correo' : 'Paquete rechazado — se avisó al cliente por correo');
+      onUpdated({ ...apt, status: accept ? 'confirmed' : 'cancelled' });
+      onGroupChanged?.();
+    } catch (e) {
+      setGroupError(e instanceof Error ? e.message : 'No se pudo actualizar el paquete');
+    } finally { setGroupLoading(false); }
   }
 
   async function handleAssign() {
@@ -436,6 +467,24 @@ export function AptModal({
   };
   const canManageStaff = adminRole !== 'estilista' && apt.status !== 'cancelled' && apt.status !== 'no_show';
 
+  // ── Paquete (novia/quinceañera): grupo del mismo día + addon aparte ───────
+  const pkg = apt.package || null;
+  const isPkgApt = !!(apt.packageId && pkg);
+  const isAddon = isPkgApt && isPackageAddon(apt);
+  const aptDay = aptDateStr(apt);
+  const sameDayGroup = (apt.bookingGroupId
+    ? groupApts.filter(a => a.bookingGroupId === apt.bookingGroupId && aptDateStr(a) === aptDay)
+    : []
+  ).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const groupAllPending = sameDayGroup.length > 0 && sameDayGroup.every(a => a.status === 'pending');
+  const showGroupActions = isPkgApt && !isAddon && groupAllPending;
+  // Si la sección de paquete gestiona la confirmación, se oculta el botón individual.
+  const groupHandlesConfirm = isPkgApt && !isAddon && sameDayGroup.length > 0;
+  const accent = pkg?.eventType?.accentColor || '#d4af37';
+  const fechaLabel = new Date(`${aptDay}T12:00:00`).toLocaleDateString('es-PE', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
@@ -510,12 +559,117 @@ export function AptModal({
               <p className="text-sm text-gray-700 flex items-center gap-1.5">
                 <Scissors className="w-3.5 h-3.5 text-gray-400" />{apt.service.name}
               </p>
-              <p className="text-base font-bold text-gray-900">S/ {Number(apt.totalPen).toFixed(2)}</p>
+              {/* Cita de paquete: el precio es del PAQUETE (en BD el reparto por cita
+                  es arbitrario: 1ª = todo, resto 0 — nunca mostrarlo). */}
+              {isPkgApt && !isAddon ? (
+                <div className="text-right">
+                  <p className="text-base font-bold text-gray-900">{money(pkg?.pricePen ?? 0)}</p>
+                  <p className="text-[10px] text-gray-500 leading-tight">Paquete · {pkg?.name}</p>
+                </div>
+              ) : isAddon ? (
+                <div className="text-right">
+                  <p className="text-base font-bold text-gray-900">{money(apt.totalPen)}</p>
+                  <p className="text-[10px] text-gray-500 leading-tight">Servicio adicional</p>
+                </div>
+              ) : (
+                <p className="text-base font-bold text-gray-900">{money(apt.totalPen)}</p>
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-1 pl-5">
               {Math.max(0, timeToMin(apt.endTime) - timeToMin(apt.startTime))} min
             </p>
           </div>
+
+          {/* Paquete (novia/quinceañera): citas del grupo + aceptar/rechazar TODO junto */}
+          {isPkgApt && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div
+                className="px-4 py-3 flex items-center justify-between gap-2"
+                style={{ backgroundColor: `${accent}1A`, borderBottom: `2px solid ${accent}` }}
+              >
+                <p className="text-sm font-bold text-gray-900 flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-6 h-6 rounded-full ring-1 ring-white flex items-center justify-center text-[12px] shrink-0"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {eventTypeIcon(pkg?.eventType)}
+                  </span>
+                  <span className="truncate">
+                    {pkg?.eventType?.name ? `${pkg.eventType.name} · ` : ''}{pkg?.name}
+                  </span>
+                </p>
+                {pkg?.pricePen != null && (
+                  <p className="text-sm font-bold text-gray-900 whitespace-nowrap">{money(pkg.pricePen)}</p>
+                )}
+              </div>
+
+              {isAddon ? (
+                <p className="px-4 py-3 text-xs text-gray-600">
+                  Esta cita es la <strong>prueba (servicio adicional)</strong> del paquete: tiene su propia
+                  fecha y se gestiona <strong>aparte</strong> del grupo principal.
+                </p>
+              ) : (
+                <>
+                  {/* Citas hermanas del mismo día (el grupo que se acepta/rechaza junto) */}
+                  <div className="divide-y divide-gray-100">
+                    {sameDayGroup.map(a => {
+                      const sCfg = STATUS[a.status];
+                      const isCurrent = a.id === apt.id;
+                      return (
+                        <div key={a.id} className={`px-4 py-2 flex items-center gap-2 text-xs ${isCurrent ? 'bg-amber-50/60' : ''}`}>
+                          <span className="font-semibold text-gray-700 whitespace-nowrap">{fmtTime12(a.startTime)}</span>
+                          <span className="text-gray-900 font-medium truncate flex-1">
+                            {a.service.name}
+                            {isCurrent && <span className="text-[10px] text-gold-600 font-bold"> · esta cita</span>}
+                          </span>
+                          <span className="text-gray-400 truncate max-w-[90px]">{a.staff?.name || 'Turno'}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sCfg.bgLight} ${sCfg.text} whitespace-nowrap`}>
+                            {sCfg.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {groupError && (
+                    <p className="px-4 py-2 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />{groupError}
+                    </p>
+                  )}
+
+                  {/* Aceptar/rechazar el paquete completo (un solo correo al cliente).
+                      Con adelanto por verificar NO se confirma aquí: verificar el pago
+                      (abajo) ya confirma todo el grupo. */}
+                  {showGroupActions && (
+                    <div className="px-4 py-3 flex gap-2 border-t border-gray-100">
+                      {canCancel && (
+                        <button
+                          onClick={() => setGroupConfirm('reject')}
+                          disabled={groupLoading}
+                          className="flex-1 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Rechazar paquete
+                        </button>
+                      )}
+                      {!paymentPending ? (
+                        <button
+                          onClick={() => setGroupConfirm('accept')}
+                          disabled={groupLoading}
+                          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Check className="w-4 h-4" /> Confirmar paquete
+                        </button>
+                      ) : (
+                        <div className="flex-1 py-2 px-2 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-xl flex items-center justify-center gap-1 text-center">
+                          <Receipt className="w-3.5 h-3.5 shrink-0" /> Verifica el pago (abajo): eso confirma el paquete
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* Adelanto / Comprobante de pago — visible para revisar antes de confirmar */}
           {payment && (
@@ -529,23 +683,40 @@ export function AptModal({
                 </span>
               </div>
 
-              {/* Comprobante (imagen clicable) */}
+              {/* Comprobante en acordeón (colapsado por defecto — la imagen ocupa
+                  mucho espacio; los montos y botones quedan siempre a la vista) */}
               {payment.proofImageUrl ? (
-                /\.pdf($|\?)/i.test(payment.proofImageUrl) ? (
-                  <a href={payment.proofImageUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 py-3 mb-3 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                    <Receipt className="w-4 h-4" /> Ver comprobante (PDF) <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                ) : (
-                  <button onClick={() => setProofOpen(true)}
-                    className="relative block w-full mb-3 rounded-lg overflow-hidden border border-gray-200 group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={payment.proofImageUrl} alt="Comprobante de pago" className="w-full max-h-52 object-contain bg-white" />
-                    <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] font-semibold text-white bg-black/55 px-2 py-1 rounded-full">
-                      <ExternalLink className="w-3 h-3" /> Ampliar
+                <div className="mb-3 rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    onClick={() => setProofExpanded(v => !v)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5 text-gray-500" /> Comprobante adjunto
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                      {proofExpanded ? 'Ocultar' : 'Ver'}
+                      {proofExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                     </span>
                   </button>
-                )
+                  {proofExpanded && (
+                    /\.pdf($|\?)/i.test(payment.proofImageUrl) ? (
+                      <a href={payment.proofImageUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <Receipt className="w-4 h-4" /> Ver comprobante (PDF) <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    ) : (
+                      <button onClick={() => setProofOpen(true)}
+                        className="relative block w-full border-t border-gray-100 overflow-hidden group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={payment.proofImageUrl} alt="Comprobante de pago" className="w-full max-h-52 object-contain bg-white" />
+                        <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] font-semibold text-white bg-black/55 px-2 py-1 rounded-full">
+                          <ExternalLink className="w-3 h-3" /> Ampliar
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
               ) : (
                 <p className="text-xs text-gray-500 mb-3 italic">El cliente aún no subió comprobante.</p>
               )}
@@ -683,7 +854,13 @@ export function AptModal({
           {/* Status actions */}
           {canAct && (
             <div className="space-y-2 pt-2 border-t border-gray-100">
-              {apt.status === 'pending' && (
+              {apt.status === 'pending' && groupHandlesConfirm && (
+                // El paquete se confirma/rechaza COMPLETO desde la sección "Paquete" (arriba).
+                <div className="w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-500 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 text-center px-3">
+                  <Receipt className="w-3.5 h-3.5 shrink-0" /> Esta cita se gestiona con el <strong>paquete</strong> (arriba).
+                </div>
+              )}
+              {apt.status === 'pending' && !groupHandlesConfirm && (
                 paymentPending ? (
                   // No se puede confirmar la cita hasta confirmar el pago (arriba).
                   <div className="w-full py-2.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 text-center px-3">
@@ -790,6 +967,37 @@ export function AptModal({
                 onConfirm: () => { void handleVerifyPayment(false); },
               }}
           onClose={() => setPayConfirm(null)}
+        />
+      )}
+
+      {/* Confirmación de aceptar/rechazar el PAQUETE completo (regla de oro) */}
+      {groupConfirm && (
+        <ConfirmModal
+          dialog={groupConfirm === 'accept'
+            ? {
+                title: '¿Confirmar el paquete completo?',
+                message: (
+                  <>Se confirmarán las <New>{String(sameDayGroup.length)} citas</New> del paquete{' '}
+                  <HL>{pkg?.name}</HL> de <HL>{clientName(apt)}</HL> del <New>{fechaLabel}</New>.{' '}
+                  Se enviará <HL>un solo correo</HL> de confirmación al cliente.</>
+                ),
+                confirmLabel: groupLoading ? 'Confirmando...' : 'Sí, confirmar paquete',
+                confirmClass: 'bg-blue-600 hover:bg-blue-500',
+                onConfirm: () => { void handleGroupAction(true); },
+              }
+            : {
+                title: '¿Rechazar el paquete completo?',
+                message: (
+                  <>Se <Danger>cancelarán las {String(sameDayGroup.length)} citas</Danger> del paquete{' '}
+                  <HL>{pkg?.name}</HL> de <HL>{clientName(apt)}</HL> del <HL>{fechaLabel}</HL>
+                  {paymentPending ? <> y el <Danger>adelanto quedará rechazado</Danger></> : null}.{' '}
+                  Se avisará al cliente <HL>por correo</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>
+                ),
+                confirmLabel: groupLoading ? 'Rechazando...' : 'Sí, rechazar paquete',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: () => { void handleGroupAction(false); },
+              }}
+          onClose={() => setGroupConfirm(null)}
         />
       )}
 

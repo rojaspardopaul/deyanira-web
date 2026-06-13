@@ -23,7 +23,7 @@ import {
 import type { CitaRepositorio, LineaReserva } from '../domain/ports/CitaRepositorio';
 import type { CalculadoraPrecios } from '../domain/ports/CalculadoraPrecios';
 import type { ConfiguracionDomicilio } from '../domain/ports/ConfiguracionDomicilio';
-import type { Notificador } from '../domain/ports/Notificador';
+import { infoPaqueteDesde, type Notificador } from '../domain/ports/Notificador';
 import type { Reloj } from '../domain/ports/Reloj';
 import type { CatalogoReservas, PaqueteReserva } from '../domain/ports/CatalogoReservas';
 import type { Scheduler } from '../domain/ports/Scheduler';
@@ -208,7 +208,7 @@ export class CrearReservaEnLote {
       this.notificador.reservaSolicitada(
         created,
         { email: batchEmail, nombre: batchName },
-        pkg ? { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType } : null,
+        infoPaqueteDesde(pkg),
         comando.aDomicilio && recargo ? recargo.monto : null,
       );
     }

@@ -66,7 +66,10 @@ function crearDeps(o: DepsOverrides = {}) {
     crearAdmin: vi.fn(async () => ({ id: 'apt-admin' }) as CitaPersistida),
     buscarConflictoAdmin: vi.fn(async () => null),
     buscarGrupoPaquete: vi.fn(async () => []),
+    buscarGrupoPorBookingGroup: vi.fn(async () => []),
     confirmarPendientesDelGrupo: vi.fn(async () => {}),
+    cancelarActivasDelGrupo: vi.fn(async () => {}),
+    rechazarPagoPendienteDelGrupo: vi.fn(async () => {}),
     recargarCitas: vi.fn(async () => []),
     actualizarAdmin: vi.fn(async () => ({ id: 'apt-admin' }) as CitaPersistida),
     crearPaqueteAdmin: vi.fn(async () => ({ created: [], payment: null })),
@@ -109,6 +112,7 @@ function crearDeps(o: DepsOverrides = {}) {
     citaNoAsistio: vi.fn(),
     citaReprogramada: vi.fn(),
     reservaConfirmada: vi.fn(),
+    reservaRechazada: vi.fn(),
     reciboAdelanto: vi.fn(),
   };
 

@@ -14,6 +14,7 @@ import { CrearReservaEnLote } from './application/CrearReservaEnLote';
 import { ListarCitasAdmin } from './application/ListarCitasAdmin';
 import { CrearCitaAdmin } from './application/CrearCitaAdmin';
 import { ConfirmarGrupoCitas } from './application/ConfirmarGrupoCitas';
+import { RechazarGrupoCitas } from './application/RechazarGrupoCitas';
 import { ActualizarCita } from './application/ActualizarCita';
 import { CrearPaqueteAdmin } from './application/CrearPaqueteAdmin';
 
@@ -36,6 +37,7 @@ export interface ModuloCitas {
   readonly listarCitasAdmin: ListarCitasAdmin;
   readonly crearCitaAdmin: CrearCitaAdmin;
   readonly confirmarGrupoCitas: ConfirmarGrupoCitas;
+  readonly rechazarGrupoCitas: RechazarGrupoCitas;
   readonly actualizarCita: ActualizarCita;
   readonly crearPaqueteAdmin: CrearPaqueteAdmin;
 }
@@ -60,6 +62,7 @@ export function crearModuloCitas(): ModuloCitas {
     listarCitasAdmin: new ListarCitasAdmin(repo),
     crearCitaAdmin: new CrearCitaAdmin(repo, reloj),
     confirmarGrupoCitas: new ConfirmarGrupoCitas(repo, notificador),
+    rechazarGrupoCitas: new RechazarGrupoCitas(repo, notificador),
     actualizarCita: new ActualizarCita(repo, notificador),
     crearPaqueteAdmin: new CrearPaqueteAdmin(catalogo, repo, scheduler, reloj, notificador),
   };

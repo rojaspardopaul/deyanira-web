@@ -34,7 +34,11 @@ export class PrismaAdelantoRepository implements AdelantoRepositorio {
   async cargarGrupo(_ctx: ContextoTenant, bookingGroupId: string): Promise<GrupoReserva> {
     const appointments = await this.prisma.appointment.findMany({
       where: { bookingGroupId },
-      include: { service: true, staff: true, package: { include: { eventType: true } } },
+      include: {
+        service: true,
+        staff: true,
+        package: { include: { eventType: true, items: { select: { serviceId: true } } } },
+      },
       orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     });
     const conPkg = appointments.find((a) => (a as { package?: unknown }).package);

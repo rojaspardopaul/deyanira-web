@@ -11,7 +11,10 @@ export class CatalogoReservasPrisma implements CatalogoReservas {
   async cargarPaquete(_ctx: ContextoTenant, packageId: string): Promise<PaqueteReserva | null> {
     const pkg = await this.prisma.servicePackage.findUnique({
       where: { id: packageId },
-      include: { eventType: { select: { id: true, name: true, slug: true } } },
+      include: {
+        eventType: { select: { id: true, name: true, slug: true } },
+        items: { select: { serviceId: true } },
+      },
     });
     return pkg as unknown as PaqueteReserva | null;
   }

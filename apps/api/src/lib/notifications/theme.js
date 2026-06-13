@@ -1,9 +1,10 @@
 // ÚNICO punto de verdad del estilo de los correos transaccionales.
 // Cambiar la identidad visual de TODOS los emails = editar este archivo.
 //
-// Identidad: tema OSCURO cálido (negro #211915 estilo "Stripo"), acento DORADO
-// dominante + ROSA para el estado activo/CTA. Los helpers de email.js consumen
-// estos tokens en vez de hex literales.
+// Identidad: tema OSCURO NEUTRO (carbón/grafito casi negro, sin tinte cálido),
+// acento DORADO dominante + ROSA para el estado activo/CTA. Los grises neutros
+// (R≈G≈B) hacen que el dorado resalte sin verse "marrón". Los helpers de
+// email.js consumen estos tokens en vez de hex literales.
 
 const color = {
   // ── Marca ──────────────────────────────────────────────
@@ -13,15 +14,15 @@ const color = {
   goldSoft:    '#e7c456', // dorado claro (degradado / hover)
   goldDeep:    '#caa12f', // dorado profundo (relleno de nodo "hecho")
 
-  // ── Superficies OSCURAS ────────────────────────────────
-  cardBg:     '#211915', // fondo plano del correo (referencia Stripo)
-  headerInk:  '#19120d', // header/pie aún más oscuro
-  footerBg:   '#19120d',
-  pageBg:     '#e7e3ea', // fondo de página (alrededor de la card de 600px)
-  todoNodeBg: '#2a1f17', // relleno sólido del nodo "pendiente" del stepper
-  panelBg:    '#2b211b', // panel de detalles (sólido, fallback de rgba)
-  panelLine:  '#4a3b2a', // borde del panel (dorado tenue, sólido)
-  rowLine:    '#3a2e24', // línea entre filas del panel
+  // ── Superficies OSCURAS (grafito NEUTRO, sin tinte marrón) ─
+  cardBg:     '#1f1f23', // fondo plano de la card (grafito neutro oscuro)
+  headerInk:  '#161619', // header/pie casi negro neutro
+  footerBg:   '#161619',
+  pageBg:     '#e6e6e8', // fondo de página (gris claro neutro alrededor de la card)
+  todoNodeBg: '#2c2c31', // relleno sólido del nodo "pendiente" del stepper
+  panelBg:    '#28282d', // panel de detalles (un poco más claro que la card)
+  panelLine:  '#3a3a41', // borde del panel (gris neutro tenue)
+  rowLine:    '#33333a', // línea entre filas del panel
 
   // ── Texto sobre oscuro ─────────────────────────────────
   cream:      '#f6ecf0', // texto principal claro
@@ -55,7 +56,7 @@ const color = {
 const stepper = {
   done:   { bg: color.goldDeep, fg: '#241016' },           // dorado, ✓ oscuro
   active: { bg: color.primary,  fg: '#ffffff' },           // rosa, ✓ blanco
-  todo:   { bg: color.todoNodeBg, border: 'rgba(212,175,55,0.42)', fg: '#9a8790' },
+  todo:   { bg: color.todoNodeBg, border: 'rgba(212,175,55,0.42)', fg: '#9a9aa0' },
   segDone: { from: color.gold, to: color.primary },        // barra dorado→rosa
   segTodo: 'rgba(212,175,55,0.5)',                          // barra punteada dorada
 };

@@ -60,6 +60,7 @@ function crearDeps(o: Overrides = {}) {
     citaNoAsistio: vi.fn(),
     citaReprogramada: vi.fn(),
     reservaConfirmada: vi.fn(),
+    reservaRechazada: vi.fn(),
     reciboAdelanto: vi.fn(),
   };
   const reloj: Reloj = { ahoraLima: () => ({ fecha: '2026-06-10', hora: '08:00', ms: Date.parse('2026-06-10T08:00:00') }) };
@@ -110,6 +111,7 @@ describe('CrearReservaEnLote', () => {
     const paquete: PaqueteReserva = {
       id: 'pkg1', isActive: true, pricePen: 1000, requiresDeposit: true, depositPercent: 50,
       name: 'Novia', groupLabel: null, eventType: null,
+      trialAddonServiceId: null, items: [{ serviceId: 'svc1' }, { serviceId: 'svc2' }],
     };
     const deps = crearDeps({ paquete, servicios: [svc({ id: 'svc1' }), svc({ id: 'svc2' })] });
     const res = await correr(deps, body({ packageId: 'pkg1', items: [{ serviceId: 'svc1' }, { serviceId: 'svc2' }] }));

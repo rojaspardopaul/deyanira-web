@@ -56,12 +56,23 @@ async function markDepositPaid(db, paymentId, { method, paidPen, culqiChargeId =
   const updated = await db.bookingPayment.findUnique({ where: { id: paymentId } });
   const appointments = await db.appointment.findMany({
     where: { bookingGroupId: payment.bookingGroupId },
-    include: { service: true, staff: true, package: { include: { eventType: true } } },
+    include: {
+      service: true,
+      staff: true,
+      package: { include: { eventType: true, items: { select: { serviceId: true } } } },
+    },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
   });
   const pkg = appointments.find((a) => a.package)?.package || null;
   const packageInfo = pkg
-    ? { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType }
+    ? {
+        name: pkg.name,
+        groupLabel: pkg.groupLabel,
+        eventType: pkg.eventType,
+        pricePen: Number(pkg.pricePen) || 0,
+        includedServiceIds: (pkg.items || []).map((it) => it.serviceId).filter(Boolean),
+        trialAddonServiceId: pkg.trialAddonServiceId || null,
+      }
     : null;
 
   return { payment: updated, appointments, packageInfo, package: pkg };

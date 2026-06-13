@@ -531,6 +531,9 @@ export function CalendarRoot({
           apt={selectedApt}
           staffList={staffList}
           adminRole={adminRole}
+          groupApts={selectedApt.bookingGroupId
+            ? appointments.filter(a => a.bookingGroupId === selectedApt.bookingGroupId)
+            : []}
           onClose={() => setSelectedApt(null)}
           onCreated={() => {}}
           onUpdated={updated => {
@@ -541,6 +544,11 @@ export function CalendarRoot({
           }}
           onStatusChanged={async (id, status) => {
             await handleStatusChange(id, status);
+          }}
+          onGroupChanged={() => {
+            // Confirmar/rechazar el paquete cambió varias citas: recargar el rango.
+            load(new URLSearchParams({ dateFrom, dateTo }));
+            refreshPendingPayments();
           }}
         />
       )}

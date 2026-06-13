@@ -31,7 +31,7 @@ function texto(v: unknown): string | undefined {
 /** Router de gestión admin de citas. Pensado para montarse con `router.use(...)`
  *  dentro del router admin (sin prefijo: define rutas `/appointments...`). */
 export function crearRouterAdminCitas(): express.Router {
-  const { listarCitasAdmin, crearCitaAdmin, confirmarGrupoCitas, actualizarCita, crearPaqueteAdmin } = crearModuloCitas();
+  const { listarCitasAdmin, crearCitaAdmin, confirmarGrupoCitas, rechazarGrupoCitas, actualizarCita, crearPaqueteAdmin } = crearModuloCitas();
   const router = express.Router();
 
   // GET /api/admin/appointments — listado con filtros + scoping por estilista
@@ -75,6 +75,21 @@ export function crearRouterAdminCitas(): express.Router {
     try {
       const r = req as AdminReq;
       const resultado = await confirmarGrupoCitas.ejecutar(r.tenant, r.body);
+      res.json(resultado);
+    } catch (err) {
+      next(traducirError(err));
+    }
+  }) as RequestHandler);
+
+  // POST /api/admin/appointments/reject-group — rechazar grupo de paquete (un correo)
+  router.post('/appointments/reject-group', (async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const r = req as AdminReq;
+      // Autorización: un estilista no puede rechazar (cancelar) citas.
+      if (r.admin.role === 'estilista') {
+        return next(Forbidden('No tienes permiso para rechazar reservas'));
+      }
+      const resultado = await rechazarGrupoCitas.ejecutar(r.tenant, r.body);
       res.json(resultado);
     } catch (err) {
       next(traducirError(err));

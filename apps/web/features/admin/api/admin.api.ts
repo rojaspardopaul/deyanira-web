@@ -37,6 +37,12 @@ export function adminApi(_legacyToken?: string | null) {
       // Confirma todas las citas de un paquete en una fecha y envía UN solo email
       confirmGroup: (packageId: string, date: string, customerKey: string) =>
         apiFetch<{ ok: true; count: number }>(`/admin/appointments/confirm-group`, mut('POST', { packageId, date, customerKey })),
+      // Variante moderna por bookingGroupId (calendario): mismo endpoint, un email
+      confirmGroupByBooking: (bookingGroupId: string, date: string) =>
+        apiFetch<{ ok: true; count: number }>(`/admin/appointments/confirm-group`, mut('POST', { bookingGroupId, date })),
+      // Rechaza (cancela) todas las citas del grupo en esa fecha + UN email de rechazo
+      rejectGroup: (bookingGroupId: string, date: string) =>
+        apiFetch<{ ok: true; count: number }>(`/admin/appointments/reject-group`, mut('POST', { bookingGroupId, date })),
       // Alta de reserva de paquete (multi-servicio) + adelanto opcional
       createPackage: (data: unknown) =>
         apiFetch<{ bookingGroupId: string; appointments: unknown[]; bookingPaymentId: string | null; receiptNumber: string | null }>(

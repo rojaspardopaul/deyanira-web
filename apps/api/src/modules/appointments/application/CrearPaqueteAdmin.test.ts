@@ -16,7 +16,7 @@ const reloj: Reloj = { ahoraLima: () => ({ fecha: '2026-06-10', hora: '08:00', m
 
 function crearDeps(o: { paquete?: PaqueteReserva | null } = {}) {
   const pkg: PaqueteReserva = o.paquete === undefined
-    ? { id: PKG, isActive: true, pricePen: 1000, requiresDeposit: true, depositPercent: 50, name: 'Novia', groupLabel: null, eventType: null }
+    ? { id: PKG, isActive: true, pricePen: 1000, requiresDeposit: true, depositPercent: 50, name: 'Novia', groupLabel: null, eventType: null, trialAddonServiceId: null, items: [{ serviceId: SVC }] }
     : (o.paquete as PaqueteReserva);
   const catalogo = {
     cargarPaquete: vi.fn(async () => o.paquete === undefined ? pkg : o.paquete),

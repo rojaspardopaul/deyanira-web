@@ -51,19 +51,27 @@ const apt = {
   guestName: 'Andrea', guestEmail: 'andrea@example.com', guestPhone: '999888777',
 };
 const aptStaff = { ...apt, staff: { name: 'Lucía Ramírez' }, onDutyStaff: false };
+// Reserva de paquete tal como queda en BD: la 1ª cita lleva el precio del paquete,
+// el resto 0, y el addon (prueba) su precio propio. El correo debe mostrar el
+// precio a nivel paquete e "Incluido en el paquete" en las citas incluidas.
+const SVC_MAQ = 'svc-maq-novia', SVC_PEI = 'svc-peinado', SVC_TRIAL = 'svc-prueba';
 const pkgAppts = [
-  { ...aptStaff, service: { name: 'Maquillaje novia' }, startTime: '08:00', endTime: '09:30', totalPen: 250 },
-  { ...aptStaff, service: { name: 'Peinado' }, startTime: '09:30', endTime: '10:30', totalPen: 120 },
+  { ...aptStaff, serviceId: SVC_MAQ, service: { id: SVC_MAQ, name: 'Maquillaje novia' }, startTime: '08:00', endTime: '09:30', totalPen: 450 },
+  { ...aptStaff, serviceId: SVC_PEI, service: { id: SVC_PEI, name: 'Peinado' }, startTime: '09:30', endTime: '10:30', totalPen: 0 },
+  { ...aptStaff, serviceId: SVC_TRIAL, service: { id: SVC_TRIAL, name: 'Maquillaje de prueba' }, date: '2026-06-10', startTime: '11:00', endTime: '12:00', totalPen: 200 },
 ];
-const packageInfo = { name: 'Novia Premium', groupLabel: 'Boda', eventType: { name: 'Bodas' } };
+const packageInfo = {
+  name: 'Novia Premium', groupLabel: 'Boda', eventType: { name: 'Bodas' },
+  pricePen: 450, includedServiceIds: [SVC_MAQ, SVC_PEI], trialAddonServiceId: SVC_TRIAL,
+};
 const order = {
   id: 'order-abcdef123456', subtotalPen: 150, shippingPen: 15, discountPen: 10, totalPen: 155,
   shipDistrict: 'Miraflores', shipCity: 'Lima', paymentMethod: 'culqi',
   items: [{ name: 'Labial mate', qty: 2, pricePen: 45 }, { name: 'Base líquida', qty: 1, pricePen: 60 }],
 };
 const payment = {
-  id: 'pay-123', receiptNumber: 'R-0001', totalPen: 370, paidPen: 111, balancePen: 259,
-  method: 'yape', depositPen: 111, customerName: 'Andrea', customerPhone: '999888777',
+  id: 'pay-123', receiptNumber: 'R-0001', totalPen: 650, paidPen: 325, balancePen: 325,
+  method: 'yape', depositPen: 325, customerName: 'Andrea', customerPhone: '999888777',
   proofImageUrl: 'https://picsum.photos/seed/comprobante/400/520',
 };
 const email = 'preview@example.com';
@@ -75,6 +83,7 @@ async function main() {
   await M.sendBookingConfirmation({ appointments: pkgAppts, packageInfo, email, name: 'Andrea', atHomeExtraPen: 0 });
   await M.sendAppointmentCompleted({ appointment: aptStaff, email, name: 'Andrea' });
   await M.sendAppointmentCancelled({ appointment: aptStaff, email, name: 'Andrea', reason: 'Solicitado por la clienta' });
+  await M.sendBookingRejected({ appointments: pkgAppts, packageInfo, email, name: 'Andrea', atHomeExtraPen: 0 });
   await M.sendAppointmentRescheduled({ appointment: aptStaff, email, name: 'Andrea', beforeDate: '2026-06-13', beforeStart: '10:00' });
   await M.sendAppointmentNoShow({ appointment: aptStaff, email, name: 'Andrea' });
   await M.sendAppointmentInProgress({ appointment: aptStaff, email, name: 'Andrea' });

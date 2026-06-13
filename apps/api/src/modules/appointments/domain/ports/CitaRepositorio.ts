@@ -219,8 +219,22 @@ export interface CitaRepositorio {
     params: { packageId: string; fecha: string; customerKey: string },
   ): Promise<CitaPersistida[]>;
 
+  /** Citas pendientes/confirmadas de un bookingGroup en una fecha (el addon de
+   *  otra fecha queda fuera), con service+staff+package(+items), por startTime. */
+  buscarGrupoPorBookingGroup(
+    ctx: ContextoTenant,
+    params: { bookingGroupId: string; fecha: string },
+  ): Promise<CitaPersistida[]>;
+
   /** Confirma (pending→confirmed) las citas indicadas. */
   confirmarPendientesDelGrupo(ctx: ContextoTenant, ids: string[]): Promise<void>;
+
+  /** Cancela (pending/confirmed→cancelled) las citas indicadas (rechazo de grupo). */
+  cancelarActivasDelGrupo(ctx: ContextoTenant, ids: string[]): Promise<void>;
+
+  /** Marca como 'rejected' el BookingPayment pendiente/por verificar del grupo
+   *  (al rechazar el paquete no debe quedar un pago huérfano por verificar). */
+  rechazarPagoPendienteDelGrupo(ctx: ContextoTenant, bookingGroupId: string): Promise<void>;
 
   /** Recarga citas por id con service+staff (para el correo consolidado). */
   recargarCitas(ctx: ContextoTenant, ids: string[]): Promise<CitaPersistida[]>;

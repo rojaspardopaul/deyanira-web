@@ -20,9 +20,19 @@ export type Appointment = {
   onDutyStaff?: boolean;
   bookingGroupId?: string | null;
   packageId?: string | null;
+  /** Paquete (novia/quinceañera): el precio se muestra a nivel paquete y el
+   *  eventType da el icono/color del badge en el calendario. */
+  package?: {
+    id: string;
+    name: string;
+    pricePen?: number | string | null;
+    groupLabel?: string | null;
+    trialAddonServiceId?: string | null;
+    eventType?: { id: string; name: string; slug: string; icon?: string | null; accentColor?: string | null } | null;
+  } | null;
   service: { id: string; name: string; duration: number };
   staff: { id: string; name: string } | null;
-  customer?: { name?: string; phone?: string; email?: string } | null;
+  customer?: { id?: string; name?: string; phone?: string; email?: string } | null;
 };
 
 // Pago/adelanto asociado a un grupo de reserva (paquete con adelanto)

@@ -13,6 +13,8 @@ export interface TicketItem {
   staff: string;
   price?: number;
   isAddon?: boolean;
+  /** Servicio incluido en el paquete: muestra "Incluido en el paquete" sin monto. */
+  isIncluded?: boolean;
   options?: Array<{ label: string; delta?: number }>;
 }
 
@@ -29,6 +31,8 @@ export interface BookingTicketProps {
   customerEmail?: string;
   packageName?: string;
   packageLabel?: string;
+  /** Precio del paquete: se muestra en el bloque del paquete, no por servicio. */
+  packagePricePen?: number;
   dateGroups: TicketDateGroup[];
   totalPen: number;
   atHome?: { address: string; district: string } | null;
@@ -57,7 +61,7 @@ const GOLD_DK = '#a88426';
 const BookingTicket = forwardRef<HTMLDivElement, BookingTicketProps>(function BookingTicket(
   {
     customerName, customerPhone, customerEmail,
-    packageName, packageLabel,
+    packageName, packageLabel, packagePricePen,
     dateGroups, totalPen, atHome, bookingId,
     salonName = 'Deyanira Makeup Beauty',
     salonPhone, salonWhatsapp, salonInstagram,
@@ -230,6 +234,11 @@ const BookingTicket = forwardRef<HTMLDivElement, BookingTicketProps>(function Bo
                 </p>
               )}
             </div>
+            {packagePricePen != null && (
+              <p style={{ fontSize: 15, fontWeight: 800, margin: 0, color: GOLD, whiteSpace: 'nowrap' }}>
+                S/ {Number(packagePricePen).toFixed(2)}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -352,7 +361,19 @@ const BookingTicket = forwardRef<HTMLDivElement, BookingTicketProps>(function Bo
                         </div>
                       )}
                     </div>
-                    {it.price != null && it.price > 0 && (
+                    {it.isIncluded ? (
+                      <p
+                        style={{
+                          fontSize: 10.5,
+                          fontStyle: 'italic',
+                          margin: '2px 0 0 0',
+                          color: 'rgba(255,255,255,0.45)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Incluido en el paquete
+                      </p>
+                    ) : it.price != null && it.price > 0 && (
                       <p
                         style={{
                           fontSize: 14,

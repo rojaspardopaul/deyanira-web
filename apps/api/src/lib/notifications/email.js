@@ -435,30 +435,52 @@ function orderSummary(order) {
 }
 
 // ── Tabla resumen de reservas múltiples (paquete + extras) ────
+// El precio se trata a NIVEL PAQUETE: la fila 📦 lleva el monto del paquete y las
+// citas de servicios incluidos muestran "Incluido en el paquete" (en BD el monto
+// vive arbitrariamente en la 1ª cita para que la contabilidad cuadre — nunca
+// mostrar ese reparto). Addons/extras sí muestran su precio real.
 function bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen }) {
+  const incluidos = new Set(packageInfo?.includedServiceIds || []);
+  const esIncluida = (apt) => incluidos.has(apt.serviceId || apt.service?.id);
+  const usePkgPricing = Boolean(packageInfo && packageInfo.pricePen != null && incluidos.size > 0);
+
   const rows = appointments.map((apt) => {
     const isOnDuty = apt.onDutyStaff || !apt.staff;
     const staffName = isOnDuty ? 'Estilista de turno' : (apt.staff?.name || '—');
+    const priceCell = usePkgPricing && esIncluida(apt)
+      ? `<span style="font-size:11.5px;font-style:italic;color:${T.color.textMuted};">Incluido en el paquete</span>`
+      : (apt.totalPen != null ? esc(fmtPrice(apt.totalPen)) : '');
     return `<tr>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};border-bottom:1px solid ${T.color.rowLine};">
         <strong>${esc(apt.service?.name || '—')}</strong>
         <div style="font-size:11px;color:${T.color.textFaint};margin-top:2px;">${esc(fmt12(apt.startTime))} – ${esc(fmt12(apt.endTime))} · ${esc(staffName)}</div>
       </td>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};text-align:right;border-bottom:1px solid ${T.color.rowLine};white-space:nowrap;">
-        ${apt.totalPen != null ? esc(fmtPrice(apt.totalPen)) : ''}
+        ${priceCell}
       </td>
     </tr>`;
   }).join('');
 
-  const total = appointments.reduce((sum, apt) => sum + Number(apt.totalPen || 0), 0)
-    + Number(atHomeExtraPen || 0);
+  // Total con paquete: precio del paquete + citas NO incluidas (addons/extras) +
+  // domicilio. No depende de qué cita lleva el monto en BD y evita contar dos veces
+  // el recargo a domicilio (que en BD va plegado en la 1ª cita del paquete).
+  // Sin paquete (o packageInfo legacy sin includedServiceIds): fórmula original.
+  const total = usePkgPricing
+    ? Number(packageInfo.pricePen || 0)
+      + appointments.reduce((sum, apt) => (esIncluida(apt) ? sum : sum + Number(apt.totalPen || 0)), 0)
+      + Number(atHomeExtraPen || 0)
+    : appointments.reduce((sum, apt) => sum + Number(apt.totalPen || 0), 0)
+      + Number(atHomeExtraPen || 0);
 
   const packageRow = packageInfo
     ? `<tr style="background:rgba(212,175,55,0.10);">
-        <td colspan="2" style="padding:12px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.gold};background:rgba(212,175,55,0.10);">
+        <td style="padding:12px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.gold};background:rgba(212,175,55,0.10);">
           <strong>📦 Paquete: ${esc(packageInfo.name)}</strong>
           ${packageInfo.eventType ? ` <span style="color:${T.color.textMuted};">— ${esc(packageInfo.eventType.name)}</span>` : ''}
           ${packageInfo.groupLabel ? `<div style="font-size:11px;margin-top:2px;color:${T.color.textMuted};">${esc(packageInfo.groupLabel)}</div>` : ''}
+        </td>
+        <td style="padding:12px 16px;font-family:${T.font.sans};font-size:14px;font-weight:700;color:${T.color.gold};text-align:right;white-space:nowrap;background:rgba(212,175,55,0.10);">
+          ${packageInfo.pricePen != null ? esc(fmtPrice(packageInfo.pricePen)) : ''}
         </td>
        </tr>`
     : '';
@@ -651,6 +673,36 @@ async function sendAppointmentCancelled({ appointment, email, name, reason }) {
     to: email,
     subject: `Cita cancelada — ${SALON}`,
     html: baseHtml('Tu cita fue cancelada', body, settings),
+  });
+}
+
+// Rechazo consolidado de una reserva múltiple/paquete (UN solo correo para todo
+// el grupo, espejo de sendBookingConfirmation pero en tono de no-confirmación).
+async function sendBookingRejected({ appointments, packageInfo, email, name, atHomeExtraPen }) {
+  if (!canSend() || !email || !appointments?.length) return;
+  const settings = await getEmailSettings();
+  const first = appointments[0];
+  const title = packageInfo
+    ? `❌ No pudimos confirmar tu paquete "${esc(packageInfo.name)}"`
+    : appointments.length > 1 ? '❌ No pudimos confirmar tus reservas' : '❌ No pudimos confirmar tu reserva';
+  const body = `
+    ${statusBanner('danger', title, 'Lamentamos informarte que el salón no pudo confirmar esta reserva. Si crees que fue un error, contáctanos.')}
+    ${greeting(name)}
+    ${bodyText(`Estos eran los datos de ${appointments.length === 1 ? 'tu reserva' : `tus ${appointments.length} reservas`} para el <strong style="color:#f6ecf0;">${esc(capFirst(fmtDate(first.date)))}</strong>:`)}
+    ${bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen })}
+    ${alertBox('💳 Si realizaste un pago de adelanto y no corresponde, escríbenos para coordinar la devolución.', 'info')}
+    ${goldDivider()}
+    ${bodyText('Nos encantaría atenderte en otra fecha.')}
+    ${ctaBtn('Reservar otra fecha', `${WEB_URL}/reservar`)}
+    ${SALON_PHONE ? ctaBtnGhost('Escríbenos por WhatsApp', `https://wa.me/${SALON_PHONE}`) : ''}
+    ${helpBlock()}
+  `;
+  await safeSend('booking_rejected', {
+    to: email,
+    subject: packageInfo
+      ? `Sobre tu paquete ${packageInfo.name} — ${SALON}`
+      : `Sobre tu reserva — ${SALON}`,
+    html: baseHtml('No pudimos confirmar tu reserva', body, settings),
   });
 }
 
@@ -999,6 +1051,7 @@ module.exports = {
   sendAppointmentCompleted,
   // secundarios (banner)
   sendAppointmentCancelled,
+  sendBookingRejected,
   sendAppointmentRescheduled,
   sendAppointmentNoShow,
   sendAppointmentInProgress,

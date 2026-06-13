@@ -465,7 +465,7 @@ export default function BookingWizard({
 
     // Agrupa los servicios por fecha. Cada assignment va al grupo central o a un grupo
     // anticipado según su daysBeforeMain efectivo. El trial usa packageInfo.trialAddon.daysBeforeMain.
-    type DateItem = { name: string; staff: string; price: number; isAddon?: boolean; options?: Array<{ label: string; delta?: number }> };
+    type DateItem = { name: string; staff: string; price: number; isAddon?: boolean; isIncluded?: boolean; options?: Array<{ label: string; delta?: number }> };
     type DateGroup = { date: string; startTime: string; endTime?: string; items: DateItem[] };
     const skipPkgIds = new Set(packageInfo?.bookableServices.map(b => b.serviceId) || []);
     const trialId = packageInfo?.trialAddon?.serviceId;
@@ -523,6 +523,8 @@ export default function BookingWizard({
         staff: a.onDuty ? '✦ Estilista de turno' : (a.staff?.name || '—'),
         price,
         isAddon,
+        // Servicio del paquete (no addon): se muestra "Incluido en el paquete".
+        isIncluded: isPkgService && !isAddon,
         ...(options.length > 0 ? { options } : {}),
       });
     }
@@ -558,6 +560,7 @@ export default function BookingWizard({
       customerEmail: guestInfo.email || authUser?.email,
       packageName: packageInfo?.name,
       packageLabel: packageInfo?.groupLabel || undefined,
+      packagePricePen: packageInfo?.pricePen,
       dateGroups: ticketGroups,
       totalPen: totalAmt,
       atHome: atHome ? { address: atHomeAddress, district: atHomeDistrict } : null,
@@ -589,6 +592,7 @@ export default function BookingWizard({
             customerName={guestInfo.name}
             packageName={packageInfo?.name}
             packageLabel={packageInfo?.groupLabel || undefined}
+            packagePricePen={packageInfo?.pricePen}
             dateGroups={ticketGroups}
             totalPen={totalAmt}
             atHome={atHome ? { address: atHomeAddress, district: atHomeDistrict } : null}

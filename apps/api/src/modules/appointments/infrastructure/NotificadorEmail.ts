@@ -17,6 +17,7 @@ const email = require('../../../lib/notifications/email') as {
   sendAppointmentNoShow: (a: unknown) => Promise<unknown>;
   sendAppointmentRescheduled: (a: unknown) => Promise<unknown>;
   sendBookingConfirmation: (a: unknown) => Promise<unknown>;
+  sendBookingRejected: (a: unknown) => Promise<unknown>;
   sendDepositReceipt: (a: unknown) => Promise<unknown>;
 };
 const logger = require('../../../lib/logger') as { error: (msg: string, meta?: unknown) => void };
@@ -99,6 +100,23 @@ export class NotificadorEmail implements Notificador {
   ): void {
     fireAndForget(
       email.sendBookingConfirmation({
+        appointments: citas,
+        packageInfo: paquete,
+        email: contacto.email,
+        name: contacto.nombre,
+        atHomeExtraPen,
+      }),
+    );
+  }
+
+  reservaRechazada(
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+    atHomeExtraPen: number | null,
+  ): void {
+    fireAndForget(
+      email.sendBookingRejected({
         appointments: citas,
         packageInfo: paquete,
         email: contacto.email,

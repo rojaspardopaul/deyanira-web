@@ -15,7 +15,7 @@ import type { CitaRepositorio, LineaReserva, DepositoAdminInput } from '../domai
 import type { CatalogoReservas } from '../domain/ports/CatalogoReservas';
 import type { Scheduler, ItemProgramable } from '../domain/ports/Scheduler';
 import type { Reloj } from '../domain/ports/Reloj';
-import type { Notificador, InfoPaquete } from '../domain/ports/Notificador';
+import { infoPaqueteDesde, type Notificador } from '../domain/ports/Notificador';
 import type { CitaPersistida } from '../domain/ports/CitaRepositorio';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -129,7 +129,7 @@ export class CrearPaqueteAdmin {
 
     // Recibo de adelanto al cliente (fire-and-forget en el adaptador).
     if (payment && c.guestEmail) {
-      const paquete: InfoPaquete = { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType };
+      const paquete = infoPaqueteDesde(pkg);
       const ordenadas = [...created].sort(
         (a, b) =>
           String(a.date).localeCompare(String(b.date)) ||

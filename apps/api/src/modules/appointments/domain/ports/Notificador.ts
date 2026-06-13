@@ -14,6 +14,38 @@ export interface InfoPaquete {
   readonly name: string;
   readonly groupLabel: string | null;
   readonly eventType: { id: string; name: string; slug: string } | null;
+  /** Precio del paquete: el correo lo muestra a nivel paquete, no por cita. */
+  readonly pricePen: number;
+  /** serviceIds de los PackageItem: esas citas se listan como "Incluido en el paquete". */
+  readonly includedServiceIds: readonly string[];
+  readonly trialAddonServiceId: string | null;
+}
+
+/** Construye InfoPaquete desde una fila de paquete (catálogo o Prisma con items). */
+export function infoPaqueteDesde(
+  pkg:
+    | {
+        name: string;
+        groupLabel: string | null;
+        eventType: InfoPaquete['eventType'];
+        pricePen: unknown;
+        trialAddonServiceId?: string | null;
+        items?: ReadonlyArray<{ serviceId: string | null }> | null;
+      }
+    | null
+    | undefined,
+): InfoPaquete | null {
+  if (!pkg) return null;
+  return {
+    name: pkg.name,
+    groupLabel: pkg.groupLabel,
+    eventType: pkg.eventType,
+    pricePen: Number(pkg.pricePen) || 0,
+    includedServiceIds: (pkg.items || [])
+      .map((it) => it.serviceId)
+      .filter((id): id is string => !!id),
+    trialAddonServiceId: pkg.trialAddonServiceId ?? null,
+  };
 }
 
 export interface Notificador {
@@ -57,6 +89,14 @@ export interface Notificador {
 
   /** Confirmación consolidada de un grupo de paquete (un solo correo). */
   reservaConfirmada(
+    citas: CitaPersistida[],
+    contacto: Contacto,
+    paquete: InfoPaquete | null,
+    atHomeExtraPen: number | null,
+  ): void;
+
+  /** Rechazo consolidado de un grupo de paquete (un solo correo). */
+  reservaRechazada(
     citas: CitaPersistida[],
     contacto: Contacto,
     paquete: InfoPaquete | null,

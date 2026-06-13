@@ -12,6 +12,8 @@ export interface PaqueteReserva {
   readonly name: string;
   readonly groupLabel: string | null;
   readonly eventType: { id: string; name: string; slug: string } | null;
+  readonly trialAddonServiceId: string | null;
+  readonly items: ReadonlyArray<{ serviceId: string | null }>;
 }
 
 export interface ServicioLote {

@@ -4,6 +4,7 @@ import React from 'react';
 import { STATUS } from '../status';
 import { timeToMin, fmtTime12 } from '../utils/time';
 import { clientName } from '../utils/date';
+import { eventTypeIcon } from '../utils/package';
 import { HOUR_START, HOUR_HEIGHT } from '../constants';
 import type { Appointment, LayoutInfo } from '../types';
 
@@ -64,6 +65,15 @@ export function AptBlock({
           className="absolute -top-1 -right-1 z-30 w-4 h-4 rounded-full bg-amber-400 ring-2 ring-white flex items-center justify-center text-[8px] leading-none shadow-sm"
         >
           💳
+        </span>
+      )}
+      {apt.package?.eventType && (
+        <span
+          title={`Paquete ${apt.package.eventType.name}: ${apt.package.name}`}
+          className={`absolute -top-1 z-30 w-4 h-4 rounded-full ring-2 ring-white flex items-center justify-center text-[8px] leading-none shadow-sm ${hasPendingPayment ? 'right-3.5' : '-right-1'}`}
+          style={{ backgroundColor: apt.package.eventType.accentColor || '#d4af37' }}
+        >
+          {eventTypeIcon(apt.package.eventType)}
         </span>
       )}
       <div className="px-1 py-0.5 h-full flex flex-col justify-start">

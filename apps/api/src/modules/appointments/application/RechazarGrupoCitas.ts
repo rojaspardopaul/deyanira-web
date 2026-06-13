@@ -1,6 +1,7 @@
-// Caso de uso: confirmar todas las citas (pendientes) de un paquete en una fecha,
-// con un único correo de confirmación al cliente. Equivale a la ruta legacy
-// POST /api/admin/appointments/confirm-group.
+// Caso de uso: rechazar (cancelar) todas las citas activas de un paquete en una
+// fecha, con un único correo de rechazo al cliente. Espejo de ConfirmarGrupoCitas
+// para el botón "Rechazar paquete" del calendario admin. También marca como
+// 'rejected' el adelanto pendiente del grupo para que no quede por verificar.
 
 import type { ContextoTenant } from '../../../shared/context/ContextoTenant';
 import { SolicitudCitaInvalidaError, CitaNoEncontradaError } from '../domain/errors';
@@ -10,52 +11,37 @@ import { infoPaqueteDesde, type Notificador, type InfoPaquete } from '../domain/
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export interface ConfirmarGrupoComando {
-  readonly packageId?: string;
-  readonly date?: string;
-  readonly customerKey?: string;
-  /** Alternativa moderna al trío packageId+date+customerKey (calendario admin). */
+export interface RechazarGrupoComando {
   readonly bookingGroupId?: string;
+  readonly date?: string;
 }
 
-export class ConfirmarGrupoCitas {
+export class RechazarGrupoCitas {
   constructor(
     private readonly citas: CitaRepositorio,
     private readonly notificador: Notificador,
   ) {}
 
-  async ejecutar(ctx: ContextoTenant, c: ConfirmarGrupoComando): Promise<{ ok: true; count: number }> {
+  async ejecutar(ctx: ContextoTenant, c: RechazarGrupoComando): Promise<{ ok: true; count: number }> {
+    if (!c.bookingGroupId || !UUID_RE.test(c.bookingGroupId)) {
+      throw new SolicitudCitaInvalidaError('bookingGroupId inválido');
+    }
     if (!c.date || !DATE_RE.test(c.date)) {
       throw new SolicitudCitaInvalidaError('date debe ser YYYY-MM-DD');
     }
 
-    let grupo: CitaPersistida[];
-    if (c.bookingGroupId) {
-      if (!UUID_RE.test(c.bookingGroupId)) {
-        throw new SolicitudCitaInvalidaError('bookingGroupId inválido');
-      }
-      grupo = await this.citas.buscarGrupoPorBookingGroup(ctx, {
-        bookingGroupId: c.bookingGroupId,
-        fecha: c.date,
-      });
-    } else {
-      if (!c.packageId || !UUID_RE.test(c.packageId)) {
-        throw new SolicitudCitaInvalidaError('packageId inválido');
-      }
-      if (!c.customerKey) {
-        throw new SolicitudCitaInvalidaError('customerKey requerido (guestEmail o customerId)');
-      }
-      grupo = await this.citas.buscarGrupoPaquete(ctx, {
-        packageId: c.packageId,
-        fecha: c.date,
-        customerKey: c.customerKey,
-      });
-    }
+    // Solo las citas del grupo EN ESA FECHA: el addon (prueba) de otra fecha es
+    // independiente y no se toca.
+    const grupo: CitaPersistida[] = await this.citas.buscarGrupoPorBookingGroup(ctx, {
+      bookingGroupId: c.bookingGroupId,
+      fecha: c.date,
+    });
     if (grupo.length === 0) throw new CitaNoEncontradaError('No hay citas en este grupo');
 
-    await this.citas.confirmarPendientesDelGrupo(ctx, grupo.map((a) => String(a.id)));
+    await this.citas.cancelarActivasDelGrupo(ctx, grupo.map((a) => String(a.id)));
+    await this.citas.rechazarPagoPendienteDelGrupo(ctx, c.bookingGroupId);
 
-    // Correo único de confirmación al cliente (fire-and-forget en el adaptador).
+    // Correo único de rechazo al cliente (fire-and-forget en el adaptador).
     const first = grupo[0] as Record<string, unknown>;
     const customer = first.customer as { email?: string; name?: string } | null | undefined;
     const email = (first.guestEmail as string | null) || customer?.email || null;
@@ -73,11 +59,10 @@ export class ConfirmarGrupoCitas {
           }
         | null
         | undefined;
-      const paquete = infoPaqueteDesde(pkg);
-      this.notificador.reservaConfirmada(
+      this.notificador.reservaRechazada(
         recargadas,
         { email, nombre },
-        paquete,
+        infoPaqueteDesde(pkg),
         (first.atHomeExtraPen as number | null) ?? null,
       );
     }

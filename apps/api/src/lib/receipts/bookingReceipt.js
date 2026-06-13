@@ -14,6 +14,16 @@ function money(n) {
   return 'S/ ' + Number(n || 0).toFixed(2);
 }
 
+// "HH:MM" (24h) → "1:30 p.m." — toda hora visible va en 12h (convención del salón).
+function fmt12(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return hhmm || '';
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h < 12 ? 'a.m.' : 'p.m.';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 function fmtDateLong(d) {
   let iso;
   if (typeof d === 'string') iso = d.slice(0, 10);
@@ -53,14 +63,31 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   const saldo = Number(payment.balancePen != null ? payment.balancePen : total - adelanto);
   const method = METHOD_LABEL[payment.method] || (payment.method ? esc(payment.method) : '—');
 
-  const itemRows = appointments.map((a) => {
+  // Precio a NIVEL PAQUETE: la fila del paquete lleva su monto y las citas de
+  // servicios incluidos muestran "Incluido en el paquete" (en BD el monto vive en
+  // la 1ª cita por contabilidad — nunca mostrar ese reparto). Addons/extras sí.
+  const incluidos = new Set((pkg?.items || []).map((it) => it.serviceId).filter(Boolean));
+  const usePkgPricing = Boolean(pkg && pkg.pricePen != null && incluidos.size > 0);
+
+  const pkgRow = usePkgPricing
+    ? `<tr>
+      <td class="desc"><span class="bullet">◆</span> <strong>Paquete: ${esc(pkg.name)}</strong>${pkg.eventType?.name ? ` <span class="sub" style="display:inline;">— ${esc(pkg.eventType.name)}</span>` : ''}</td>
+      <td class="amt"><strong>${money(pkg.pricePen)}</strong></td>
+    </tr>`
+    : '';
+
+  const itemRows = pkgRow + appointments.map((a) => {
     const staffName = (a.onDutyStaff || !a.staff) ? 'Estilista de turno' : (a.staff?.name || '—');
-    const when = `${fmtDateLong(a.date)} · ${esc(a.startTime || '')}–${esc(a.endTime || '')}`;
+    const when = `${fmtDateLong(a.date)} · ${esc(fmt12(a.startTime))}–${esc(fmt12(a.endTime))}`;
+    const esIncluida = usePkgPricing && incluidos.has(a.serviceId || a.service?.id);
+    const amt = esIncluida
+      ? '<span class="included">Incluido en el paquete</span>'
+      : (Number(a.totalPen) > 0 ? money(a.totalPen) : '');
     return `<tr>
       <td class="desc"><span class="bullet">◆</span> ${esc(a.service?.name || 'Servicio')}
         <div class="sub">${when} · ${esc(staffName)}</div>
       </td>
-      <td class="amt">${Number(a.totalPen) > 0 ? money(a.totalPen) : ''}</td>
+      <td class="amt">${amt}</td>
     </tr>`;
   }).join('');
 
@@ -102,6 +129,7 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   td.desc .sub { font-size: 11px; color: #888; margin-top: 3px; }
   td.amt { padding: 12px; font-size: 14px; border-bottom: 1px solid #f2f2f2; white-space: nowrap; }
   .bullet { color: ${PINK}; margin-right: 6px; }
+  .included { font-size: 11px; font-style: italic; color: #999; }
   .totals { margin-left: auto; width: 320px; }
   .totals .line { display: flex; justify-content: space-between; padding: 9px 4px; font-size: 14px; }
   .totals .line.sep { border-top: 1px solid #eee; }
