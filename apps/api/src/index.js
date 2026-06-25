@@ -84,6 +84,23 @@ app.use((_req, res, next) => {
   next();
 });
 
+// ── Health checks — ANTES de CORS/rate-limit (infra, sin Origin) ──
+// Railway/uptime checks no envían header Origin; deben evitar el CORS estricto.
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', ts: new Date().toISOString() });
+});
+
+app.get('/api/health/ready', async (_req, res) => {
+  try {
+    const prisma = require('./lib/prisma');
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ready', ts: new Date().toISOString() });
+  } catch (err) {
+    logger.error('health_ready_failed', { msg: err.message });
+    res.status(503).json({ status: 'unavailable' });
+  }
+});
+
 // ── CORS — solo orígenes autorizados ─────────────────────────
 const allowedOrigins = (env.ALLOWED_ORIGINS
   ? env.ALLOWED_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
@@ -190,22 +207,6 @@ app.use((req, res, next) => {
   if (isApptCreate)                                              return appointmentCreateLim(req, res, () => progressiveSlowDown(req, res, next));
   if (req.method === 'POST' && req.path === '/api/orders')       return orderCreateLimiter(req, res, next);
   next();
-});
-
-// ── Health checks ─────────────────────────────────────────────
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', ts: new Date().toISOString() });
-});
-
-app.get('/api/health/ready', async (_req, res) => {
-  try {
-    const prisma = require('./lib/prisma');
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ready', ts: new Date().toISOString() });
-  } catch (err) {
-    logger.error('health_ready_failed', { msg: err.message });
-    res.status(503).json({ status: 'unavailable' });
-  }
 });
 
 // ── Rutas ─────────────────────────────────────────────────────
