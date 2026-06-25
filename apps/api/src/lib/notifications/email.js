@@ -459,12 +459,23 @@ function bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen }) {
   const esIncluida = (apt) => incluidos.has(apt.serviceId || apt.service?.id);
   const usePkgPricing = Boolean(packageInfo && packageInfo.pricePen != null && incluidos.size > 0);
 
+  // El recargo a domicilio viene plegado en el totalPen de UNA cita. Lo mostramos
+  // como línea aparte ("Servicio a domicilio"), así que lo restamos del precio de
+  // esa cita (una sola vez, solo sin paquete) para no contarlo dos veces.
+  const extra = Number(atHomeExtraPen || 0);
+  let extraYaDescontado = false;
   const rows = appointments.map((apt) => {
     const isOnDuty = apt.onDutyStaff || !apt.staff;
     const staffName = isOnDuty ? 'Estilista de turno' : (apt.staff?.name || '—');
-    const priceCell = usePkgPricing && esIncluida(apt)
+    const incluida = usePkgPricing && esIncluida(apt);
+    let displayPen = apt.totalPen != null ? Number(apt.totalPen) : null;
+    if (!usePkgPricing && !incluida && displayPen != null && extra > 0 && !extraYaDescontado) {
+      displayPen -= extra;
+      extraYaDescontado = true;
+    }
+    const priceCell = incluida
       ? `<span style="font-size:11.5px;font-style:italic;color:${T.color.textMuted};">Incluido en el paquete</span>`
-      : (apt.totalPen != null ? esc(fmtPrice(apt.totalPen)) : '');
+      : (displayPen != null ? esc(fmtPrice(displayPen)) : '');
     return `<tr>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};border-bottom:1px solid ${T.color.rowLine};">
         <strong>${esc(apt.service?.name || '—')}</strong>
@@ -483,9 +494,9 @@ function bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen }) {
   const total = usePkgPricing
     ? Number(packageInfo.pricePen || 0)
       + appointments.reduce((sum, apt) => (esIncluida(apt) ? sum : sum + Number(apt.totalPen || 0)), 0)
-      + Number(atHomeExtraPen || 0)
-    : appointments.reduce((sum, apt) => sum + Number(apt.totalPen || 0), 0)
-      + Number(atHomeExtraPen || 0);
+      + extra
+    // Sin paquete, el recargo a domicilio YA viene incluido en totalPen → no sumarlo otra vez.
+    : appointments.reduce((sum, apt) => sum + Number(apt.totalPen || 0), 0);
 
   const packageRow = packageInfo
     ? `<tr style="background:rgba(212,175,55,0.10);">

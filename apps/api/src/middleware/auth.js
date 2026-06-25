@@ -21,6 +21,7 @@ function extractAdminToken(req) {
 
 // Verifica JWT de Supabase Auth (clientes registrados)
 async function verifySupabaseToken(token) {
+  // Ruta rápida: verificación local HS256 (proyectos Supabase con secreto simétrico legacy).
   if (env.SUPABASE_JWT_SECRET) {
     try {
       const payload = jwt.verify(token, env.SUPABASE_JWT_SECRET, {
@@ -28,7 +29,8 @@ async function verifySupabaseToken(token) {
       });
       return { id: payload.sub, email: payload.email, user_metadata: payload.user_metadata };
     } catch {
-      return null;
+      // El token NO es HS256 (p. ej. proyecto migrado a llaves asimétricas ES256):
+      // no rechazamos, caemos al fallback por red que valida cualquier algoritmo.
     }
   }
   // Fallback: verificar vía API de Supabase (más lento, hace red por request)

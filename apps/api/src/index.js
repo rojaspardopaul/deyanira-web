@@ -111,12 +111,10 @@ const allowedOrigins = (env.ALLOWED_ORIGINS
 
 app.use(cors({
   origin: (origin, cb) => {
-    // En producción exigimos Origin presente y autorizado.
-    if (!origin) {
-      // Solo permitir same-origin / curl en dev. En prod rechazar.
-      if (isProd) return cb(new Error('CORS: Origin requerido'));
-      return cb(null, true);
-    }
+    // Sin Origin = petición server-to-server (SSR de Next, health checks, curl,
+    // apps nativas). CORS es una protección del navegador y no aplica a estas, así
+    // que se permiten. Las peticiones CON Origin (navegadores) sí se restringen.
+    if (!origin) return cb(null, true);
     if (allowedOrigins.includes(origin)) return cb(null, true);
     logger.warn('cors_rejected', { origin });
     cb(new Error('CORS: origen no permitido'));
