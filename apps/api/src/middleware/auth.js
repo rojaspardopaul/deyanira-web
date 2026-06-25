@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 const env = require('../lib/env');
@@ -19,21 +20,50 @@ function extractAdminToken(req) {
   return req.cookies?.[ADMIN_COOKIE] || extractBearer(req);
 }
 
-// Verifica JWT de Supabase Auth (clientes registrados)
-async function verifySupabaseToken(token) {
-  // Ruta rápida: verificación local HS256 (proyectos Supabase con secreto simétrico legacy).
-  if (env.SUPABASE_JWT_SECRET) {
-    try {
-      const payload = jwt.verify(token, env.SUPABASE_JWT_SECRET, {
-        algorithms: ['HS256'],
-      });
-      return { id: payload.sub, email: payload.email, user_metadata: payload.user_metadata };
-    } catch {
-      // El token NO es HS256 (p. ej. proyecto migrado a llaves asimétricas ES256):
-      // no rechazamos, caemos al fallback por red que valida cualquier algoritmo.
-    }
+// Cache del JWKS de Supabase (llaves públicas para verificar JWT asimétricos ES256/RS256).
+let _jwks = { keys: null, at: 0 };
+async function getSupabaseJwks() {
+  const TTL = 60 * 60 * 1000; // 1h
+  if (_jwks.keys && Date.now() - _jwks.at < TTL) return _jwks.keys;
+  const res = await fetch(`${env.SUPABASE_URL}/auth/v1/.well-known/jwks.json`);
+  if (!res.ok) throw new Error(`jwks ${res.status}`);
+  const { keys = [] } = await res.json();
+  const map = new Map();
+  for (const jwk of keys) {
+    try { map.set(jwk.kid, crypto.createPublicKey({ key: jwk, format: 'jwk' })); } catch { /* ignora jwk inválida */ }
   }
-  // Fallback: verificar vía API de Supabase (más lento, hace red por request)
+  _jwks = { keys: map, at: Date.now() };
+  return map;
+}
+
+// Verifica JWT de Supabase Auth (clientes registrados). Soporta: (1) llaves
+// asimétricas ES256/RS256 vía JWKS — el default actual de Supabase —, (2) HS256
+// legacy con secreto simétrico, y (3) verificación por red como último respaldo.
+async function verifySupabaseToken(token) {
+  let header = null;
+  try { header = jwt.decode(token, { complete: true })?.header || null; } catch { /* token ilegible */ }
+
+  // 1) Asimétrico (ES256/RS256): verificar contra la llave pública del JWKS.
+  if (header && header.alg && header.alg !== 'HS256') {
+    try {
+      const keys = await getSupabaseJwks();
+      const key = header.kid && keys.get(header.kid);
+      if (key) {
+        const p = jwt.verify(token, key, { algorithms: [header.alg] });
+        return { id: p.sub, email: p.email, user_metadata: p.user_metadata };
+      }
+    } catch { /* cae al siguiente método */ }
+  }
+
+  // 2) HS256 legacy (secreto simétrico).
+  if (env.SUPABASE_JWT_SECRET && (!header || header.alg === 'HS256')) {
+    try {
+      const p = jwt.verify(token, env.SUPABASE_JWT_SECRET, { algorithms: ['HS256'] });
+      return { id: p.sub, email: p.email, user_metadata: p.user_metadata };
+    } catch { /* cae al respaldo */ }
+  }
+
+  // 3) Respaldo por red (valida cualquier algoritmo vía la API de Supabase).
   try {
     const { data: { user }, error } = await supabase.auth.getUser(token);
     if (error || !user) return null;
