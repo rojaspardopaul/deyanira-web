@@ -46,7 +46,7 @@ function crearDeps(o: { paquete?: PaqueteReserva | null } = {}) {
     diasEntre: () => 0,
   } as unknown as Scheduler;
 
-  const notificador = { reciboAdelanto: vi.fn() } as unknown as Notificador;
+  const notificador = { reciboAdelanto: vi.fn(), reservaConfirmada: vi.fn() } as unknown as Notificador;
   const uc = new CrearPaqueteAdmin(catalogo, citas, scheduler, reloj, notificador);
   return { uc, citas, crearPaqueteAdmin, notificador };
 }
@@ -85,7 +85,7 @@ describe('CrearPaqueteAdmin', () => {
       .rejects.toBeInstanceOf(ServicioNoEncontradoError);
   });
 
-  it('alta sin adelanto: citas confirmadas, sin pago ni correo', async () => {
+  it('alta sin adelanto: citas confirmadas, sin pago, con correo de confirmación', async () => {
     const { uc, crearPaqueteAdmin, notificador } = crearDeps();
     const res = await uc.ejecutar(ctx, body());
     const datos = crearPaqueteAdmin.mock.calls[0][1] as DatosPaqueteAdmin;
@@ -93,7 +93,9 @@ describe('CrearPaqueteAdmin', () => {
     expect(datos.lineas[0].totalPen).toBe(1000); // precio del paquete a la 1ª cita
     expect(res.bookingPaymentId).toBeNull();
     expect(res.receiptNumber).toBeNull();
+    // Sin adelanto pero con email → confirmación de reserva (no recibo de adelanto).
     expect(notificador.reciboAdelanto).not.toHaveBeenCalled();
+    expect(notificador.reservaConfirmada).toHaveBeenCalledTimes(1);
   });
 
   it('alta con adelanto: calcula depósito (50% por defecto) + recibo + correo', async () => {
