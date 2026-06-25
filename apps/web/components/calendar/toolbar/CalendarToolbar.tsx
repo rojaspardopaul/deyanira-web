@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Layers,
-  CalendarDays, Users, List, LayoutGrid, AlignJustify,
+  CalendarDays, Users, List, LayoutGrid, AlignJustify, Lock, Unlock,
 } from 'lucide-react';
 import { MONTH_NAMES } from '../constants';
 import { addDays, getWeekStart } from '../utils/date';
@@ -18,6 +18,9 @@ type CalendarToolbarProps = {
   adminRole: string;
   sidebarOpen: boolean;
   enableResourceView?: boolean;
+  dragEnabled?: boolean;
+  canToggleDrag?: boolean;
+  onToggleDrag?: () => void;
   onViewChange: (v: CalView) => void;
   onPrev: () => void;
   onNext: () => void;
@@ -37,6 +40,7 @@ const VIEWS: [CalView, string, FC<{ className?: string }>][] = [
 export function CalendarToolbar({
   view, curDate, loading, adminRole, sidebarOpen,
   enableResourceView = true,
+  dragEnabled = false, canToggleDrag = false, onToggleDrag,
   onViewChange, onPrev, onNext, onToday, onToggleSidebar, onNewApt,
 }: CalendarToolbarProps) {
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
@@ -149,6 +153,22 @@ export function CalendarToolbar({
             </div>
           )}
         </div>
+
+        {/* Toggle de arrastre — OFF por defecto para evitar mover citas por error */}
+        {canToggleDrag && (
+          <button
+            onClick={onToggleDrag}
+            title={dragEnabled ? 'Mover citas activado — clic para bloquear' : 'Mover citas bloqueado — clic para activar arrastre'}
+            aria-pressed={dragEnabled}
+            className={`flex items-center gap-1 px-2 py-2 rounded-xl text-xs font-bold border transition-colors shrink-0
+              ${dragEnabled
+                ? 'bg-amber-50 text-gold-600 border-gold-300'
+                : 'text-gray-500 border-gray-200 hover:bg-gray-50'}`}
+          >
+            {dragEnabled ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{dragEnabled ? 'Mover: ON' : 'Mover'}</span>
+          </button>
+        )}
 
         {/* New appointment button */}
         {adminRole !== 'estilista' && (

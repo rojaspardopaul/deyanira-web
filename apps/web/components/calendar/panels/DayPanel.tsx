@@ -3,7 +3,10 @@
 import { Plus, Clock, User, Scissors, Calendar } from 'lucide-react';
 import { STATUS } from '../status';
 import { isPastDate, isPastDateTime, clientName } from '../utils/date';
+import { fmtTime12 } from '../utils/time';
 import { MONTH_NAMES, DAY_NAMES_FULL } from '../constants';
+import { eventTypeIcon } from '../utils/package';
+import { CategoryChip, AtHomeChip } from '../blocks/AptIndicators';
 import type { Appointment } from '../types';
 
 type DayPanelProps = {
@@ -84,7 +87,7 @@ export function DayPanel({
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-bold text-gray-900 flex items-center gap-1">
                     <Clock className="w-3 h-3 text-gray-400" />
-                    {apt.startTime}&ndash;{apt.endTime}
+                    {fmtTime12(apt.startTime)}&ndash;{fmtTime12(apt.endTime)}
                   </span>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bgLight} ${cfg.text} flex items-center gap-1`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
@@ -97,7 +100,22 @@ export function DayPanel({
                 <p className="text-xs text-gray-600 truncate flex items-center gap-1">
                   <Scissors className="w-3 h-3 text-gray-400" />{apt.service.name}
                 </p>
-                <div className="flex items-center justify-between mt-1">
+                {(apt.service.category || apt.package?.eventType || apt.atHome) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                    <CategoryChip apt={apt} />
+                    {apt.package?.eventType && (
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold leading-none"
+                        style={{ backgroundColor: `${apt.package.eventType.accentColor || '#d4af37'}22`, color: apt.package.eventType.accentColor || '#a9821f' }}
+                        title={`Paquete ${apt.package.eventType.name}`}
+                      >
+                        {eventTypeIcon(apt.package.eventType)} {apt.package.name}
+                      </span>
+                    )}
+                    <AtHomeChip apt={apt} />
+                  </div>
+                )}
+                <div className="flex items-center justify-between mt-1.5">
                   <p className="text-[11px] text-gray-500 truncate">
                     {apt.staff ? apt.staff.name : <span className="text-purple-500">Sin asignar</span>}
                   </p>

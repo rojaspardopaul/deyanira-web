@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { adminApi } from '@/lib/api';
 import { snapToGrid, timeToMin, minToHHMM, clamp } from '../utils/time';
 import { aptDateStr } from '../utils/date';
 import { HOUR_START, HOUR_END, HOUR_HEIGHT, SNAP_MINUTES } from '../constants';
 import type { Appointment, ResizeState } from '../types';
 
 type UseResizeOptions = {
-  onCommit?: (apt: Appointment, newEndTime: string) => void;
+  // Al soltar se PIDE confirmación al padre (igual que el arrastre), no se persiste directo.
+  onRequestCommit?: (apt: Appointment, newEndTime: string) => void;
   onRollback?: (apt: Appointment) => void;
 };
 
@@ -23,14 +23,14 @@ type UseResizeOptions = {
  *   // Pass handleResizeStart to views as onResizeStart prop
  *   // Pass resizeState to views to render the resize ghost
  */
-export function useResize({ onCommit, onRollback }: UseResizeOptions = {}) {
+export function useResize({ onRequestCommit, onRollback }: UseResizeOptions = {}) {
   const [resizeState, setResizeState] = useState<ResizeState | null>(null);
 
   const stateRef    = useRef<ResizeState | null>(null);
   const originalRef = useRef<Appointment | null>(null);
   const startMinRef = useRef(0);
-  const optionsRef  = useRef({ onCommit, onRollback });
-  optionsRef.current = { onCommit, onRollback };
+  const optionsRef  = useRef({ onRequestCommit, onRollback });
+  optionsRef.current = { onRequestCommit, onRollback };
 
   const listenersActive = useRef(false);
 
@@ -67,12 +67,8 @@ export function useResize({ onCommit, onRollback }: UseResizeOptions = {}) {
     if (!state?.isDragging || !apt) return;
     if (state.snappedEnd === state.originalEndTime) return;
 
-    optionsRef.current.onCommit?.(apt, state.snappedEnd);
-    try {
-      await adminApi().appointments.update(apt.id, { endTime: state.snappedEnd });
-    } catch {
-      optionsRef.current.onRollback?.({ ...apt, endTime: state.originalEndTime });
-    }
+    // Se pide confirmación al padre; éste persiste solo si el admin acepta.
+    optionsRef.current.onRequestCommit?.(apt, state.snappedEnd);
   });
 
   const onKey = useRef((e: KeyboardEvent) => {

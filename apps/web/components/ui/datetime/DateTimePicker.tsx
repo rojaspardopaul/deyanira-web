@@ -86,6 +86,7 @@ export default function DateTimePicker(props: DateTimePickerProps) {
             maxTime={props.maxTime}
             hourFormat={props.hourFormat ?? '12h'}
             disabledTimeRanges={props.disabledTimeRanges}
+            autoSelectEarliest={props.autoSelectEarliest}
             onSelect={start => { props.onChange(start); }}
           />
         );
@@ -122,6 +123,7 @@ export default function DateTimePicker(props: DateTimePickerProps) {
                   maxTime={props.maxTime}
                   hourFormat={props.hourFormat ?? '12h'}
                   disabledTimeRanges={props.disabledTimeRanges}
+                  autoSelectEarliest={props.autoSelectEarliest}
                   onSelect={(start, end) => {
                     props.onChange({ date: v.date, startTime: start, endTime: end });
                   }}

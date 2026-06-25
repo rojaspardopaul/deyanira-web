@@ -1,5 +1,9 @@
 // Singleton PrismaClient — evita conexiones múltiples al pooler de Supabase.
 // Cargar SIEMPRE desde aquí; nunca hacer `new PrismaClient()` en otras rutas.
+//
+// NOTA (Fase 0): la implementación canónica permanece en este .js para que el
+// código legacy (~26 require) y los tests (vitest) la resuelvan con require nativo.
+// El código nuevo en TS la consume tipada vía shared/database/prisma.ts (wrapper).
 const { PrismaClient } = require('@prisma/client');
 
 const globalForPrisma = globalThis;

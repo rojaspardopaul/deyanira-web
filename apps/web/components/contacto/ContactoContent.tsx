@@ -28,7 +28,7 @@ export default function ContactoContent() {
 
   const address = s
     ? [s.address, s.district, s.city || 'Lima'].filter(Boolean).join(', ')
-    : 'Villa El Salvador, Lima, Perú';
+    : 'Cieneguilla, Lima, Perú';
 
   const hours = [
     { label: 'Lunes – Viernes', value: s?.hoursWeekday  || '9:00 – 19:00', closed: false },

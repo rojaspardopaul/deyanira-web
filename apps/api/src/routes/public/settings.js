@@ -12,8 +12,9 @@ const PUBLIC_FIELDS = [
   'facebookUrl', 'instagramUrl', 'tiktokUrl',
   'bookingNoticeHours', 'cancellationHours',
   'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen',
+  'storeEnabled',
   'bookingTimerSeconds',
-  'logoUrl', 'logoDarkUrl', 'logoIconUrl',
+  'logoUrl', 'logoDarkUrl', 'logoIconUrl', 'teamPhotoUrl', 'salonPhotoUrl',
   'homeSlides',
   // Datos de pago mostrados al cliente (transferencia/Yape/Plin)
   'yapeNumber', 'yapeName', 'plinNumber',

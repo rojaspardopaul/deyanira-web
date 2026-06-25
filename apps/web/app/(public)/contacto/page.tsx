@@ -4,13 +4,13 @@ import { buildMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Contacto y Ubicación — Deyanira Makeup Beauty Lima',
-  description: 'Encuéntranos en Surco, Lima. Horarios de atención, teléfono, WhatsApp y ubicación en Google Maps. Atendemos toda Lima Metropolitana.',
+  description: 'Encuéntranos en Cieneguilla, Lima. Horarios de atención, teléfono, WhatsApp y ubicación en Google Maps. Atendemos toda Lima Metropolitana.',
   path: '/contacto',
   keywords: [
     'Deyanira Makeup Beauty ubicación',
-    'salón de belleza Surco dirección',
+    'salón de belleza Cieneguilla dirección',
     'contacto salón belleza Lima',
-    'WhatsApp salón Surco',
+    'WhatsApp salón Cieneguilla',
   ],
 });
 

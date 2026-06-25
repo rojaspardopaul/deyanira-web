@@ -2,7 +2,10 @@
 
 import { STATUS } from '../status';
 import { toYMD, addDays, aptDateStr, isPastDate, clientName } from '../utils/date';
+import { fmtTime12 } from '../utils/time';
 import { MONTH_NAMES, DAY_NAMES_SHORT } from '../constants';
+import { eventTypeIcon } from '../utils/package';
+import { CategoryGlyph } from '../blocks/AptIndicators';
 import type { Appointment, AptStatus } from '../types';
 
 type MonthViewProps = {
@@ -70,10 +73,16 @@ export function MonthView({
                     <div
                       key={apt.id}
                       onClick={e => { e.stopPropagation(); onAptClick(apt); }}
-                      className={`text-[10px] ${cfg.bgLight} ${cfg.text} px-1 py-px rounded font-semibold truncate hover:opacity-80 flex items-center gap-1`}
+                      className={`text-[10px] ${cfg.bgLight} ${cfg.text} px-1 py-px rounded font-semibold hover:opacity-80 flex items-center gap-1`}
+                      title={apt.service.category?.name ? `${apt.service.category.name} · ${apt.service.name}` : apt.service.name}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} shrink-0`} />
-                      <span className="truncate">{apt.startTime} {clientName(apt)}</span>
+                      <CategoryGlyph apt={apt} className="text-[9px]" />
+                      <span className="truncate flex-1 min-w-0">{fmtTime12(apt.startTime)} {clientName(apt)}</span>
+                      {apt.package?.eventType && (
+                        <span className="shrink-0" title={`Paquete ${apt.package.eventType.name}`}>{eventTypeIcon(apt.package.eventType)}</span>
+                      )}
+                      {apt.atHome && <span className="shrink-0" title="A domicilio">🏠</span>}
                     </div>
                   );
                 })}

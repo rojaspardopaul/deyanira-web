@@ -23,9 +23,9 @@ const csp = [
   `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`,
   `font-src 'self' https://fonts.gstatic.com data:`,
   `img-src 'self' data: blob: https://res.cloudinary.com https://*.supabase.co https://www.google-analytics.com`,
-  `connect-src 'self' ${apiOrigin} ${supabaseOrigin} https://*.supabase.co wss://*.supabase.co https://api.culqi.com https://secure.culqi.com https://www.google-analytics.com https://challenges.cloudflare.com`.trim(),
-  `frame-src 'self' https://checkout.culqi.com https://*.openstreetmap.org https://challenges.cloudflare.com`,
-  `media-src 'self'`,
+  `connect-src 'self' ${apiOrigin} ${supabaseOrigin} https://res.cloudinary.com https://*.supabase.co wss://*.supabase.co https://api.culqi.com https://secure.culqi.com https://www.google-analytics.com https://challenges.cloudflare.com`.trim(),
+  `frame-src 'self' https://checkout.culqi.com https://www.google.com https://maps.google.com https://challenges.cloudflare.com`,
+  `media-src 'self' blob: https://res.cloudinary.com https://*.supabase.co`,
   `object-src 'none'`,
   `base-uri 'self'`,
   `form-action 'self'`,
@@ -53,6 +53,10 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+
+  // Transpila el paquete de contratos compartidos (TS sin build) cuando se importe
+  // en el cliente (p. ej. validar formularios con los esquemas Zod).
+  transpilePackages: ['@deyanira/contracts'],
 
   // En prod NO ignoramos errores de tipo ni ESLint — bloquea código inseguro.
   // En CI puedes setear SKIP_TS=true / SKIP_LINT=true como escape hatch.

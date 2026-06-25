@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Award, Heart, Star, Clock, Sparkles } from 'lucide-react';
+import { Award, Heart, Star, Clock } from 'lucide-react';
 import { api } from '@/lib/api';
 import { buildMetadata } from '@/lib/seo';
+import TeamSection, { type TeamMember } from '@/components/nosotros/TeamSection';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Sobre Nosotros — Deyanira Makeup Beauty Lima',
-  description: 'Conoce nuestra historia, valores y al equipo de estilistas profesionales certificadas de Deyanira Makeup Beauty en Surco, Lima. +6 años transformando a las mujeres limeñas.',
+  description: 'Conoce nuestra historia, valores y al equipo de estilistas profesionales certificadas de Deyanira Makeup Beauty en Cieneguilla, Lima. +6 años transformando a las mujeres limeñas.',
   path: '/nosotros',
   keywords: [
     'sobre Deyanira Makeup Beauty',
-    'salón de belleza Surco historia',
+    'salón de belleza Cieneguilla historia',
     'maquilladoras profesionales Lima',
     'estilistas Lima certificadas',
   ],
@@ -57,25 +58,67 @@ type StaffMember = {
   role?: string | null;
   photoUrl?: string | null;
   bio?: string | null;
+  certifications?: string[] | null;
   staffServices?: Array<{ service: { name: string } }>;
 };
 
+// Iniciales (hasta 2) a partir del nombre.
+function initialsOf(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '✦';
+}
+
+// Placeholder elegante cuando la estilista aún no tiene foto: avatar con iniciales
+// sobre un degradado suave (en vez de un bloque amarillo plano con una letra gigante).
+function AvatarFallback({ name, size = 'md' }: { name: string; size?: 'md' | 'lg' }) {
+  const dim = size === 'lg' ? 'w-24 h-24 text-3xl' : 'w-16 h-16 text-xl';
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-primary-50">
+      <div className={`${dim} rounded-full bg-gradient-to-br from-gold-400 to-primary-500 flex items-center justify-center text-white font-display font-bold shadow-lg ring-4 ring-white/70`}>
+        {initialsOf(name)}
+      </div>
+    </div>
+  );
+}
+
 export default async function NosotrosPage() {
-  const staff = await api.staff.list().catch(() => []) as StaffMember[];
+  const [staff, settings] = await Promise.all([
+    api.staff.list().catch(() => []) as Promise<StaffMember[]>,
+    api.settings.public().catch(() => ({})) as Promise<{ teamPhotoUrl?: string | null; salonPhotoUrl?: string | null }>,
+  ]);
+  const teamPhoto = settings.teamPhotoUrl || null; // foto grupal del equipo (admin)
+  const salonPhoto = settings.salonPhotoUrl || null; // foto del salón → fondo del hero
+  const team = staff.slice(0, 4); // fallback: collage si no hay foto grupal
+  const members: TeamMember[] = staff.map((m) => ({
+    id: m.id,
+    name: m.name,
+    role: m.role ?? null,
+    photoUrl: m.photoUrl ?? null,
+    bio: m.bio ?? null,
+    certifications: (m.certifications ?? []).filter(Boolean),
+    services: m.staffServices?.map((ss) => ss.service.name) ?? [],
+  }));
   return (
     <div className="min-h-screen bg-white pt-16">
 
-      {/* Hero */}
-      <section className="bg-gradient-to-br from-primary-50 via-white to-amber-50 px-4 py-16 md:py-24">
-        <div className="max-w-3xl mx-auto text-center">
-          <span className="inline-block bg-primary-100 text-primary-700 text-xs font-semibold uppercase tracking-widest px-4 py-2 rounded-full mb-5">
+      {/* Hero — con foto del salón de fondo si está configurada */}
+      <section className="relative overflow-hidden px-4 py-20 md:py-28">
+        {salonPhoto ? (
+          <>
+            <Image src={salonPhoto} alt="Salón Deyanira Makeup Beauty" fill priority sizes="100vw" className="object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/55 to-black/80" />
+          </>
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary-50 via-white to-amber-50" />
+        )}
+        <div className="relative max-w-3xl mx-auto text-center">
+          <span className={`inline-block text-xs font-semibold uppercase tracking-widest px-4 py-2 rounded-full mb-5 ${salonPhoto ? 'bg-white/15 text-white ring-1 ring-white/25 backdrop-blur-sm' : 'bg-primary-100 text-primary-700'}`}>
             Nuestra historia
           </span>
-          <h1 className="text-4xl md:text-5xl font-display font-bold text-gray-900 mb-5 leading-tight">
+          <h1 className={`text-4xl md:text-5xl lg:text-6xl font-display font-bold mb-5 leading-tight ${salonPhoto ? 'text-white drop-shadow-lg' : 'text-gray-900'}`}>
             Belleza profesional<br />
-            <span className="text-primary-600">con el corazón</span>
+            <span className={salonPhoto ? 'text-primary-300' : 'text-primary-600'}>con el corazón</span>
           </h1>
-          <p className="text-lg text-gray-600 leading-relaxed max-w-2xl mx-auto">
+          <p className={`text-base md:text-lg leading-relaxed max-w-2xl mx-auto ${salonPhoto ? 'text-white/85' : 'text-gray-600'}`}>
             Nacimos con una misión clara: que cada mujer en Lima pueda lucir su mejor versión,
             sin importar el evento. Desde maquillaje nupcial hasta el look del día a día,
             ponemos nuestro arte y dedicación en cada servicio.
@@ -127,11 +170,42 @@ export default async function NosotrosPage() {
               </Link>
             </div>
 
-            {/* Imagen placeholder */}
+            {/* Imagen grupal del equipo (foto única configurada en el admin). Si no
+                hay foto grupal, se arma un collage con las fotos de las estilistas. */}
             <div className="relative">
-              <div className="aspect-[4/5] bg-gradient-to-br from-primary-100 to-primary-200 rounded-3xl flex items-center justify-center overflow-hidden">
-                <span className="text-8xl">💄</span>
-              </div>
+              {teamPhoto ? (
+                <div className="relative aspect-[4/3] rounded-3xl overflow-hidden shadow-lg ring-1 ring-black/5">
+                  <Image
+                    src={teamPhoto}
+                    alt="Equipo de Deyanira Makeup Beauty"
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 45vw"
+                  />
+                </div>
+              ) : team.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  {team.map((m) => (
+                    <div key={m.id} className="relative aspect-[3/4] rounded-2xl overflow-hidden shadow-sm ring-1 ring-black/5">
+                      {m.photoUrl ? (
+                        <Image
+                          src={m.photoUrl}
+                          alt={m.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 45vw, 22vw"
+                        />
+                      ) : (
+                        <AvatarFallback name={m.name} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="relative aspect-[4/5] rounded-3xl overflow-hidden">
+                  <AvatarFallback name="Deyanira" size="lg" />
+                </div>
+              )}
               {/* Decorative card */}
               <div className="absolute -bottom-4 -left-4 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
@@ -147,16 +221,19 @@ export default async function NosotrosPage() {
         </div>
       </section>
 
+      {/* Equipo — sección premium (cliente: métricas, fundadora destacada, modales) */}
+      <TeamSection members={members} />
+
       {/* Valores */}
       <section className="bg-gray-50 px-4 py-16 md:py-24">
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10 md:mb-12">
             <h2 className="text-3xl font-display font-bold text-gray-900 mb-3">
               Nuestros valores
             </h2>
             <p className="text-gray-500">Lo que nos guía en cada servicio</p>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {VALUES.map(({ icon: Icon, color, title, desc }) => (
               <div key={title} className="card p-6 text-center">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4 ${color}`}>
@@ -167,94 +244,6 @@ export default async function NosotrosPage() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Equipo */}
-      <section className="px-4 py-5 md:py-24">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-display font-bold text-gray-900 mb-3">
-              Nuestro equipo
-            </h2>
-            <p className="text-gray-500">Profesionales certificadas y apasionadas</p>
-          </div>
-
-          {staff.length === 0 ? (
-            <div className="grid sm:grid-cols-3 gap-6">
-              {[
-                { name: 'Deyanira', role: 'Fundadora & Maquilladora profesional', initial: 'D' },
-                { name: 'Equipo Cabello', role: 'Estilistas especializadas', initial: 'C' },
-                { name: 'Equipo Uñas', role: 'Nail artists certificadas', initial: 'U' },
-              ].map(({ name, role, initial }) => (
-                <div key={name} className="card p-6 text-center group hover:-translate-y-1 transition-all">
-                  <div className="w-20 h-20 bg-gradient-to-br from-primary-300 to-primary-500 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-2xl font-display">
-                    {initial}
-                  </div>
-                  <h3 className="font-display font-bold text-gray-900 text-lg mb-1">{name}</h3>
-                  <p className="text-gray-500 text-sm">{role}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {staff.map((member) => {
-                const services = member.staffServices?.map(ss => ss.service.name) ?? [];
-                return (
-                  <div key={member.id}
-                    className="card overflow-hidden group hover:-translate-y-1 transition-all duration-300">
-                    {/* Photo */}
-                    <div className="relative aspect-[4/3] bg-gradient-to-br from-primary-100 to-primary-200 overflow-hidden">
-                      {member.photoUrl ? (
-                        <Image
-                          src={member.photoUrl}
-                          alt={member.name}
-                          fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-500"
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <span className="text-6xl font-bold font-display text-primary-400 select-none">
-                            {member.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Info */}
-                    <div className="p-5">
-                      <h3 className="font-display font-bold text-gray-900 text-lg leading-tight mb-0.5">
-                        {member.name}
-                      </h3>
-                      {member.role && (
-                        <p className="text-primary-600 text-sm font-semibold mb-2">{member.role}</p>
-                      )}
-                      {member.bio && (
-                        <p className="text-gray-500 text-sm leading-relaxed mb-3 line-clamp-3">{member.bio}</p>
-                      )}
-                      {services.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {services.slice(0, 4).map(svc => (
-                            <span key={svc}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700">
-                              <Sparkles className="w-3 h-3" />
-                              {svc}
-                            </span>
-                          ))}
-                          {services.length > 4 && (
-                            <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                              +{services.length - 4} más
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </div>
       </section>
 

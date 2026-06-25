@@ -39,6 +39,9 @@ export default function HorariosPage() {
   const [schedules, setSchedules] = useState<Schedule[]>(defaultSchedules());
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
+  // Rol + estilista propio: una estilista solo ve/edita SU horario; admin ve todas.
+  const [role, setRole] = useState<string>('admin');
+  const [myStaffId, setMyStaffId] = useState<string | null>(null);
 
   // Bloqueos
   const [blocks, setBlocks] = useState<UnavailBlock[]>([]);
@@ -66,8 +69,23 @@ export default function HorariosPage() {
   }, [selectedStaff]);
 
   async function fetchStaff() {
-    const data = await adminApi().staff.list().catch(() => []);
-    setStaffList(data as StaffMember[]);
+    let r = 'admin';
+    let mine: string | null = null;
+    try {
+      const u = JSON.parse(localStorage.getItem('admin_user') || '{}');
+      r = u.role || 'admin';
+      mine = u.staffId || null;
+    } catch { /* ignore */ }
+    setRole(r);
+    setMyStaffId(mine);
+
+    const data = (await adminApi().staff.list().catch(() => [])) as StaffMember[];
+    // Permisos: una estilista solo puede ver su propia ficha; admin/super_admin ven todas.
+    const list = r === 'estilista' ? data.filter(s => s.id === mine) : data;
+    setStaffList(list);
+    // Selección por defecto: la propia (estilista) o la primera disponible (admin).
+    const def = r === 'estilista' ? (mine || '') : (list[0]?.id || '');
+    setSelectedStaff(prev => prev || def);
   }
 
   async function fetchStaffSchedules(staffId: string) {
@@ -134,6 +152,11 @@ export default function HorariosPage() {
     });
   }
 
+  // Permisos: una estilista solo ve sus bloqueos + los del salón completo (que la afectan).
+  const visibleBlocks = role === 'estilista'
+    ? blocks.filter(b => b.staffId === myStaffId || b.staffId === null)
+    : blocks;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -161,20 +184,40 @@ export default function HorariosPage() {
 
         {/* ── TAB: Horario semanal ── */}
         {tab === 'schedules' && (
-          <div className="bg-white rounded-2xl shadow-sm border p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <label className="text-sm font-semibold text-gray-700 shrink-0">Estilista:</label>
-              <select
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
-                value={selectedStaff}
-                onChange={e => setSelectedStaff(e.target.value)}
-              >
-                <option value="">— Seleccionar estilista —</option>
-                {staffList.map(s => <option key={s.id} value={s.id}>{s.name}{s.role ? ` — ${s.role}` : ''}</option>)}
-              </select>
+          <div className="bg-white rounded-2xl shadow-sm border p-4 sm:p-6">
+            <div className="mb-6">
+              <p className="text-sm font-semibold text-gray-700 mb-2">
+                {role === 'estilista' ? 'Tu horario' : 'Estilista'}
+              </p>
+              {staffList.length === 0 ? (
+                <p className="text-sm text-gray-400">No hay estilistas registradas.</p>
+              ) : role === 'estilista' ? (
+                // Estilista: solo su propia ficha (no puede ver ni elegir otras).
+                <span className="inline-flex items-center px-3.5 py-2 rounded-full text-sm font-semibold bg-primary-600 text-white">
+                  {staffList[0]?.name}
+                </span>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {staffList.map(s => {
+                    const active = selectedStaff === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedStaff(s.id)}
+                        className={`px-3.5 py-2 rounded-full text-sm font-medium transition-colors ${
+                          active ? 'bg-primary-600 text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {s.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {!selectedStaff && (
+            {!selectedStaff && staffList.length > 0 && (
               <div className="text-center py-8 text-gray-400 text-sm bg-gray-50 rounded-xl">
                 Selecciona una estilista para ver y editar su horario semanal
               </div>
@@ -187,57 +230,62 @@ export default function HorariosPage() {
                 </p>
                 <div className="space-y-3">
                   {schedules.map((s) => (
-                    <div key={s.dayOfWeek} className={`flex items-center gap-4 p-3 rounded-xl transition-colors ${s.enabled ? 'bg-primary-50' : 'bg-gray-50 opacity-60'}`}>
-                      {/* Toggle día */}
-                      <button
-                        className={`w-10 h-6 rounded-full transition-colors shrink-0 ${s.enabled ? 'bg-primary-600' : 'bg-gray-300'}`}
-                        onClick={() => updateDay(s.dayOfWeek, 'enabled', !s.enabled)}
-                      >
-                        <div className={`w-5 h-5 bg-white rounded-full shadow m-0.5 transition-transform ${s.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
-                      </button>
+                    <div key={s.dayOfWeek} className={`p-3 sm:p-4 rounded-xl transition-colors ${s.enabled ? 'bg-primary-50' : 'bg-gray-50 opacity-60'}`}>
+                      {/* Encabezado de la fila: toggle + día (+ Descanso) */}
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          aria-label={`${s.enabled ? 'Desactivar' : 'Activar'} ${DAY_NAMES[s.dayOfWeek]}`}
+                          className={`w-10 h-6 rounded-full transition-colors shrink-0 ${s.enabled ? 'bg-primary-600' : 'bg-gray-300'}`}
+                          onClick={() => updateDay(s.dayOfWeek, 'enabled', !s.enabled)}
+                        >
+                          <div className={`w-5 h-5 bg-white rounded-full shadow m-0.5 transition-transform ${s.enabled ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </button>
+                        <span className={`flex-1 text-sm font-semibold ${s.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
+                          {DAY_NAMES[s.dayOfWeek]}
+                        </span>
+                        {!s.enabled && <span className="text-xs text-gray-400 italic">Descanso</span>}
+                      </div>
 
-                      {/* Nombre del día */}
-                      <span className={`w-24 text-sm font-semibold ${s.enabled ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {DAY_NAMES[s.dayOfWeek]}
-                      </span>
-
-                      {s.enabled ? (
-                        <>
-                          <DateTimePicker
-                            mode="time"
-                            theme="light"
-                            minuteStep={15}
-                            minTime="05:00"
-                            maxTime="23:00"
-                            className="w-32"
-                            value={s.startTime}
-                            onChange={v => updateDay(s.dayOfWeek, 'startTime', v)}
-                          />
-                          <span className="text-gray-400 text-sm">a</span>
-                          <DateTimePicker
-                            mode="time"
-                            theme="light"
-                            minuteStep={15}
-                            minTime="05:00"
-                            maxTime="23:00"
-                            className="w-32"
-                            value={s.endTime}
-                            onChange={v => updateDay(s.dayOfWeek, 'endTime', v)}
-                          />
-                        </>
-                      ) : (
-                        <span className="text-sm text-gray-400 italic">Descanso</span>
+                      {/* Selectores de hora: apilados en móvil, lado a lado en escritorio */}
+                      {s.enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Desde</label>
+                            <DateTimePicker
+                              mode="time"
+                              theme="light"
+                              minuteStep={15}
+                              minTime="05:00"
+                              maxTime="23:00"
+                              value={s.startTime}
+                              onChange={v => updateDay(s.dayOfWeek, 'startTime', v)}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">Hasta</label>
+                            <DateTimePicker
+                              mode="time"
+                              theme="light"
+                              minuteStep={15}
+                              minTime="05:00"
+                              maxTime="23:00"
+                              value={s.endTime}
+                              onChange={v => updateDay(s.dayOfWeek, 'endTime', v)}
+                            />
+                          </div>
+                        </div>
                       )}
                     </div>
                   ))}
                 </div>
 
-                <div className="flex items-center gap-4 mt-6 pt-5 border-t">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-6 pt-5 border-t">
                   {saveMsg && <p className={`text-sm ${saveMsg.startsWith('✓') ? 'text-green-600' : 'text-red-500'}`}>{saveMsg}</p>}
                   <button
                     onClick={saveSchedules}
                     disabled={saving}
-                    className="ml-auto bg-primary-600 hover:bg-primary-500 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
+                    className="w-full sm:w-auto sm:ml-auto bg-primary-600 hover:bg-primary-500 text-white px-6 py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-50"
                   >
                     {saving ? 'Guardando...' : 'Guardar horario'}
                   </button>
@@ -250,13 +298,17 @@ export default function HorariosPage() {
         {/* ── TAB: Días bloqueados ── */}
         {tab === 'blocks' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <p className="text-sm text-gray-500">
                 Bloquea días u horas específicas. Los clientes no podrán reservar en esos horarios.
               </p>
               <button
-                onClick={() => setShowBlockModal(true)}
-                className="flex items-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors shrink-0"
+                onClick={() => {
+                  // Estilista: el bloqueo es siempre para sí misma.
+                  if (role === 'estilista' && myStaffId) setBlockForm(f => ({ ...f, staffId: myStaffId }));
+                  setShowBlockModal(true);
+                }}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-500 text-white px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors shrink-0"
               >
                 <Plus className="w-4 h-4" /> Agregar bloqueo
               </button>
@@ -266,7 +318,7 @@ export default function HorariosPage() {
               <div className="space-y-3">
                 {[1,2,3].map(i => <div key={i} className="bg-white rounded-2xl h-16 animate-pulse" />)}
               </div>
-            ) : blocks.length === 0 ? (
+            ) : visibleBlocks.length === 0 ? (
               <div className="text-center py-16 text-gray-400 bg-white rounded-2xl border">
                 <Calendar className="w-10 h-10 mx-auto mb-3 opacity-30" />
                 <p className="font-medium">No hay bloqueos programados</p>
@@ -274,7 +326,7 @@ export default function HorariosPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {blocks.map((b) => (
+                {visibleBlocks.map((b) => (
                   <div key={b.id} className="bg-white rounded-2xl border p-4 flex items-center gap-4">
                     <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center shrink-0">
                       <CalendarX className="w-5 h-5 text-red-400" />
@@ -311,7 +363,7 @@ export default function HorariosPage() {
       {/* Modal agregar bloqueo */}
       {showBlockModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="font-bold text-lg">Agregar bloqueo</h2>
               <button onClick={() => { setShowBlockModal(false); setBlockError(''); }}>
@@ -324,11 +376,12 @@ export default function HorariosPage() {
                   ¿Para quién? <span className="text-red-500">*</span>
                 </label>
                 <select
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 disabled:bg-gray-50 disabled:text-gray-500"
                   value={blockForm.staffId}
                   onChange={e => setBlockForm({ ...blockForm, staffId: e.target.value })}
+                  disabled={role === 'estilista'}
                 >
-                  <option value="">👥 Todo el salón (cerrado)</option>
+                  {role !== 'estilista' && <option value="">👥 Todo el salón (cerrado)</option>}
                   {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
@@ -358,8 +411,8 @@ export default function HorariosPage() {
                 </label>
 
                 {!blockForm.allDay && (
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1">
+                  <div className="space-y-3">
+                    <div>
                       <label className="block text-xs text-gray-500 mb-1">Desde</label>
                       <DateTimePicker
                         mode="time"
@@ -371,8 +424,7 @@ export default function HorariosPage() {
                         onChange={v => setBlockForm({ ...blockForm, startTime: v })}
                       />
                     </div>
-                    <span className="text-gray-400 mt-4">–</span>
-                    <div className="flex-1">
+                    <div>
                       <label className="block text-xs text-gray-500 mb-1">Hasta</label>
                       <DateTimePicker
                         mode="time"

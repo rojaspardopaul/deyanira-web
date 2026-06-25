@@ -34,6 +34,15 @@ export default function TimeField({
   const hRef = useRef<HTMLInputElement>(null);
   const mRef = useRef<HTMLInputElement>(null);
   const focused = useRef(false);
+  // La primera edición tras enfocar un segmento empieza de cero (toma solo el
+  // dígito recién tecleado). Evita que un campo PRE-RELLENADO (p. ej. el horario
+  // por defecto) complete 2 dígitos al primer toque y salte de campo sin dejar
+  // escribir el segundo dígito (no dependemos de que select() reemplace).
+  const fresh = useRef(false);
+  // Avance interno hora→min (o backspace min→hora): el focus() dispara un blur
+  // síncrono cuyo closure tiene el valor ANTERIOR. Esta bandera evita que
+  // normalizeOnBlur normalice/recommitee con ese valor viejo y pise el recién puesto.
+  const advancing = useRef(false);
 
   // Sincronizar con el valor externo cuando no se está editando
   useEffect(() => {
@@ -71,21 +80,38 @@ export default function TimeField({
     return is12 ? n >= 1 && n <= 12 : n >= 0 && n <= 23;
   }
 
+  // ¿Un dígito suelto puede ser el inicio de una hora válida de 2 dígitos?
+  // 12h: solo "0" (→01-09) y "1" (→10-12). 24h: "0","1","2". El resto (p. ej. "9")
+  // ya está completo como hora de un dígito → conviene avanzar de inmediato.
+  function puedeExtenderse(d: number) {
+    for (let x = 0; x <= 9; x++) if (isValidHour(d * 10 + x)) return true;
+    return false;
+  }
+
   function onHours(raw: string) {
-    let d = raw.replace(/\D/g, '').slice(0, 2);
+    let digits = raw.replace(/\D/g, '');
+    // Primera tecla tras enfocar: empezar de cero con el dígito recién escrito.
+    if (fresh.current) digits = digits.slice(-1);
+    fresh.current = false;
+    let d = digits.slice(0, 2);
     // Si hay 2 dígitos pero no forman una hora válida (ej. "93"), conservar solo
     // el primero. Nunca saltamos por esto.
     if (d.length === 2 && !isValidHour(parseInt(d, 10))) d = d[0];
     setH(d);
-    const complete = d.length === 2 && isValidHour(parseInt(d, 10));
+    const n = parseInt(d, 10);
+    const complete = isValidHour(n) && (d.length === 2 || !puedeExtenderse(n));
     if (complete) {
-      mRef.current?.focus(); // avanzar SOLO con la hora completa (2 dígitos)
+      advancing.current = true;
+      mRef.current?.focus(); // hora completa: 2 dígitos, o 1 dígito no extensible
     }
     if (m && d) buildAndCommit(d, m, period);
   }
 
   function onMinutes(raw: string) {
-    let d = raw.replace(/\D/g, '').slice(0, 2);
+    let digits = raw.replace(/\D/g, '');
+    if (fresh.current) digits = digits.slice(-1);
+    fresh.current = false;
+    let d = digits.slice(0, 2);
     // Si el primer dígito es > 5, no puede ser decena → interpretar como 0X
     if (d.length === 1 && parseInt(d, 10) > 5) d = '0' + d;
     setM(d);
@@ -94,8 +120,45 @@ export default function TimeField({
     if (h && d.length === 2) buildAndCommit(h, d, period);
   }
 
+  // ── Entrada determinista por tecla (desktop) ──────────────────
+  // No dependemos de onChange/select()/cursor: construimos el buffer en JS. En
+  // móvil (keydown sin tecla concreta) cae al onChange de respaldo.
+  function onHoursKey(e: React.KeyboardEvent) {
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      const base = fresh.current ? '' : h;
+      fresh.current = false;
+      let next = base.length >= 2 ? e.key : base + e.key;
+      if (next.length === 2 && !isValidHour(parseInt(next, 10))) next = e.key; // reinicia
+      setH(next);
+      const n = parseInt(next, 10);
+      // Completo = 2 dígitos válidos, O 1 dígito válido que no admite 2.º dígito.
+      const complete = isValidHour(n) && (next.length === 2 || !puedeExtenderse(n));
+      if (complete) { advancing.current = true; mRef.current?.focus(); }
+      if (m && next) buildAndCommit(next, m, period);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      fresh.current = false;
+      setH(h.slice(0, -1));
+    }
+  }
+
   function onMinutesKey(e: React.KeyboardEvent) {
-    if (e.key === 'Backspace' && m === '') { e.preventDefault(); hRef.current?.focus(); }
+    if (/^\d$/.test(e.key)) {
+      e.preventDefault();
+      const base = fresh.current ? '' : m;
+      fresh.current = false;
+      let next = base.length >= 2 ? e.key : base + e.key;
+      if (next.length === 1 && parseInt(next, 10) > 5) next = '0' + next; // 6-9 → 06-09
+      next = next.slice(0, 2);
+      if (parseInt(next, 10) > 59) next = e.key;
+      setM(next);
+      if (h && next.length === 2) buildAndCommit(h, next, period);
+    } else if (e.key === 'Backspace') {
+      e.preventDefault();
+      if (m === '') { advancing.current = true; hRef.current?.focus(); }
+      else { fresh.current = false; setM(m.slice(0, -1)); }
+    }
   }
 
   function togglePeriod() {
@@ -105,6 +168,9 @@ export default function TimeField({
   }
 
   function normalizeOnBlur() {
+    // Avance interno hora↔min: no es una salida real del control. No normalizar
+    // (el closure tiene el valor viejo y pisaría el recién tecleado).
+    if (advancing.current) { advancing.current = false; return; }
     setFocus(false);
     if (h && m) {
       const hh = pad2(parseInt(h, 10));
@@ -121,48 +187,47 @@ export default function TimeField({
   const labelCls = 'text-[10px] font-bold uppercase mb-1';
 
   return (
-    <div className="flex items-end justify-center gap-2">
-      <div className="flex flex-col items-center">
+    <div className="flex items-end gap-2 w-full">
+      <div className="flex flex-col items-center flex-1 min-w-0">
         <span className={labelCls} style={{ color: t.wheelColLabel }}>Hora</span>
         <input
           ref={hRef}
           type="text"
           inputMode="numeric"
-          maxLength={2}
           value={h}
           placeholder={is12 ? '12' : '00'}
           aria-label="Hora"
-          onFocus={e => { setFocus(true); e.currentTarget.select(); }}
+          onFocus={e => { setFocus(true); fresh.current = true; e.currentTarget.select(); }}
           onMouseUp={e => e.preventDefault()}
           onBlur={normalizeOnBlur}
+          onKeyDown={onHoursKey}
           onChange={e => onHours(e.target.value)}
-          className={`${boxBase} w-14 py-2`}
+          className={`${boxBase} w-full min-w-0 py-2`}
         />
       </div>
 
-      <span className="font-bold text-lg pb-2" style={{ color: t.wheelColLabel }}>:</span>
+      <span className="font-bold text-lg pb-2 shrink-0" style={{ color: t.wheelColLabel }}>:</span>
 
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center flex-1 min-w-0">
         <span className={labelCls} style={{ color: t.wheelColLabel }}>Min</span>
         <input
           ref={mRef}
           type="text"
           inputMode="numeric"
-          maxLength={2}
           value={m}
           placeholder="00"
           aria-label="Minutos"
-          onFocus={e => { setFocus(true); e.currentTarget.select(); }}
+          onFocus={e => { setFocus(true); fresh.current = true; e.currentTarget.select(); }}
           onMouseUp={e => e.preventDefault()}
           onBlur={normalizeOnBlur}
           onChange={e => onMinutes(e.target.value)}
           onKeyDown={onMinutesKey}
-          className={`${boxBase} w-14 py-2`}
+          className={`${boxBase} w-full min-w-0 py-2`}
         />
       </div>
 
       {is12 && (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center shrink-0">
           <span className={labelCls} style={{ color: t.wheelColLabel }}>Período</span>
           <button
             type="button"

@@ -24,10 +24,15 @@ export type SalonSettings = {
   bookingNoticeHours?: number;
   cancellationHours?: number;
   atHomeEnabled?: boolean;
+  storeEnabled?: boolean;
   atHomeBasePen?: string | number;
   atHomeBaseKm?: number;
   atHomeRatePen?: string | number;
   bookingTimerSeconds?: number;
+  // Datos de pago para abonar por transferencia/Yape/Plin
+  yapeNumber?: string;
+  yapeName?: string;
+  plinNumber?: string;
   [key: string]: unknown;
 };
 

@@ -22,12 +22,15 @@ const recibo = {
     'Maquillaje y peinado civil',
     'Manicure acrílicas + pedicura',
     '2 familiares: maquillaje y peinado',
+    'Paquete novio — S/ 200.00',
   ],
-  total: 1370,
-  adelanto: 500,
+  total: 1570,
+  // Adelantos recibidos (en orden cronológico)
+  adelantos: [500, 400],
 };
-const saldo = recibo.total - recibo.adelanto;
 const money = (n) => 'S/ ' + n.toFixed(2);
+const adelanto = recibo.adelantos.reduce((a, b) => a + b, 0);
+const saldo = recibo.total - adelanto;
 
 const rows = recibo.items
   .map(
@@ -67,7 +70,7 @@ const html = `<!doctype html>
   .topbar {
     background: linear-gradient(135deg, #0F0F0F 0%, #1d1d1d 100%);
     color: #fff;
-    padding: 34px 48px 30px;
+    padding: 28px 48px 24px;
     position: relative;
     overflow: hidden;
   }
@@ -95,7 +98,7 @@ const html = `<!doctype html>
   .brand .meta .fecha { font-size: 12px; color: rgba(255,255,255,.55); margin-top:3px; }
 
   .title-row {
-    position:relative; z-index:1; margin-top: 22px;
+    position:relative; z-index:1; margin-top: 16px;
     display:flex; align-items:flex-end; gap:14px;
   }
   .title-row h1 {
@@ -104,13 +107,13 @@ const html = `<!doctype html>
   }
   .title-row .sub { font-size: 12px; color: rgba(255,255,255,.5); padding-bottom:5px; }
 
-  .body { padding: 36px 48px 0; flex: 1; }
+  .body { padding: 28px 48px 0; flex: 1; }
 
   /* Cliente */
   .client-card {
     display:flex; justify-content:space-between; align-items:center; gap:16px;
     border: 1px solid #eee; border-left: 4px solid ${PINK};
-    border-radius: 10px; padding: 16px 20px; background:#fcfcfc;
+    border-radius: 10px; padding: 13px 20px; background:#fcfcfc;
   }
   .label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; font-weight:700; color:${PINK}; }
   .client-card .name { font-size: 20px; font-weight: 700; margin-top:4px; }
@@ -120,20 +123,20 @@ const html = `<!doctype html>
   }
 
   /* Tabla servicios */
-  .section-title { font-size: 11px; letter-spacing:2px; text-transform:uppercase; font-weight:700; color:#888; margin: 30px 0 12px; }
+  .section-title { font-size: 11px; letter-spacing:2px; text-transform:uppercase; font-weight:700; color:#888; margin: 22px 0 10px; }
   table { width: 100%; border-collapse: collapse; }
   thead th {
     text-align:left; font-size: 11px; letter-spacing:1.5px; text-transform:uppercase; color:#fff;
     background: linear-gradient(90deg, ${PINK}, #e6368a); padding: 12px 18px; font-weight:700;
   }
-  tbody td.desc { padding: 14px 18px; font-size: 14px; border-bottom:1px solid #f0f0f0; color:#222; }
+  tbody td.desc { padding: 11px 18px; font-size: 14px; border-bottom:1px solid #f0f0f0; color:#222; }
   .bullet { color:${PINK}; margin-right:8px; }
   tbody tr:nth-child(even) td { background:#fafafa; }
 
   /* Totales */
-  .totals { margin-top: 28px; display:flex; justify-content:flex-end; }
+  .totals { margin-top: 20px; display:flex; justify-content:flex-end; }
   .totals .box { width: 320px; }
-  .totals .line { display:flex; justify-content:space-between; padding: 10px 4px; font-size: 14px; border-bottom: 1px dashed #e2e2e2; }
+  .totals .line { display:flex; justify-content:space-between; padding: 7px 4px; font-size: 14px; border-bottom: 1px dashed #e2e2e2; }
   .totals .line.total {
     margin-top: 10px; border:none; border-radius: 12px; padding: 16px 20px; align-items:center;
     background: linear-gradient(135deg, ${PINK} 0%, #e6368a 55%, #a88426 100%); color:#fff;
@@ -145,18 +148,18 @@ const html = `<!doctype html>
   .totals .saldo .v { font-weight: 800; color:${PINK}; font-size: 16px; }
 
   .note {
-    margin: 30px 0 0; background:${GOLD}12; border:1px solid ${GOLD}44; border-radius:10px;
-    padding: 14px 18px; font-size: 12.5px; color:#7a611a;
+    margin: 20px 0 0; background:${GOLD}12; border:1px solid ${GOLD}44; border-radius:10px;
+    padding: 13px 18px; font-size: 12.5px; color:#7a611a;
   }
-  .sign-row { display:flex; justify-content:space-between; gap:40px; margin-top: 56px; }
+  .sign-row { display:flex; justify-content:space-between; gap:40px; margin-top: 26px; }
   .sign { flex:1; text-align:center; }
   .sign .ln { border-top:1px solid #bbb; margin-bottom:8px; }
   .sign .cap { font-size: 11px; color:#888; letter-spacing:1px; text-transform:uppercase; }
 
   /* Footer */
   .footer {
-    margin-top: 30px; background:#0F0F0F; color:rgba(255,255,255,.6);
-    padding: 18px 48px; display:flex; justify-content:space-between; align-items:center; font-size: 11px;
+    margin-top: 22px; background:#0F0F0F; color:rgba(255,255,255,.6);
+    padding: 16px 48px; display:flex; justify-content:space-between; align-items:center; font-size: 11px;
   }
   .footer .gold { color:${GOLD}; font-weight:700; letter-spacing:2px; text-transform:uppercase; font-size:10px; }
 </style>
@@ -196,7 +199,10 @@ const html = `<!doctype html>
       <div class="totals">
         <div class="box">
           <div class="line"><span class="muted">Total del servicio</span><span>${money(recibo.total)}</span></div>
-          <div class="line"><span class="muted">Adelanto recibido</span><span>${money(recibo.adelanto)}</span></div>
+          ${recibo.adelantos
+            .map((a, i) => `<div class="line"><span class="muted">Adelanto ${i + 1}</span><span>${money(a)}</span></div>`)
+            .join('\n          ')}
+          <div class="line"><span class="muted">Total adelantos</span><span>${money(adelanto)}</span></div>
           <div class="line saldo"><span class="muted">Saldo pendiente</span><span class="v">${money(saldo)}</span></div>
           <div class="line total">
             <div>
@@ -208,9 +214,9 @@ const html = `<!doctype html>
       </div>
 
       <div class="note">
-        ✦ Se recibió un adelanto de <strong>${money(recibo.adelanto)}</strong>. El saldo pendiente de
-        <strong>${money(saldo)}</strong> se cancelará el día del servicio. Este recibo es válido como
-        comprobante del adelanto entregado.
+        ✦ Se recibieron adelantos por <strong>${money(adelanto)}</strong> (${recibo.adelantos.map(money).join(' + ')}).
+        El saldo pendiente de <strong>${money(saldo)}</strong> se cancelará el día del servicio. Este recibo es válido
+        como comprobante de los adelantos entregados.
       </div>
 
       <div class="sign-row">

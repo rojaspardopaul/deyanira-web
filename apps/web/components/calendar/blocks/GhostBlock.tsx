@@ -1,7 +1,7 @@
 'use client';
 
 import { STATUS } from '../status';
-import { timeToMin } from '../utils/time';
+import { timeToMin, fmtTime12 } from '../utils/time';
 import { HOUR_START, HOUR_HEIGHT } from '../constants';
 import type { AptStatus } from '../types';
 
@@ -38,7 +38,7 @@ export function GhostBlock({ status, startTime, endTime, leftPct = 0, widthPct =
       }}
     >
       <div className="px-1 py-0.5">
-        <p className="text-[10px] font-bold text-white truncate leading-tight">{startTime}</p>
+        <p className="text-[10px] font-bold text-white truncate leading-tight">{fmtTime12(startTime)} – {fmtTime12(endTime)}</p>
       </div>
     </div>
   );

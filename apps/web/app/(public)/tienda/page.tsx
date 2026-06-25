@@ -31,6 +31,33 @@ export default async function TiendaPage({
   searchParams: Promise<{ category?: string }>;
 }) {
   const { category } = await searchParams;
+
+  // Tienda deshabilitable desde Admin → Configuración.
+  const settings = await api.settings.public().catch(() => ({})) as { storeEnabled?: boolean };
+  if (settings.storeEnabled === false) {
+    return (
+      <div className="min-h-screen pt-16 flex items-center justify-center px-4" style={{ background: 'linear-gradient(180deg,#FCFAF7 0%,#F6EEE6 100%)' }}>
+        <div className="max-w-md text-center py-20">
+          <div className="w-16 h-16 rounded-2xl bg-white ring-1 ring-gold-200 shadow-sm flex items-center justify-center mx-auto mb-6">
+            <ShoppingBag className="w-7 h-7 text-gold-500" />
+          </div>
+          <h1 className="font-display font-bold text-3xl text-gray-900 mb-3">Tienda próximamente</h1>
+          <p className="text-gray-500 leading-relaxed mb-8">
+            Estamos preparando nuestra tienda online. Mientras tanto, reserva tu cita y déjate consentir por nuestras especialistas.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link href="/reservar" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-white bg-primary-600 hover:bg-primary-500 active:scale-95 transition-all shadow-lg shadow-primary-500/25">
+              Reservar cita
+            </Link>
+            <Link href="/servicios" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-gray-800 bg-white ring-1 ring-black/10 hover:ring-gold-300 transition-all">
+              Ver servicios
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const [products, categories] = await Promise.all([
     api.products.list(category ? `category=${category}` : undefined).catch(() => []) as Promise<Record<string, unknown>[]>,
     api.products.categories().catch(() => []) as Promise<Record<string, unknown>[]>,

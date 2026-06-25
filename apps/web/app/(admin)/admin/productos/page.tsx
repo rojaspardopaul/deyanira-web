@@ -7,6 +7,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
+import { confirmAction } from '@/lib/confirm';
+import { HL, Danger } from '@/components/ui/highlight';
 
 const PAGE_SIZE = 24;
 
@@ -103,8 +105,12 @@ export default function AdminProductosPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este producto?')) return;
+  async function handleDelete(id: string, name?: string) {
+    if (!(await confirmAction({
+      title: '¿Eliminar producto?',
+      message: <>Se eliminará el producto <HL>{name || 'seleccionado'}</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>,
+      danger: true,
+    }))) return;
     const token = localStorage.getItem('admin_token');
     if (!token) return;
     try {
@@ -171,7 +177,7 @@ export default function AdminProductosPage() {
                       <button onClick={() => openEdit(p)} className="flex-1 flex items-center justify-center gap-1 py-1.5 border border-gray-200 rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                         <Pencil className="w-3.5 h-3.5" /> Editar
                       </button>
-                      <button onClick={() => handleDelete(p.id as string)} className="p-1.5 border border-red-100 rounded-lg text-red-500 hover:bg-red-50 transition-colors">
+                      <button onClick={() => handleDelete(p.id as string, p.name as string)} className="p-1.5 border border-red-100 rounded-lg text-red-500 hover:bg-red-50 transition-colors">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>

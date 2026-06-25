@@ -20,6 +20,7 @@ const STATUS_MAP = {
 
 const PAY_MAP: Record<string, string> = {
   pending: 'Pago pendiente',
+  awaiting_verification: 'Comprobante por verificar',
   paid: 'Pagado',
   failed: 'Fallido',
 };
@@ -69,6 +70,20 @@ export default function AdminPedidosPage() {
       setOrders((prev) => prev.map((o) => o.id === id ? { ...o, status } : o));
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Error al actualizar');
+    } finally {
+      setUpdating(null);
+    }
+  }
+
+  async function doConfirmPayment(id: string) {
+    const token = localStorage.getItem('admin_token');
+    if (!token) return;
+    setUpdating(id);
+    try {
+      await adminApi(token).orders.update(id, { paymentStatus: 'paid' });
+      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, paymentStatus: 'paid' } : o));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Error al confirmar el pago');
     } finally {
       setUpdating(null);
     }
@@ -188,9 +203,36 @@ export default function AdminPedidosPage() {
                     )}
                   </div>
 
+                  {/* Comprobante de pago (Yape/Plin) */}
+                  {order.proofImageUrl != null && String(order.proofImageUrl) !== '' && (
+                    <a
+                      href={String(order.proofImageUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mb-3 inline-flex items-center gap-2 text-xs font-semibold text-purple-700 hover:text-purple-900"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={String(order.proofImageUrl)}
+                        alt="Comprobante"
+                        className="w-12 h-12 object-cover rounded-lg border border-purple-200"
+                      />
+                      Ver comprobante de pago
+                    </a>
+                  )}
+
                   <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                     <span className="font-black text-gray-900">S/ {Number(order.totalPen).toFixed(2)}</span>
                     <div className="flex gap-2">
+                      {order.paymentStatus === 'awaiting_verification' && (
+                        <button
+                          onClick={() => doConfirmPayment(order.id as string)}
+                          disabled={updating === order.id}
+                          className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg text-xs font-semibold hover:bg-green-100 transition-colors disabled:opacity-50"
+                        >
+                          ✓ Confirmar pago
+                        </button>
+                      )}
                       {canAdvance && nextStatus[order.status as string] && (
                         <button
                           onClick={() => askStatus(order.id as string, nextStatus[order.status as string], `#${(order.id as string).slice(-6).toUpperCase()}`)}

@@ -7,7 +7,7 @@
 import { ImageResponse } from 'next/og';
 
 export const runtime = 'edge';
-export const alt = 'Deyanira Makeup Beauty — Salón de belleza en Lima, Perú';
+export const alt = 'Deyanira Makeup Beauty — Salón de belleza en Cieneguilla, Lima';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -75,7 +75,7 @@ export default async function Image() {
             opacity: 0.85,
             marginTop: 18,
           }}>
-            Salón de belleza profesional en Lima, Perú
+            Salón de belleza profesional en Cieneguilla, Lima
           </div>
 
           <div style={{

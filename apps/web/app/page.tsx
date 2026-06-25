@@ -6,20 +6,21 @@ import { api } from '@/lib/api';
 import HeroCarousel from '@/components/home/HeroCarousel';
 import LocationSection from '@/components/home/LocationSection';
 import PopularServices, { type PopularService } from '@/components/home/PopularServices';
+import FeaturedPackages, { type FeaturedPackage } from '@/components/home/FeaturedPackages';
 import { JsonLd } from '@/components/seo/JsonLd';
 import { beautySalonLd, faqLd } from '@/lib/jsonld';
 import { buildMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Salón de Belleza en Lima — Maquillaje, Uñas, Cabello y Cejas',
-  description: 'Deyanira Makeup Beauty: salón profesional en Surco, Lima. Maquillaje, uñas, cabello y cejas. Reserva tu cita online en 1 minuto con confirmación inmediata por WhatsApp.',
+  title: 'Salón de Belleza en Cieneguilla, Lima — Maquillaje y Uñas',
+  description: 'Deyanira Makeup Beauty: salón profesional en Cieneguilla, Lima. Maquillaje, uñas, cabello y cejas. Reserva tu cita online en 1 minuto con confirmación inmediata por WhatsApp.',
   path: '/',
 });
 
 // FAQs ricas — Google las muestra como rich snippets bajo el resultado
 const HOME_FAQS = [
   { q: '¿Dónde queda Deyanira Makeup Beauty?',
-    a: 'Estamos en Surco, Lima. Atendemos a clientas de Surco, San Borja, La Molina, Miraflores, San Isidro y todo Lima Metropolitana.' },
+    a: 'Estamos en Cieneguilla, Lima. Atendemos en el salón y a domicilio en Cieneguilla, La Molina, Pachacámac, Surco y toda Lima Metropolitana.' },
   { q: '¿Hacen servicios a domicilio en Lima?',
     a: 'Sí, ofrecemos maquillaje y peinado a domicilio en toda Lima Metropolitana con recargo por movilidad según distrito.' },
   { q: '¿Cuánto cuesta un maquillaje profesional?',
@@ -65,18 +66,26 @@ function SectionLabel({ children, dark }: { children: React.ReactNode; dark?: bo
 }
 
 export default async function HomePage() {
-  const [galleryPhotos, popularServices] = await Promise.all([
+  const [galleryPhotos, popularServices, eventTypes, salonSettings] = await Promise.all([
     api.gallery.list().catch(() => []) as Promise<Record<string, unknown>[]>,
     api.services.popular(6).catch(() => []) as Promise<PopularService[]>,
+    api.eventTypes.list().catch(() => []) as Promise<FeaturedPackage[]>,
+    api.settings.public().catch(() => null) as Promise<{ whatsapp?: string } | null>,
   ]);
   const preview = galleryPhotos.slice(0, 6);
+
+  // Paquetes estrella (Novia / Quinceañera) — cards exclusivos arriba de "favoritas"
+  const FEATURED_ORDER = ['novia', 'quinceanera'];
+  const featuredPackages = FEATURED_ORDER
+    .map((slug) => eventTypes.find((e) => e.slug === slug))
+    .filter((e): e is FeaturedPackage => Boolean(e));
 
   return (
     <>
       <JsonLd data={[
         beautySalonLd({
-          phone: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
-          district: 'Surco',
+          phone: salonSettings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER,
+          district: 'Cieneguilla',
           hoursWeekday: '9:00 - 19:00',
           hoursSaturday: '9:00 - 18:00',
           priceRange: 'S/ 30 - S/ 300',
@@ -121,6 +130,9 @@ export default async function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Paquetes exclusivos (Novia / Quinceañera) ────── */}
+      <FeaturedPackages packages={featuredPackages} />
 
       {/* ── Los más reservados ───────────────────────────── */}
       <PopularServices services={popularServices} />

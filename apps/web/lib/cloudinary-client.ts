@@ -36,18 +36,60 @@ type FitOpts = {
   format?: 'auto' | 'webp' | 'avif' | 'jpg' | 'png';
 };
 
+// ────────────────────────────────────────────────────────────
+// Punto focal — viaja DENTRO de la URL como fragmento `#focal=x,y`
+// (x,y normalizados 0..1). Así cualquier campo de imagen (todos son
+// `string`) puede llevar su encuadre sin migrar el schema, y es
+// retro-compatible: una URL sin `#focal` cae al `g_auto` de siempre.
+// ────────────────────────────────────────────────────────────
+const FOCAL_RE = /#focal=([0-9.]+),([0-9.]+)$/;
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+const round2 = (n: number) => Math.round(clamp01(n) * 100) / 100;
+
+/** Lee el punto focal de una URL (`#focal=x,y`). `null` si no tiene. */
+export function getFocal(url: string | null | undefined): { x: number; y: number } | null {
+  if (!url) return null;
+  const m = url.match(FOCAL_RE);
+  if (!m) return null;
+  const x = parseFloat(m[1]);
+  const y = parseFloat(m[2]);
+  if (Number.isNaN(x) || Number.isNaN(y)) return null;
+  return { x: clamp01(x), y: clamp01(y) };
+}
+
+/** Quita el fragmento `#focal=…` (para usar la URL como `src` o base). */
+export function stripFocal(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.replace(FOCAL_RE, '');
+}
+
+/** Escribe/reemplaza el punto focal en la URL. */
+export function withFocal(url: string, x: number, y: number): string {
+  return `${stripFocal(url)}#focal=${round2(x)},${round2(y)}`;
+}
+
+/** `true` si la URL apunta a un asset de Cloudinary (image/video upload). */
+export function isCloudinaryUrl(url: string | null | undefined): boolean {
+  return !!url && /res\.cloudinary\.com\/.+\/(image|video)\/upload\//.test(url);
+}
+
 /**
  * Devuelve la URL transformada para una imagen alojada en Cloudinary.
  * Si la URL no es de Cloudinary, la devuelve tal cual.
  *
+ * El fragmento `#focal` (si existe) SIEMPRE se elimina del resultado. El punto
+ * focal NO se aplica aquí (Cloudinary `g_xy_center` exige coordenadas en píxeles,
+ * no fracciones): se aplica con `focalImg()` vía CSS `object-position`.
+ *
  * Ejemplo:
  *   clImage('https://res.cloudinary.com/x/image/upload/v1/deyanira/eventos/abc.webp', { w: 1920, h: 800 })
- *   → 'https://.../upload/c_fill,g_auto,w_1920,h_800,q_auto,f_auto/v1/deyanira/eventos/abc.webp'
+ *   → 'https://.../upload/w_1920,h_800,c_fill,g_auto,q_auto,f_auto/v1/deyanira/eventos/abc.webp'
  */
 export function clImage(url: string | null | undefined, opts: FitOpts = {}): string {
-  if (!url) return '';
+  const clean = stripFocal(url);
+  if (!clean) return '';
   // Solo transformamos URLs de Cloudinary
-  if (!/res\.cloudinary\.com\/.+\/(image|video)\/upload\//.test(url)) return url;
+  if (!isCloudinaryUrl(clean)) return clean;
 
   const {
     w, h,
@@ -58,12 +100,14 @@ export function clImage(url: string | null | undefined, opts: FitOpts = {}): str
     format = 'auto',
   } = opts;
 
+  const recorta = crop === 'fill' || crop === 'crop' || crop === 'thumb';
+
   // Orden recomendado por Cloudinary: dimensiones → modo de crop → gravity → background → calidad/formato
   const params: string[] = [];
   if (w) params.push(`w_${w}`);
   if (h) params.push(`h_${h}`);
   if (w || h) params.push(`c_${crop}`);
-  if ((w || h) && (crop === 'fill' || crop === 'crop' || crop === 'thumb')) {
+  if ((w || h) && recorta) {
     params.push(`g_${gravity}`);
   }
   if (background) {
@@ -82,7 +126,31 @@ export function clImage(url: string | null | undefined, opts: FitOpts = {}): str
   const transformation = params.join(',');
   // Insertamos las transformaciones después del PRIMER /upload/. Las URLs de Cloudinary
   // tienen exactamente uno: /image/upload/<version-o-path>/...
-  return url.replace('/upload/', `/upload/${transformation}/`);
+  return clean.replace('/upload/', `/upload/${transformation}/`);
+}
+
+/**
+ * Props para renderizar una imagen en un contenedor con `object-cover` respetando
+ * el punto focal (`#focal=x,y`) vía CSS `object-position`. Entrega la imagen
+ * redimensionada (webp por `f_auto`) SIN recortarla al aspecto, para que el
+ * `object-cover` del contenedor haga el recorte centrado en el foco.
+ *
+ *   const im = focalImg(url, 800);
+ *   <div style={{ aspectRatio: '16 / 9' }}>
+ *     <img src={im.src} style={{ objectPosition: im.objectPosition }}
+ *          className="w-full h-full object-cover" />
+ *   </div>
+ */
+export function focalImg(
+  url: string | null | undefined,
+  w = 1000,
+  fallback = '50% 50%',
+): { src: string; objectPosition: string } {
+  const f = getFocal(url);
+  return {
+    src: clImage(stripFocal(url), { w, h: w, crop: 'limit' }) || stripFocal(url),
+    objectPosition: f ? `${(f.x * 100).toFixed(1)}% ${(f.y * 100).toFixed(1)}%` : fallback,
+  };
 }
 
 /**

@@ -1,0 +1,75 @@
+// API pública del módulo `appointments` + composition root.
+//
+// ÚNICO punto de entrada del módulo: el resto del árbol (domain/, application/,
+// infrastructure/) es privado y no debe importarse desde fuera. `crearModuloCitas`
+// inyecta las implementaciones concretas en los casos de uso (DI ligera, sin framework).
+
+import prisma from '../../shared/database/prisma';
+
+import { CrearCita } from './application/CrearCita';
+import { CancelarCita } from './application/CancelarCita';
+import { ConsultarDisponibilidad } from './application/ConsultarDisponibilidad';
+import { ListarMisCitas } from './application/ListarMisCitas';
+import { CrearReservaEnLote } from './application/CrearReservaEnLote';
+import { ListarCitasAdmin } from './application/ListarCitasAdmin';
+import { CrearCitaAdmin } from './application/CrearCitaAdmin';
+import { ConfirmarGrupoCitas } from './application/ConfirmarGrupoCitas';
+import { RechazarGrupoCitas } from './application/RechazarGrupoCitas';
+import { ActualizarCita } from './application/ActualizarCita';
+import { CrearPaqueteAdmin } from './application/CrearPaqueteAdmin';
+
+import { PrismaCitaRepository } from './infrastructure/PrismaCitaRepository';
+import { PrismaCalculadoraPrecios } from './infrastructure/PrismaCalculadoraPrecios';
+import { ConfiguracionDomicilioPrisma } from './infrastructure/ConfiguracionDomicilioPrisma';
+import { NotificadorEmail } from './infrastructure/NotificadorEmail';
+import { RelojLima } from './infrastructure/RelojLima';
+import { DisponibilidadSlotsLib } from './infrastructure/DisponibilidadSlotsLib';
+import { CatalogoReservasPrisma } from './infrastructure/CatalogoReservasPrisma';
+import { SchedulerLib } from './infrastructure/SchedulerLib';
+
+export interface ModuloCitas {
+  readonly crearCita: CrearCita;
+  readonly cancelarCita: CancelarCita;
+  readonly consultarDisponibilidad: ConsultarDisponibilidad;
+  readonly listarMisCitas: ListarMisCitas;
+  readonly crearReservaEnLote: CrearReservaEnLote;
+  // Gestión admin
+  readonly listarCitasAdmin: ListarCitasAdmin;
+  readonly crearCitaAdmin: CrearCitaAdmin;
+  readonly confirmarGrupoCitas: ConfirmarGrupoCitas;
+  readonly rechazarGrupoCitas: RechazarGrupoCitas;
+  readonly actualizarCita: ActualizarCita;
+  readonly crearPaqueteAdmin: CrearPaqueteAdmin;
+}
+
+/** Construye el módulo de citas con sus dependencias reales (Prisma, email, reloj). */
+export function crearModuloCitas(): ModuloCitas {
+  const repo = new PrismaCitaRepository(prisma);
+  const precios = new PrismaCalculadoraPrecios(prisma);
+  const configDomicilio = new ConfiguracionDomicilioPrisma(prisma);
+  const notificador = new NotificadorEmail();
+  const reloj = new RelojLima();
+  const disponibilidad = new DisponibilidadSlotsLib();
+  const catalogo = new CatalogoReservasPrisma(prisma);
+  const scheduler = new SchedulerLib();
+
+  return {
+    crearCita: new CrearCita(repo, precios, configDomicilio, notificador, reloj),
+    cancelarCita: new CancelarCita(repo, notificador),
+    consultarDisponibilidad: new ConsultarDisponibilidad(disponibilidad),
+    listarMisCitas: new ListarMisCitas(repo),
+    crearReservaEnLote: new CrearReservaEnLote(catalogo, repo, configDomicilio, precios, scheduler, notificador, reloj),
+    listarCitasAdmin: new ListarCitasAdmin(repo),
+    crearCitaAdmin: new CrearCitaAdmin(repo, reloj),
+    confirmarGrupoCitas: new ConfirmarGrupoCitas(repo, notificador),
+    rechazarGrupoCitas: new RechazarGrupoCitas(repo, notificador),
+    actualizarCita: new ActualizarCita(repo, notificador),
+    crearPaqueteAdmin: new CrearPaqueteAdmin(catalogo, repo, scheduler, reloj, notificador),
+  };
+}
+
+// Tipos públicos que la presentación necesita.
+export { CrearCitaComando } from './application/dto/CrearCitaComando';
+export type { CuerpoCrearCita, UsuarioAutenticado } from './application/dto/CrearCitaComando';
+export { CrearReservaComando } from './application/dto/CrearReservaComando';
+export type { CuerpoCrearReserva } from './application/dto/CrearReservaComando';

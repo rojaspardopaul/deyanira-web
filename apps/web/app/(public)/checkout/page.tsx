@@ -5,33 +5,33 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Check, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
+import { useSalonSettings } from '@/lib/useSalonSettings';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 
 type CartItem = { id: string; slug: string; name: string; pricePen: number; image: string | null; qty: number };
-
-const DISTRITOS = [
-  'Miraflores', 'San Isidro', 'Surco', 'La Molina', 'San Borja',
-  'Barranco', 'Pueblo Libre', 'Jesús María', 'Lince', 'Magdalena',
-  'San Miguel', 'Breña', 'Lima Cercado', 'Rímac', 'Los Olivos',
-  'San Martín de Porres', 'Independencia', 'Comas', 'Ate', 'Santa Anita',
-  'El Agustino', 'San Juan de Lurigancho', 'La Victoria', 'Otro',
-];
 
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const settings = useSalonSettings();
   const discountParam = parseFloat(searchParams.get('discount') || '0');
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState({
     name: '', phone: '', email: '',
-    address: '', district: 'Miraflores',
+    address: '', district: 'Cieneguilla',
   });
   const [payMethod, setPayMethod] = useState<'yape' | 'culqi'>('yape');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
+  const [fullOrderId, setFullOrderId] = useState('');
   const [error, setError] = useState('');
+  const [proofBusy, setProofBusy] = useState(false);
+  const [proofDone, setProofDone] = useState(false);
+  const [proofError, setProofError] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -39,6 +39,33 @@ function CheckoutContent() {
     if (raw) setCart(JSON.parse(raw));
     else router.push('/carrito');
   }, [router]);
+
+  // Autocompletar los datos de entrega con el perfil del usuario logueado.
+  useEffect(() => {
+    let cancel = false;
+    (async () => {
+      try {
+        const { data: { session } } = await createClient().auth.getSession();
+        if (!session?.user || cancel) return;
+        const meta = session.user.user_metadata || {};
+        let name = (meta.name as string) || (meta.full_name as string) || '';
+        let phone = (meta.phone as string) || '';
+        try {
+          const me = await api.customers.me(session.access_token);
+          name = me.name || name;
+          phone = me.phone || phone;
+        } catch { /* el perfil de cliente es opcional */ }
+        if (cancel) return;
+        setForm(f => ({
+          ...f,
+          name: f.name || name,
+          phone: f.phone || phone,
+          email: f.email || session.user.email || '',
+        }));
+      } catch { /* sin sesión: se deja el formulario vacío */ }
+    })();
+    return () => { cancel = true; };
+  }, []);
 
   const subtotal = cart.reduce((acc, i) => acc + i.pricePen * i.qty, 0);
   const shipping = subtotal > 100 ? 0 : 10;
@@ -70,6 +97,7 @@ function CheckoutContent() {
       };
 
       const result = await api.orders.create(orderData) as Record<string, unknown>;
+      setFullOrderId(result.id as string);
       setOrderId((result.id as string).slice(-6).toUpperCase());
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cart-updated'));
@@ -81,10 +109,32 @@ function CheckoutContent() {
     }
   }
 
+  // Subida del comprobante Yape/Plin en la pantalla de éxito.
+  async function onPickProof(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !fullOrderId) return;
+    if (file.size > 8 * 1024 * 1024) { setProofError('La imagen no debe superar 8MB'); return; }
+    setProofError(''); setProofBusy(true);
+    try {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(r.result as string);
+        r.onerror = () => rej(new Error('No se pudo leer la imagen'));
+        r.readAsDataURL(file);
+      });
+      await api.orders.uploadProof(fullOrderId, { image: dataUrl, method: 'yape' });
+      setProofDone(true);
+    } catch (err) {
+      setProofError(err instanceof Error ? err.message : 'No se pudo subir el comprobante');
+    } finally {
+      setProofBusy(false);
+    }
+  }
+
   if (!mounted) return null;
 
   if (success) {
-    const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, '') || '';
+    const waNumber = (settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
     const waMsg = payMethod === 'yape'
       ? `Hola! Hice un pedido (#${orderId}) y pagué por Yape. Adjunto mi comprobante.`
       : `Hola! Hice el pedido #${orderId}. Por favor confírmenme cuando esté listo.`;
@@ -100,9 +150,33 @@ function CheckoutContent() {
           {payMethod === 'yape' ? (
             <div className="bg-purple-50 border border-purple-200 rounded-2xl p-5 my-5 text-left">
               <p className="font-bold text-purple-800 mb-2">📱 Paga por Yape</p>
-              <p className="text-sm text-purple-700 mb-1">Número Yape: <strong>{form.phone}</strong></p>
+              {settings?.yapeNumber ? (
+                <p className="text-sm text-purple-700 mb-1">
+                  Yapea a: <strong>{settings.yapeNumber}</strong>
+                  {settings.yapeName ? <> ({settings.yapeName})</> : null}
+                </p>
+              ) : (
+                <p className="text-sm text-purple-700 mb-1">Pídenos el número de Yape por WhatsApp.</p>
+              )}
+              {settings?.plinNumber ? (
+                <p className="text-sm text-purple-700 mb-1">o Plin: <strong>{settings.plinNumber}</strong></p>
+              ) : null}
               <p className="text-sm text-purple-700 mb-3">Monto: <strong>S/ {total.toFixed(2)}</strong></p>
-              <p className="text-xs text-purple-600">Envía el comprobante de pago por WhatsApp con tu número de pedido.</p>
+
+              {proofDone ? (
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 text-sm text-green-700 font-medium flex items-center gap-2">
+                  <Check className="w-4 h-4" /> Comprobante recibido. Lo verificaremos y te confirmamos.
+                </div>
+              ) : (
+                <>
+                  <label className={`block w-full text-center cursor-pointer bg-purple-600 text-white font-semibold px-4 py-3 rounded-xl text-sm hover:bg-purple-700 transition-colors ${proofBusy ? 'opacity-60 pointer-events-none' : ''}`}>
+                    {proofBusy ? 'Subiendo…' : '📎 Adjuntar comprobante de pago'}
+                    <input type="file" accept="image/*" onChange={onPickProof} disabled={proofBusy} className="hidden" />
+                  </label>
+                  {proofError && <p className="text-xs text-red-600 mt-2">{proofError}</p>}
+                  <p className="text-xs text-purple-600 mt-2">O envíalo por WhatsApp con tu número de pedido.</p>
+                </>
+              )}
             </div>
           ) : (
             <p className="text-gray-500 text-sm my-5">Tu pago con tarjeta fue procesado. Recibirás confirmación por email.</p>
@@ -170,7 +244,7 @@ function CheckoutContent() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Distrito</label>
                 <select value={form.district} onChange={set('district')}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  {DISTRITOS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>

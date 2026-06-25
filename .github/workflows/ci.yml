@@ -43,6 +43,15 @@ jobs:
       - name: Lint
         run: npm run lint --if-present
 
+      - name: Type-check API (tsc)
+        run: npm --workspace apps/api run typecheck
+
+      - name: Test API (vitest)
+        run: npm --workspace apps/api run test
+
+      - name: Architecture boundaries (dependency-cruiser)
+        run: npm --workspace apps/api run arch
+
       - name: Build
         run: npm run build
 

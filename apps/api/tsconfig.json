@@ -1,0 +1,25 @@
+{
+  // Migración incremental a TypeScript (Fase 0). El runtime es `tsx`, que ejecuta
+  // .ts y .js mezclados sin paso de build. `tsc` se usa solo para typecheck (noEmit).
+  // allowJs + checkJs:false => los .js legacy conviven sin ser type-checked todavía.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": ["ES2022"],
+    "types": ["node"],
+
+    "allowJs": true,
+    "checkJs": false,
+
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "noEmit": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

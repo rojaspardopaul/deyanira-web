@@ -6,14 +6,17 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
 import { useLoading } from '@/lib/loading';
+import { useSalonSettings } from '@/lib/useSalonSettings';
+import { fmtTime12 } from '@/lib/time';
 import { Calendar, ChevronLeft, Clock, MessageCircle } from 'lucide-react';
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  pending:   { label: 'Pendiente',  color: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
-  completed: { label: 'Completada', color: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: 'Cancelada',  color: 'bg-red-100 text-red-600' },
-  no_show:   { label: 'No asistió', color: 'bg-gray-100 text-gray-500' },
+  pending:     { label: 'Solicitada', color: 'bg-yellow-100 text-yellow-700' },
+  confirmed:   { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
+  in_progress: { label: 'En curso',   color: 'bg-teal-100 text-teal-700' },
+  completed:   { label: 'Atendida',   color: 'bg-blue-100 text-blue-700' },
+  cancelled:   { label: 'Cancelada',  color: 'bg-red-100 text-red-600' },
+  no_show:     { label: 'No asistió', color: 'bg-gray-100 text-gray-500' },
 };
 
 export default function MisCitasPage() {
@@ -36,7 +39,7 @@ export default function MisCitasPage() {
   }, [router, wrap]);
 
   const upcoming = appointments.filter(
-    (a) => a.status === 'pending' || a.status === 'confirmed'
+    (a) => a.status === 'pending' || a.status === 'confirmed' || a.status === 'in_progress'
   );
   const past = appointments.filter(
     (a) => a.status === 'completed' || a.status === 'cancelled' || a.status === 'no_show'
@@ -104,7 +107,8 @@ function AppointmentCard({ apt }: { apt: Record<string, unknown> }) {
   const s = STATUS_LABEL[apt.status as string] || { label: apt.status as string, color: 'bg-gray-100 text-gray-600' };
   const isUpcoming = apt.status === 'pending' || apt.status === 'confirmed';
 
-  const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '51999999999';
+  const settings = useSalonSettings();
+  const WHATSAPP_NUMBER = (settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '51999999999').replace(/\D/g, '');
   const serviceName = (apt.service as Record<string, unknown>)?.name as string;
   const dateStr = apt.date
     ? new Date(apt.date as string).toLocaleDateString('es-PE', {
@@ -140,7 +144,7 @@ function AppointmentCard({ apt }: { apt: Record<string, unknown> }) {
         </span>
         <span className="flex items-center gap-1">
           <Clock className="w-3.5 h-3.5 text-gray-400" />
-          {apt.startTime as string}
+          {fmtTime12(apt.startTime as string)}
         </span>
       </div>
 

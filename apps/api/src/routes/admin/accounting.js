@@ -1,8 +1,14 @@
 const { Router } = require('express');
 const prisma = require('../../lib/prisma');
 const { isAdmin } = require('../../middleware/auth');
+const { proyectarMovimiento, sincronizarCaptura, anularMovimientosDeOrigen } = require('../../modules/financial');
 
 const router = Router();
+
+// 'YYYY-MM-DD' de una columna @db.Date (sin desplazar el día).
+function ymd(d) {
+  return d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10);
+}
 
 router.use(isAdmin);
 
@@ -199,6 +205,18 @@ router.post('/expenses', async (req, res, next) => {
     if (data.notes) data.notes = String(data.notes).slice(0, 500);
 
     const expense = await prisma.expense.create({ data });
+    // Proyección espejo al libro mayor (egreso). Fire-and-forget, idempotente.
+    proyectarMovimiento({
+      tipo: 'egreso',
+      monto: Number(expense.amountPen),
+      descripcion: expense.description,
+      fecha: ymd(expense.date),
+      categoria: expense.category,
+      metodoPago: expense.paymentMethod || null,
+      source: 'expense',
+      expenseId: expense.id,
+      receiptUrl: expense.receiptUrl || null,
+    }).catch(() => {});
     res.status(201).json(expense);
   } catch (err) { next(err); }
 });
@@ -236,6 +254,17 @@ router.patch('/expenses/:id', async (req, res, next) => {
       where: { id: req.params.id },
       data,
     });
+    // Sincroniza el movimiento espejo con los campos editados.
+    sincronizarCaptura(
+      { source: 'expense', type: 'egreso', expenseId: expense.id },
+      {
+        amountPen: Number(expense.amountPen),
+        description: expense.description,
+        category: expense.category,
+        occurredAt: ymd(expense.date),
+        paymentMethod: expense.paymentMethod || null,
+      },
+    ).catch(() => {});
     res.json(expense);
   } catch (err) { next(err); }
 });
@@ -246,6 +275,8 @@ router.delete('/expenses/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'ID inválido' });
     }
     await prisma.expense.delete({ where: { id: req.params.id } });
+    // Anula (no borra) el movimiento espejo para conservar la traza.
+    anularMovimientosDeOrigen({ source: 'expense', type: 'egreso', expenseId: req.params.id }).catch(() => {});
     res.json({ success: true });
   } catch (err) { next(err); }
 });
@@ -291,6 +322,16 @@ router.post('/other-income', async (req, res, next) => {
     if (data.notes) data.notes = String(data.notes).slice(0, 500);
 
     const income = await prisma.otherIncome.create({ data });
+    // Proyección espejo al libro mayor (ingreso). Fire-and-forget, idempotente.
+    proyectarMovimiento({
+      tipo: 'ingreso',
+      monto: Number(income.amountPen),
+      descripcion: income.description,
+      fecha: ymd(income.date),
+      categoria: income.category,
+      source: 'other_income',
+      otherIncomeId: income.id,
+    }).catch(() => {});
     res.status(201).json(income);
   } catch (err) { next(err); }
 });
@@ -322,6 +363,15 @@ router.patch('/other-income/:id', async (req, res, next) => {
       where: { id: req.params.id },
       data,
     });
+    sincronizarCaptura(
+      { source: 'other_income', type: 'ingreso', otherIncomeId: income.id },
+      {
+        amountPen: Number(income.amountPen),
+        description: income.description,
+        category: income.category,
+        occurredAt: ymd(income.date),
+      },
+    ).catch(() => {});
     res.json(income);
   } catch (err) { next(err); }
 });
@@ -332,6 +382,7 @@ router.delete('/other-income/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'ID inválido' });
     }
     await prisma.otherIncome.delete({ where: { id: req.params.id } });
+    anularMovimientosDeOrigen({ source: 'other_income', type: 'ingreso', otherIncomeId: req.params.id }).catch(() => {});
     res.json({ success: true });
   } catch (err) { next(err); }
 });

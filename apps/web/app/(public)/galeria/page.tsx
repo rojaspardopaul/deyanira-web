@@ -6,7 +6,7 @@ import { buildMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Galería de Trabajos — Maquillaje, Uñas y Cabello en Lima',
-  description: 'Portafolio real de trabajos: maquillaje de novia, looks sociales, uñas decoradas, balayage y diseño de cejas en Deyanira Makeup Beauty, Surco - Lima.',
+  description: 'Portafolio real de trabajos: maquillaje de novia, looks sociales, uñas decoradas, balayage y diseño de cejas en Deyanira Makeup Beauty, Cieneguilla - Lima.',
   path: '/galeria',
   keywords: [
     'galería maquillaje Lima',
@@ -33,7 +33,7 @@ export default async function GaleriaPage({
   const { category } = await searchParams;
   const photos = await api.gallery
     .list(category)
-    .catch(() => []) as { id: string; imageUrl: string; caption?: string | null; category?: string | null }[];
+    .catch(() => []) as { id: string; imageUrl: string; thumbnailUrl?: string | null; caption?: string | null; category?: string | null }[];
 
   return (
     <div className="min-h-screen bg-white pt-16">

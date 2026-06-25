@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { X, Sparkles, Clock, Plus, ExternalLink, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { clImage } from '@/lib/cloudinary-client';
+import { ZoomableImage } from '@/components/catalog/ZoomableImage';
 
 type CatalogItem = {
   id: string;
@@ -108,12 +110,16 @@ export function CatalogPreviewModal({
                   {group.label}
                 </h4>
               )}
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="columns-1 sm:columns-2 md:columns-3 gap-3">
                 {group.items.map((it) => (
-                  <article key={it.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100">
+                  <article key={it.id} className="mb-3 break-inside-avoid bg-white rounded-2xl overflow-hidden border border-gray-100">
                     {it.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={it.imageUrl} alt={it.title} className="w-full aspect-[4/3] object-cover" />
+                      <ZoomableImage
+                        src={clImage(it.imageUrl, { w: 700, crop: 'limit' })}
+                        full={clImage(it.imageUrl, { w: 1600, crop: 'limit' })}
+                        alt={it.title}
+                        className="w-full h-auto"
+                      />
                     ) : (
                       <div className="w-full aspect-[4/3]" style={{ background: `linear-gradient(135deg, ${accent}22, ${accent}08)` }} />
                     )}

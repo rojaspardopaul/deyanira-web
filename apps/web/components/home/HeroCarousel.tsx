@@ -121,42 +121,98 @@ const DEFAULT_SLIDES: SlideData[] = [
   },
 ];
 
+// Video del hero con poster + fallback. Si el video falla al cargar
+// (p. ej. ERR_CACHE_READ_FAILURE de Chrome), muestra el poster en vez de un
+// recuadro vacío. Se remonta por slide (key) para que el src cambie de forma
+// fiable y el autoplay reinicie.
+function HeroVideo({ src, poster, className, style }: {
+  src: string;
+  poster: string;
+  className: string;
+  style?: React.CSSProperties;
+}) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={poster} alt="" className={className} style={style} />;
+  }
+  return (
+    <video
+      src={src}
+      poster={poster}
+      autoPlay
+      muted
+      loop
+      playsInline
+      preload="auto"
+      onError={() => setFailed(true)}
+      className={className}
+      style={style}
+    />
+  );
+}
+
+// Poster del video: si es de Cloudinary, usa un FRAME del propio video (cambia la
+// extensión a .jpg) en vez de una imagen local — así, si el video falla al cargar,
+// el fallback sigue siendo del mismo video y nunca aparece una imagen de /public.
+function videoPoster(videoUrl?: string): string {
+  if (videoUrl && /res\.cloudinary\.com\/.+\/video\/upload\//.test(videoUrl)) {
+    return videoUrl.replace(/\.(mp4|webm|mov|m4v|ogg)(\?.*)?$/i, '.jpg');
+  }
+  return '/images/hero-cover.jpg';
+}
+
 export default function HeroCarousel() {
   const [current, setCurrent] = useState(0);
   const [fading, setFading] = useState(false);
-  const [slides, setSlides] = useState<SlideData[]>(DEFAULT_SLIDES);
+  // null = aún cargando. Evita el "flash" de los slides locales por defecto antes
+  // de tener los configurados (Cloudinary) del backend.
+  const [slides, setSlides] = useState<SlideData[] | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const touchStartX = useRef(0);
 
-  // Carga slides del backend (settings.homeSlides). Si están vacíos, mantiene los defaults.
+  // Carga slides del backend (settings.homeSlides). Solo si NO hay configurados se
+  // usan los defaults locales; si la carga falla, también caen a los defaults.
   useEffect(() => {
+    let active = true;
     api.settings.public()
       .then((s) => {
+        if (!active) return;
         const sett = s as { homeSlides?: SlideData[] };
-        if (Array.isArray(sett.homeSlides) && sett.homeSlides.length > 0) {
-          setSlides(sett.homeSlides);
-        }
+        setSlides(Array.isArray(sett.homeSlides) && sett.homeSlides.length > 0 ? sett.homeSlides : DEFAULT_SLIDES);
       })
-      .catch(() => {});
+      .catch(() => { if (active) setSlides(DEFAULT_SLIDES); });
+    return () => { active = false; };
   }, []);
 
   const goTo = useCallback((idx: number) => {
+    // Transición suave: fade-out del slide actual (500ms) → cambio → fade-in.
+    // El nuevo slide se monta con fading=true (opacity-0) y entra al quitar fading.
     setFading(true);
-    setTimeout(() => { setCurrent(idx); setFading(false); }, 320);
+    window.setTimeout(() => {
+      setCurrent(idx);
+      window.setTimeout(() => setFading(false), 60);
+    }, 500);
   }, []);
 
-  const next = useCallback(() => goTo((current + 1) % slides.length), [current, goTo, slides.length]);
-  const prev = useCallback(() => goTo((current - 1 + slides.length) % slides.length), [current, goTo, slides.length]);
+  const count = slides?.length ?? 0;
+  const next = useCallback(() => { if (count > 0) goTo((current + 1) % count); }, [current, goTo, count]);
+  const prev = useCallback(() => { if (count > 0) goTo((current - 1 + count) % count); }, [current, goTo, count]);
 
   const resetTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(next, 5500);
-  }, [next]);
+    if (count > 1) timerRef.current = setInterval(next, 5500);
+  }, [next, count]);
 
   useEffect(() => {
     resetTimer();
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [resetTimer]);
+
+  // Mientras cargan los slides configurados: lienzo oscuro (sin flash de imágenes locales).
+  if (!slides) {
+    return <section className="relative overflow-hidden" style={{ background: '#0d080e', minHeight: '100svh' }} aria-busy="true" />;
+  }
 
   const slide = slides[current] || slides[0];
   if (!slide) return null;
@@ -174,17 +230,16 @@ export default function HeroCarousel() {
       {/* ── Background image ─────────────────────────────── */}
       <div className="absolute inset-0">
         {slide.video ? (
-          <video
+          <HeroVideo
+            key={`bg-${slide.id ?? current}`}
             src={slide.video}
-            autoPlay
-            muted
-            loop
-            playsInline
-            className={`w-full h-full object-cover transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}
+            poster={videoPoster(slide.video)}
+            className={`w-full h-full object-cover transition-opacity duration-500 ease-in-out ${fading ? 'opacity-0' : 'opacity-100'}`}
             style={{ objectPosition: 'center 20%' }}
           />
         ) : (
           <Image
+            key={`bgimg-${slide.id ?? current}`}
             src={
               slide.image
                 ? (clImage(slide.image, { w: 2400, h: 1100, crop: 'pad', background: 'auto:predominant' }) || slide.image)
@@ -193,7 +248,7 @@ export default function HeroCarousel() {
             alt="Deyanira Makeup Beauty"
             fill
             sizes="100vw"
-            className={`object-cover transition-opacity duration-500 ${fading ? 'opacity-0' : 'opacity-100'}`}
+            className={`object-cover transition-opacity duration-500 ease-in-out ${fading ? 'opacity-0' : 'opacity-100'}`}
             style={{ objectPosition: 'center 30%' }}
             priority
             unoptimized={!!slide.image && slide.image.includes('cloudinary')}
@@ -220,7 +275,7 @@ export default function HeroCarousel() {
         style={{ minHeight: '100svh', paddingTop: '5.5rem', paddingBottom: '4.5rem' }}
       >
         {/* ── Text ─────────────────────────────────────────── */}
-        <div className={`text-white transition-all duration-400 ${fading ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'}`}>
+        <div className={`text-white transition-all duration-500 ease-in-out ${fading ? 'opacity-0 translate-y-3' : 'opacity-100 translate-y-0'}`}>
 
           {/* Badge */}
           <span className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.15em] px-3 py-1.5 rounded-full mb-4 md:mb-6"
@@ -278,36 +333,43 @@ export default function HeroCarousel() {
         </div>
 
         {/* ── Image card — desktop only ─────────────────────── */}
-        <div className={`hidden md:block transition-all duration-600 ${fading ? 'opacity-0 scale-[0.97]' : 'opacity-100 scale-100'}`}>
+        <div className={`hidden md:block transition-all duration-500 ease-in-out ${fading ? 'opacity-0 scale-[0.97]' : 'opacity-100 scale-100'}`}>
           <div className="relative h-[500px] lg:h-[560px]">
             <div className="absolute -inset-3 rounded-[44px] blur-2xl pointer-events-none"
               style={{ background: 'linear-gradient(135deg, rgba(219,39,119,0.2), rgba(212,175,55,0.12))' }} />
-            {slide.video ? (
-              <video
-                src={slide.video}
-                autoPlay
-                muted
-                loop
-                playsInline
-                className="absolute inset-0 w-full h-full object-cover rounded-[36px]"
-                style={{ boxShadow: '0 32px 80px rgba(0,0,0,0.7)', objectPosition: 'center 20%' }}
-              />
-            ) : (
-              <Image
-                src={
-                  slide.image
-                    ? (clImage(slide.image, { w: 920, h: 1120, crop: 'fill', gravity: slide.gravity || 'face' }) || slide.image)
-                    : '/images/hero-cover.jpg'
-                }
-                alt="Deyanira Makeup Beauty"
-                fill
-                sizes="460px"
-                className="object-cover rounded-[36px]"
-                style={{ boxShadow: '0 32px 80px rgba(0,0,0,0.7)', objectPosition: 'center 20%' }}
-                priority
-                unoptimized={!!slide.image && slide.image.includes('cloudinary')}
-              />
-            )}
+            {/* Contenedor que recorta el video/imagen a las esquinas redondeadas.
+                Chrome NO recorta capas compuestas (video) por el border-radius del
+                ancestro salvo que éste sea su propia capa: translateZ(0) lo fuerza. */}
+            <div
+              className="absolute inset-0 rounded-[36px] overflow-hidden"
+              style={{ boxShadow: '0 32px 80px rgba(0,0,0,0.7)', willChange: 'transform', WebkitTransform: 'translateZ(0)' }}
+            >
+              {slide.video ? (
+                <HeroVideo
+                  key={`card-${slide.id ?? current}`}
+                  src={slide.video}
+                  poster={videoPoster(slide.video)}
+                  className="absolute inset-0 w-full h-full object-cover rounded-[36px]"
+                  style={{ objectPosition: 'center 20%' }}
+                />
+              ) : (
+                <Image
+                  key={`cardimg-${slide.id ?? current}`}
+                  src={
+                    slide.image
+                      ? (clImage(slide.image, { w: 920, h: 1120, crop: 'fill', gravity: slide.gravity || 'face' }) || slide.image)
+                      : '/images/hero-cover.jpg'
+                  }
+                  alt="Deyanira Makeup Beauty"
+                  fill
+                  sizes="460px"
+                  className="object-cover rounded-[36px]"
+                  style={{ objectPosition: 'center 20%' }}
+                  priority
+                  unoptimized={!!slide.image && slide.image.includes('cloudinary')}
+                />
+              )}
+            </div>
             <div className="absolute inset-0 rounded-[36px] pointer-events-none"
               style={{ border: '1px solid rgba(212,175,55,0.22)' }} />
           </div>

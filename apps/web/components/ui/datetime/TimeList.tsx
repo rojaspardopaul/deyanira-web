@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Clock } from 'lucide-react';
 import {
   generateTimeOptions, timeToMinutes, minutesToTime, inDisabledRanges, formatTimeLabel,
@@ -28,6 +28,7 @@ type Props = {
   disabledTimeRanges?: { start: string; end: string }[];
   theme?: DateTimeTheme;
   emptyLabel?: string;
+  autoSelectEarliest?: boolean;
 };
 
 export default function TimeList({
@@ -35,6 +36,7 @@ export default function TimeList({
   minuteStep = 5, minTime, maxTime, hourFormat = '12h',
   disabledTimeRanges, theme = 'light',
   emptyLabel = 'No hay horarios disponibles para esta fecha',
+  autoSelectEarliest,
 }: Props) {
   const t = getTokens(theme);
   const [showWheel, setShowWheel] = useState(false);
@@ -90,6 +92,23 @@ export default function TimeList({
     return grid;
   }, [slots, minuteStep, value, allowed]);
 
+  // Default inteligente: si no hay valor, pre-selecciona el PRIMER horario
+  // disponible (el más temprano que no esté ocupado/deshabilitado, tomado de
+  // `candidates` ya ordenado). Evita el "12:00" no viable. En modo slots va activo
+  // por defecto; en modo libre solo si el llamador lo pide explícitamente.
+  const autoSelect = autoSelectEarliest ?? (slots != null);
+  const yaAutoSeleccionado = useRef(false);
+  useEffect(() => {
+    if (!autoSelect) return;
+    if (value) { yaAutoSeleccionado.current = false; return; }
+    if (slotsLoading || yaAutoSeleccionado.current) return;
+    const primero = candidates.find(c => !c.disabled);
+    if (primero) {
+      yaAutoSeleccionado.current = true;
+      onSelect(primero.value, slotEnd.get(primero.value));
+    }
+  }, [autoSelect, value, slotsLoading, candidates, onSelect, slotEnd]);
+
   function handleManual(hhmm: string) {
     if (!allowed(hhmm)) { setError(`${formatTimeLabel(hhmm, hourFormat)} no está disponible.`); return; }
     setError('');
@@ -115,20 +134,22 @@ export default function TimeList({
   return (
     <div className="space-y-2">
       {/* Campo segmentado + icono de reloj para abrir la rueda */}
-      <div className="flex items-end justify-center gap-2">
-        <TimeField
-          value={value ?? null}
-          onCommit={handleManual}
-          hourFormat={hourFormat}
-          theme={theme}
-          invalid={!!error}
-        />
+      <div className="flex items-end gap-2 w-full">
+        <div className="flex-1 min-w-0">
+          <TimeField
+            value={value ?? null}
+            onCommit={handleManual}
+            hourFormat={hourFormat}
+            theme={theme}
+            invalid={!!error}
+          />
+        </div>
         <button
           type="button"
           onClick={() => setShowWheel(s => !s)}
           aria-label={showWheel ? 'Ocultar selector' : 'Abrir selector de hora'}
           aria-expanded={showWheel}
-          className={`flex items-center justify-center w-10 h-10 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500
+          className={`flex items-center justify-center w-10 h-10 shrink-0 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500
             ${theme === 'dark' ? 'bg-white/10 text-white border border-white/15' : 'border border-gray-200 text-gray-600'}`}
           style={showWheel ? { background: t.wheelBand, borderColor: t.wheelBandBorder } : undefined}
         >

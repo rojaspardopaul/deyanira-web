@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { HL, Old, New } from '@/components/ui/highlight';
 import { CalendarToolbar } from './toolbar/CalendarToolbar';
 import { CalendarSidebar } from './sidebar/CalendarSidebar';
 import { MonthView } from './views/MonthView';
@@ -17,6 +19,7 @@ import { useUndoToast } from './hooks/useUndoToast';
 import { useDrag } from './hooks/useDrag';
 import { useResize } from './hooks/useResize';
 import { toYMD, addDays, getWeekStart, aptDateStr } from './utils/date';
+import { fmtTime12 } from './utils/time';
 import type { Appointment, AptStatus, CalView, StaffMember } from './types';
 
 export type CalendarRootProps = {
@@ -52,6 +55,7 @@ export function CalendarRoot({
   const [selectedTime, setSelectedTime]       = useState<string | null>(null);
   const [selectedApt, setSelectedApt]         = useState<Appointment | null>(null);
   const [hiddenStatuses, setHiddenStatuses]   = useState<AptStatus[]>(defaultHiddenStatuses);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]); // slugs de categoría ocultas
   const [staffVisibility, setStaffVisibility] = useState<Record<string, boolean>>({});
   const [sidebarOpen, setSidebarOpen]         = useState(false);
   const [closedDaysOfWeek, setClosedDaysOfWeek] = useState<Set<number>>(new Set());
@@ -61,12 +65,19 @@ export function CalendarRoot({
   const [showMobilePanel, setShowMobilePanel] = useState(false);
   const [staffList, setStaffList]             = useState<StaffMember[]>(externalStaffList || []);
   const [defaultStaffId, setDefaultStaffId]   = useState<string | undefined>(undefined);
+  // Arrastre DESACTIVADO por defecto: evita mover citas por error. Se activa con un
+  // toggle en la toolbar y, además, cada movimiento pide confirmación (doble seguridad).
+  const [dragEnabled, setDragEnabled]         = useState(false);
+  const [pendingMove, setPendingMove]         = useState<{ apt: Appointment; newDate: string; newStart: string; newEnd: string; newStaffId?: string; kind?: 'move' | 'resize' } | null>(null);
+  // Grupos de reserva con comprobante por verificar → indicador 💳 en el bloque
+  const [pendingPaymentGroups, setPendingPaymentGroups] = useState<Set<string>>(new Set());
 
   const { appointments, loading, load, optimisticUpdate, upsert, subscribeToChanges } = useAppointments();
   const { undoEntry, pushUndo, dismissUndo, triggerUndo } = useUndoToast();
 
-  const canDrag   = enableDrag   && adminRole !== 'estilista';
-  const canResize = enableResize && adminRole !== 'estilista';
+  // El arrastre requiere: habilitado por prop, toggle ON, y no ser estilista.
+  const canDrag   = enableDrag   && dragEnabled && adminRole !== 'estilista';
+  const canResize = enableResize && dragEnabled && adminRole !== 'estilista';
 
   // Auto-open sidebar on desktop
   useEffect(() => {
@@ -88,43 +99,53 @@ export function CalendarRoot({
       .catch(() => {});
   }, []);
 
-  // ── Drag (Phase 2) ────────────────────────────────────────────────────────
-  const dragOnCommit = useCallback((apt: Appointment, newDate: string, newStart: string, newEnd: string) => {
-    const rollback = optimisticUpdate(apt.id, { date: newDate, startTime: newStart, endTime: newEnd });
-    const originalDate = aptDateStr(apt);
-    pushUndo({
-      message: `Cita movida a ${newDate} ${newStart}`,
-      rollback: async () => {
-        rollback();
-        await adminApi().appointments.update(apt.id, {
-          date: originalDate,
-          startTime: apt.startTime,
-          endTime: apt.endTime,
-          staffId: apt.staff?.id || null,
-        }).catch(() => {});
-      },
-    });
-  }, [optimisticUpdate, pushUndo]);
+  // ── Drag (Phase 2) — pide confirmación antes de mover ─────────────────────
+  const dragOnRequestCommit = useCallback(
+    (apt: Appointment, newDate: string, newStart: string, newEnd: string, newStaffId?: string) => {
+      setPendingMove({ apt, newDate, newStart, newEnd, newStaffId });
+    }, []);
 
   const dragOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
 
-  const { dragState, handleDragStart } = useDrag({ onCommit: dragOnCommit, onRollback: dragOnRollback });
+  const { dragState, handleDragStart } = useDrag({ onRequestCommit: dragOnRequestCommit, onRollback: dragOnRollback });
 
-  // ── Resize (Phase 3) ──────────────────────────────────────────────────────
-  const resizeOnCommit = useCallback((apt: Appointment, newEndTime: string) => {
-    const rollback = optimisticUpdate(apt.id, { endTime: newEndTime });
+  // Confirmado por el admin → optimistic update + API (guarda fecha/hora, antes
+  // ignoradas) + undo. El backend envía el email "Reprogramada" SOLO si cambia el
+  // inicio (mover); un resize (solo el fin) es ajuste interno y no notifica.
+  const commitMove = useCallback(async () => {
+    if (!pendingMove) return;
+    const { apt, newDate, newStart, newEnd, newStaffId } = pendingMove;
+    setPendingMove(null);
+    const rollback = optimisticUpdate(apt.id, { date: newDate, startTime: newStart, endTime: newEnd });
+    const originalDate = aptDateStr(apt);
     pushUndo({
-      message: `Duración ajustada a ${newEndTime}`,
+      message: pendingMove.kind === 'resize'
+        ? `Duración ajustada a ${fmtTime12(newEnd)}`
+        : `Cita movida a ${newDate} ${fmtTime12(newStart)}`,
       rollback: async () => {
         rollback();
-        await adminApi().appointments.update(apt.id, { endTime: apt.endTime }).catch(() => {});
+        await adminApi().appointments.update(apt.id, {
+          date: originalDate, startTime: apt.startTime, endTime: apt.endTime, staffId: apt.staff?.id || null,
+        }).catch(() => {});
       },
     });
-  }, [optimisticUpdate, pushUndo]);
+    try {
+      const patch: Record<string, string> = { date: newDate, startTime: newStart, endTime: newEnd };
+      if (newStaffId) patch.staffId = newStaffId;
+      await adminApi().appointments.update(apt.id, patch);
+    } catch {
+      rollback();
+    }
+  }, [pendingMove, optimisticUpdate, pushUndo]);
+
+  // ── Resize (Phase 3) — también pide confirmación antes de aplicar ─────────
+  const resizeOnRequestCommit = useCallback((apt: Appointment, newEnd: string) => {
+    setPendingMove({ apt, newDate: aptDateStr(apt), newStart: apt.startTime, newEnd, kind: 'resize' });
+  }, []);
 
   const resizeOnRollback = useCallback((apt: Appointment) => { upsert(apt); }, [upsert]);
 
-  const { handleResizeStart } = useResize({ onCommit: resizeOnCommit, onRollback: resizeOnRollback });
+  const { resizeState, handleResizeStart } = useResize({ onRequestCommit: resizeOnRequestCommit, onRollback: resizeOnRollback });
 
   // ── Date range ────────────────────────────────────────────────────────────
   const { dateFrom, dateTo } = useMemo(() => {
@@ -153,6 +174,17 @@ export function CalendarRoot({
     const params = new URLSearchParams({ dateFrom, dateTo });
     load(params);
   }, [load, dateFrom, dateTo]);
+
+  // Comprobantes por verificar → set de bookingGroupId para el indicador del bloque.
+  const refreshPendingPayments = useCallback(() => {
+    adminApi().bookingPayments.list('awaiting_verification')
+      .then((rows) => {
+        const list = (rows as Array<{ bookingGroupId?: string }>) || [];
+        setPendingPaymentGroups(new Set(list.map(p => p.bookingGroupId).filter(Boolean) as string[]));
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => { refreshPendingPayments(); }, [refreshPendingPayments, dateFrom, dateTo]);
 
   // Phase 6: Supabase Realtime subscription — follows date range
   useEffect(() => {
@@ -196,14 +228,28 @@ export function CalendarRoot({
 
   const weekStart = getWeekStart(new Date(curDate + 'T12:00:00'));
 
-  // Appointments filtered by staff visibility (for all views)
+  // Appointments filtered by staff visibility + category (for all views).
+  // El filtro de categoría va aquí (no en cada vista) para que aplique uniforme.
   const visibleAppointments = useMemo(() =>
     appointments.filter(a => {
       if (a.staff && staffVisibility[a.staff.id] === false) return false;
+      const slug = a.service.category?.slug;
+      if (slug && hiddenCategories.includes(slug)) return false;
       return true;
     }),
-    [appointments, staffVisibility],
+    [appointments, staffVisibility, hiddenCategories],
   );
+
+  // Categorías presentes en las citas cargadas (leyenda + filtro de la barra lateral).
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>(); // slug -> name
+    for (const a of appointments) {
+      const c = a.service.category;
+      if (c?.slug) map.set(c.slug, c.name);
+    }
+    return Array.from(map, ([slug, name]) => ({ slug, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [appointments]);
 
   // Staff list filtered by visibility (for ResourceView columns)
   const filteredStaffList = useMemo(() =>
@@ -290,6 +336,10 @@ export function CalendarRoot({
     setHiddenStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   }
 
+  function toggleCategory(slug: string) {
+    setHiddenCategories(prev => prev.includes(slug) ? prev.filter(x => x !== slug) : [...prev, slug]);
+  }
+
   function toggleStaffVisibility(id: string) {
     setStaffVisibility(prev => ({ ...prev, [id]: prev[id] !== false }));
   }
@@ -318,6 +368,9 @@ export function CalendarRoot({
         adminRole={adminRole}
         sidebarOpen={sidebarOpen}
         enableResourceView={enableResourceView}
+        dragEnabled={dragEnabled}
+        canToggleDrag={enableDrag && adminRole !== 'estilista'}
+        onToggleDrag={() => setDragEnabled(v => !v)}
         onViewChange={setView}
         onPrev={goPrev}
         onNext={goNext}
@@ -337,10 +390,13 @@ export function CalendarRoot({
           staffList={staffList}
           staffVisibility={staffVisibility}
           hiddenStatuses={hiddenStatuses}
+          categoryOptions={categoryOptions}
+          hiddenCategories={hiddenCategories}
           closedDaysOfWeek={closedDaysOfWeek}
           onDateSelect={handleSidebarDateSelect}
           onToggleStaff={toggleStaffVisibility}
           onToggleStatus={toggleHidden}
+          onToggleCategory={toggleCategory}
           onClose={() => setSidebarOpen(false)}
         />
 
@@ -379,6 +435,8 @@ export function CalendarRoot({
               onAptClick={handleAptClick}
               onDayHeaderClick={handleDayHeaderClick}
               dragState={dragState}
+              resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -401,6 +459,8 @@ export function CalendarRoot({
               onAptClick={handleAptClick}
               onDayClick={date => { setCurDate(date); setSelectedDate(date); }}
               dragState={dragState}
+              resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -419,6 +479,8 @@ export function CalendarRoot({
               onSlotClick={handleSlotClick}
               onAptClick={handleAptClick}
               dragState={dragState}
+              resizeState={resizeState}
+              pendingPaymentGroups={pendingPaymentGroups}
               onDragStart={canDrag ? handleDragStart : undefined}
               enableDrag={canDrag}
               onResizeStart={canResize ? handleResizeStart : undefined}
@@ -491,15 +553,24 @@ export function CalendarRoot({
           apt={selectedApt}
           staffList={staffList}
           adminRole={adminRole}
+          groupApts={selectedApt.bookingGroupId
+            ? appointments.filter(a => a.bookingGroupId === selectedApt.bookingGroupId)
+            : []}
           onClose={() => setSelectedApt(null)}
           onCreated={() => {}}
           onUpdated={updated => {
             upsert(updated);
             setSelectedApt(updated);
+            refreshPendingPayments(); // un pago verificado puede quitar el indicador 💳
             onAppointmentMutated?.(updated, 'updated');
           }}
           onStatusChanged={async (id, status) => {
             await handleStatusChange(id, status);
+          }}
+          onGroupChanged={() => {
+            // Confirmar/rechazar el paquete cambió varias citas: recargar el rango.
+            load(new URLSearchParams({ dateFrom, dateTo }));
+            refreshPendingPayments();
           }}
         />
       )}
@@ -522,6 +593,35 @@ export function CalendarRoot({
           }}
           onUpdated={() => {}}
           onStatusChanged={async () => {}}
+        />
+      )}
+
+      {/* Confirmación de movimiento / ajuste de duración (arrastre o resize) */}
+      {pendingMove && (
+        <ConfirmModal
+          dialog={pendingMove.kind === 'resize'
+            ? {
+                title: '¿Ajustar la duración?',
+                message: (
+                  <>La cita de <HL>{pendingMove.apt.guestName || 'el cliente'}</HL> terminará a las{' '}
+                  <New>{fmtTime12(pendingMove.newEnd)}</New> (antes <Old>{fmtTime12(pendingMove.apt.endTime)}</Old>). Es un ajuste interno de duración: <HL>no se le enviará correo</HL> al cliente.</>
+                ),
+                confirmLabel: 'Sí, ajustar',
+                confirmClass: 'bg-gold-600 hover:bg-gold-500',
+                onConfirm: () => { void commitMove(); },
+              }
+            : {
+                title: '¿Mover esta cita?',
+                message: (
+                  <>La cita de <HL>{pendingMove.apt.guestName || 'el cliente'}</HL> se moverá de{' '}
+                  <Old>{aptDateStr(pendingMove.apt)} · {fmtTime12(pendingMove.apt.startTime)}</Old> a{' '}
+                  <New>{pendingMove.newDate} · {fmtTime12(pendingMove.newStart)}</New>. Se le avisará por correo.</>
+                ),
+                confirmLabel: 'Sí, mover',
+                confirmClass: 'bg-gold-600 hover:bg-gold-500',
+                onConfirm: () => { void commitMove(); },
+              }}
+          onClose={() => setPendingMove(null)}
         />
       )}
 

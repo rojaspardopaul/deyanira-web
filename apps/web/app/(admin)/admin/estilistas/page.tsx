@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Pencil, Trash2, X, Upload, User, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Upload, User, ToggleLeft, ToggleRight, ChevronUp, ChevronDown } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 
 interface Staff {
@@ -9,11 +9,12 @@ interface Staff {
   name: string;
   role: string | null;
   bio: string | null;
+  certifications: string[];
   photoUrl: string | null;
   isActive: boolean;
 }
 
-const EMPTY: Omit<Staff, 'id'> = { name: '', role: '', bio: '', photoUrl: null, isActive: true };
+const EMPTY: Omit<Staff, 'id'> = { name: '', role: '', bio: '', certifications: [], photoUrl: null, isActive: true };
 
 export default function EstilistasPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -45,7 +46,7 @@ export default function EstilistasPage() {
 
   function openEdit(s: Staff) {
     setEditing(s);
-    setForm({ name: s.name, role: s.role || '', bio: s.bio || '', photoUrl: s.photoUrl, isActive: s.isActive });
+    setForm({ name: s.name, role: s.role || '', bio: s.bio || '', certifications: s.certifications || [], photoUrl: s.photoUrl, isActive: s.isActive });
     setPhotoPreview(s.photoUrl);
     setPhotoBase64(null);
     setError(''); setModal('edit');
@@ -94,6 +95,20 @@ export default function EstilistasPage() {
     fetchStaff();
   }
 
+  // Reordena el equipo (orden persistido en el backend). Optimista: revierte si falla.
+  async function handleMove(idx: number, dir: -1 | 1) {
+    const target = idx + dir;
+    if (target < 0 || target >= staff.length) return;
+    const next = [...staff];
+    [next[idx], next[target]] = [next[target], next[idx]];
+    setStaff(next);
+    try {
+      await adminApi().staff.reorder(next.map((s) => s.id));
+    } catch {
+      fetchStaff();
+    }
+  }
+
   async function handleDelete() {
     if (!deleteId) return;
     await adminApi().staff.delete(deleteId);
@@ -130,7 +145,7 @@ export default function EstilistasPage() {
           </div>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {staff.map((s) => (
+            {staff.map((s, idx) => (
               <div key={s.id} className={`bg-white rounded-2xl shadow-sm border overflow-hidden ${!s.isActive ? 'opacity-60' : ''}`}>
                 <div className="h-40 bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center relative">
                   {s.photoUrl ? (
@@ -141,6 +156,25 @@ export default function EstilistasPage() {
                       <span className="text-3xl font-bold text-primary-700">{s.name.charAt(0)}</span>
                     </div>
                   )}
+                  {/* Reordenar (orden del equipo en la web) */}
+                  <div className="absolute top-2 left-2 flex flex-col gap-1">
+                    <button
+                      onClick={() => handleMove(idx, -1)}
+                      disabled={idx === 0}
+                      title="Subir"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/90 shadow ring-1 ring-black/5 text-gray-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleMove(idx, 1)}
+                      disabled={idx === staff.length - 1}
+                      title="Bajar"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/90 shadow ring-1 ring-black/5 text-gray-600 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronDown className="w-4 h-4" />
+                    </button>
+                  </div>
                   {!s.isActive && (
                     <span className="absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-0.5 rounded-full">
                       Inactiva
@@ -224,6 +258,19 @@ export default function EstilistasPage() {
                   value={form.bio || ''}
                   onChange={e => setForm({ ...form, bio: e.target.value })}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Certificados / títulos</label>
+                {/* Uno por línea: al escribir se respetan los saltos; se limpia al salir (onBlur). */}
+                <textarea
+                  rows={3}
+                  placeholder={'Certificada por L’Oréal Professionnel\nDiplomado en Maquillaje Profesional'}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-300 resize-y leading-relaxed"
+                  value={(form.certifications || []).join('\n')}
+                  onChange={e => setForm({ ...form, certifications: e.target.value.split('\n') })}
+                  onBlur={() => setForm(f => ({ ...f, certifications: (f.certifications || []).map(s => s.trim()).filter(Boolean) }))}
+                />
+                <p className="mt-1 text-[11px] text-gray-400">Uno por línea. Se mostrarán como insignias en la página Nosotros.</p>
               </div>
               <label className="flex items-center gap-3 cursor-pointer">
                 <div

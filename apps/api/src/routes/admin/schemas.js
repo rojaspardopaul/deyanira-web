@@ -13,7 +13,7 @@ const DATE_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const PROMOTION_TYPES = ['percent', 'fixed'];
 const GALLERY_CATEGORIES = ['maquillaje', 'cabello', 'unas', 'cejas', 'general'];
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-const PAYMENT_STATUSES = ['pending', 'paid', 'failed'];
+const PAYMENT_STATUSES = ['pending', 'awaiting_verification', 'paid', 'failed'];
 
 const uuid = z.string().regex(UUID_RE, 'ID inválido');
 const IdParam = z.object({ id: uuid });
@@ -80,10 +80,19 @@ const UnavailabilityCreate = z.object({
 );
 
 // ── Galería ────────────────────────────────────────────────────
+// Acepta dos modos:
+//   a) `imageUrl` ya subido a Cloudinary (flujo nuevo: subida múltiple imágenes/videos)
+//   b) `file` base64 (compat: el backend lo sube como imagen)
 const GalleryUpload = z.object({
-  file: z.string().min(1, 'Imagen requerida'),
+  file: z.string().min(1).optional(),
+  imageUrl: z.string().url().optional(),
+  thumbnailUrl: z.string().url().optional().nullable(),
+  mediaType: z.enum(['image', 'video']).optional(),
+  caption: z.string().max(200).optional().nullable(),
   category: z.enum(GALLERY_CATEGORIES, { errorMap: () => ({ message: 'Categoría de galería inválida' }) }).optional().nullable(),
-}).passthrough();
+}).passthrough().refine((d) => Boolean(d.file) || Boolean(d.imageUrl), {
+  message: 'Falta el archivo o la URL del medio', path: ['imageUrl'],
+});
 
 const GalleryUpdate = z.object({
   category: z.enum(GALLERY_CATEGORIES, { errorMap: () => ({ message: 'Categoría de galería inválida' }) }).optional().nullable(),

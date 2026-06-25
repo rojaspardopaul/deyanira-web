@@ -1,12 +1,27 @@
 // Renderiza un recibo de reserva en HTML (listo para imprimir / guardar como PDF).
 // Usado por GET /api/booking-payments/:id/receipt y por el email de confirmación.
 const { escapeHtml: esc } = require('../html');
+const T = require('../notifications/theme');
 
-const PINK = '#FF4FA2';
-const GOLD = '#D4AF37';
+// Colores de marca tomados del theme central → cambiar la marca en theme.js
+// también re-skinnea este recibo. (Recibo CLARO/imprimible: no usa el fondo oscuro.)
+const PINK = T.color.primary;   // #db2777
+const GOLD = T.color.gold;      // #d4af37
+const INK1 = T.color.inkDark;   // #100815
+const INK2 = T.color.inkDeep;   // #2a0f22
 
 function money(n) {
   return 'S/ ' + Number(n || 0).toFixed(2);
+}
+
+// "HH:MM" (24h) → "1:30 p.m." — toda hora visible va en 12h (convención del salón).
+function fmt12(hhmm) {
+  if (!hhmm || typeof hhmm !== 'string' || !hhmm.includes(':')) return hhmm || '';
+  const [h, m] = hhmm.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return hhmm;
+  const period = h < 12 ? 'a.m.' : 'p.m.';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${period}`;
 }
 
 function fmtDateLong(d) {
@@ -48,14 +63,31 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   const saldo = Number(payment.balancePen != null ? payment.balancePen : total - adelanto);
   const method = METHOD_LABEL[payment.method] || (payment.method ? esc(payment.method) : '—');
 
-  const itemRows = appointments.map((a) => {
+  // Precio a NIVEL PAQUETE: la fila del paquete lleva su monto y las citas de
+  // servicios incluidos muestran "Incluido en el paquete" (en BD el monto vive en
+  // la 1ª cita por contabilidad — nunca mostrar ese reparto). Addons/extras sí.
+  const incluidos = new Set((pkg?.items || []).map((it) => it.serviceId).filter(Boolean));
+  const usePkgPricing = Boolean(pkg && pkg.pricePen != null && incluidos.size > 0);
+
+  const pkgRow = usePkgPricing
+    ? `<tr>
+      <td class="desc"><span class="bullet">◆</span> <strong>Paquete: ${esc(pkg.name)}</strong>${pkg.eventType?.name ? ` <span class="sub" style="display:inline;">— ${esc(pkg.eventType.name)}</span>` : ''}</td>
+      <td class="amt"><strong>${money(pkg.pricePen)}</strong></td>
+    </tr>`
+    : '';
+
+  const itemRows = pkgRow + appointments.map((a) => {
     const staffName = (a.onDutyStaff || !a.staff) ? 'Estilista de turno' : (a.staff?.name || '—');
-    const when = `${fmtDateLong(a.date)} · ${esc(a.startTime || '')}–${esc(a.endTime || '')}`;
+    const when = `${fmtDateLong(a.date)} · ${esc(fmt12(a.startTime))}–${esc(fmt12(a.endTime))}`;
+    const esIncluida = usePkgPricing && incluidos.has(a.serviceId || a.service?.id);
+    const amt = esIncluida
+      ? '<span class="included">Incluido en el paquete</span>'
+      : (Number(a.totalPen) > 0 ? money(a.totalPen) : '');
     return `<tr>
       <td class="desc"><span class="bullet">◆</span> ${esc(a.service?.name || 'Servicio')}
         <div class="sub">${when} · ${esc(staffName)}</div>
       </td>
-      <td class="amt">${Number(a.totalPen) > 0 ? money(a.totalPen) : ''}</td>
+      <td class="amt">${amt}</td>
     </tr>`;
   }).join('');
 
@@ -75,7 +107,7 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   html, body { background: #ECECEC; }
   body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .page { width: 210mm; min-height: 297mm; margin: 0 auto; background: #fff; position: relative; padding: 0 0 40mm; }
-  .band { background: linear-gradient(120deg, #100815 0%, #2a0f22 100%); color: #fff; padding: 32px 40px 26px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 3px solid ${GOLD}; }
+  .band { background: ${INK1}; background: linear-gradient(120deg, ${INK1} 0%, ${INK2} 100%); color: #fff; padding: 32px 40px 26px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; border-bottom: 3px solid ${GOLD}; }
   .logo { max-height: 64px; max-width: 220px; object-fit: contain; }
   .brandtext { font-family: Georgia, serif; font-size: 30px; font-weight: bold; letter-spacing: 5px; color: ${GOLD}; line-height: 1; }
   .brandtext span { display: block; font-family: Arial, sans-serif; font-size: 9px; letter-spacing: 6px; color: rgba(212,175,55,0.55); margin-top: 4px; }
@@ -97,6 +129,7 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   td.desc .sub { font-size: 11px; color: #888; margin-top: 3px; }
   td.amt { padding: 12px; font-size: 14px; border-bottom: 1px solid #f2f2f2; white-space: nowrap; }
   .bullet { color: ${PINK}; margin-right: 6px; }
+  .included { font-size: 11px; font-style: italic; color: #999; }
   .totals { margin-left: auto; width: 320px; }
   .totals .line { display: flex; justify-content: space-between; padding: 9px 4px; font-size: 14px; }
   .totals .line.sep { border-top: 1px solid #eee; }
@@ -104,7 +137,8 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
   .totals .deposit { color: #16a34a; font-weight: 700; }
   .totals .balance { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 12px 14px; margin-top: 8px; font-size: 16px; font-weight: 700; color: #9a3412; display: flex; justify-content: space-between; }
   .note { margin-top: 26px; font-size: 12px; color: #777; line-height: 1.6; border-top: 1px dashed #ddd; padding-top: 16px; }
-  .foot { position: absolute; bottom: 0; left: 0; right: 0; background: #100815; color: rgba(255,255,255,0.6); font-size: 11px; text-align: center; padding: 14px; }
+  .foot { position: absolute; bottom: 0; left: 0; right: 0; background: ${INK1}; color: rgba(255,255,255,0.6); font-size: 11px; text-align: center; padding: 14px; }
+  .foot .contact { color: rgba(255,255,255,0.45); font-size: 10.5px; margin-top: 3px; }
   .foot b { color: ${GOLD}; }
   @media print { body { background: #fff; } .page { box-shadow: none; } }
 </style>
@@ -154,7 +188,9 @@ function renderBookingReceiptHtml({ payment, appointments = [], package: pkg = n
       </div>
     </div>
 
-    <div class="foot">© ${new Date().getFullYear()} <b>${esc(salonName)}</b> · Gracias por su preferencia</div>
+    <div class="foot">© ${new Date().getFullYear()} <b>${esc(salonName)}</b> · Gracias por su preferencia
+      ${(salonPhone || salonAddr) ? `<div class="contact">${[salonAddr, salonPhone].filter(Boolean).map(esc).join(' · ')}</div>` : ''}
+    </div>
   </div>
 </body>
 </html>`;

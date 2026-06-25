@@ -32,7 +32,9 @@ const MODIFIER_TYPE_OPTIONS: Array<{ value: ModifierType; label: string; example
 ];
 
 type DraftOption = Partial<ModifierOption> & { _key: string };
-type DraftGroup = Partial<ModifierGroup> & { _key: string; _expanded?: boolean; options: DraftOption[] };
+// Omit 'options' del Partial para que el borrador use DraftOption[] (parciales con _key)
+// sin chocar con el ModifierOption[] que exige Partial<ModifierGroup>.
+type DraftGroup = Omit<Partial<ModifierGroup>, 'options'> & { _key: string; _expanded?: boolean; options: DraftOption[] };
 
 function uid() {
   return `tmp-${Math.random().toString(36).slice(2, 10)}`;

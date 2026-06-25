@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Clock, ArrowRight, Crown, Flame, Heart, Sparkles } from 'lucide-react';
-import { clImage } from '@/lib/cloudinary-client';
+import { focalImg } from '@/lib/cloudinary-client';
 
 // ── Tipos ────────────────────────────────────────────────
 export type PopularService = {
@@ -46,7 +46,7 @@ function ServiceCard({ service, rank, visible }: { service: PopularService; rank
   const discountPct = hasDiscount ? Math.round(((compare! - price) / compare!) * 100) : 0;
   const rankMeta = rank <= 3 ? RANK_META[rank - 1] : null;
   const RankIcon = rankMeta?.icon;
-  const img = service.imageUrl ? clImage(service.imageUrl, { w: 640, h: 480, crop: 'fill', gravity: 'auto' }) : null;
+  const im = service.imageUrl ? focalImg(service.imageUrl, 720) : null;
   const count = service.bookingCount || 0;
 
   return (
@@ -67,12 +67,13 @@ function ServiceCard({ service, rank, visible }: { service: PopularService; rank
     >
       {/* ── Imagen / fallback ── */}
       <div className="relative aspect-[4/3] md:aspect-[5/4] overflow-hidden">
-        {img ? (
+        {im ? (
           <Image
-            src={img}
+            src={im.src}
             alt={service.name}
             fill
             sizes="(max-width: 768px) 82vw, 360px"
+            style={{ objectPosition: im.objectPosition }}
             className="object-cover transition-[transform,filter] duration-[800ms] ease-out group-hover:scale-[1.08] group-hover:brightness-[1.06] group-hover:saturate-[1.12]"
           />
         ) : (

@@ -1,16 +1,22 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
-  X, Plus, Check, Clock, User, Scissors, Home, Phone, Mail,
-  AlertCircle, Search, UserCheck,
+  X, Plus, Check, Clock, User, Scissors, Phone, Mail,
+  AlertCircle, Search, UserCheck, Pencil, Receipt, ExternalLink, ShieldCheck,
+  ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { adminApi } from '@/lib/api';
 import DateTimePicker from '@/components/ui/datetime';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { HL, New, Danger, Money } from '@/components/ui/highlight';
 import { STATUS } from '../status';
-import { toYMD, clientName } from '../utils/date';
-import { timeToMin, minToHHMM } from '../utils/time';
-import type { Appointment, AptStatus, StaffMember, Slot } from '../types';
+import { toYMD, clientName, aptDateStr } from '../utils/date';
+import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
+import { eventTypeIcon, isPackageAddon } from '../utils/package';
+import { CategoryChip, AtHomeChip, CategoryGlyph } from '../blocks/AptIndicators';
+import NewReceiptModal, { type ReceiptPrefill } from '@/components/admin/receipts/NewReceiptModal';
+import type { Appointment, AptStatus, StaffMember, Slot, BookingPaymentInfo } from '../types';
 
 type AptModalProps = {
   /** Undefined = create mode; defined = edit/detail mode */
@@ -24,12 +30,16 @@ type AptModalProps = {
   onUpdated: (apt: Appointment) => void;
   onStatusChanged: (id: string, status: AptStatus) => Promise<void>;
   adminRole: 'super_admin' | 'admin' | 'estilista';
+  /** Citas hermanas del mismo bookingGroupId (las pasa CalendarRoot ya cargadas). */
+  groupApts?: Appointment[];
+  /** Recargar el calendario tras confirmar/rechazar el paquete completo. */
+  onGroupChanged?: () => void;
 };
 
 type PendingAction = {
   type: AptStatus;
   title: string;
-  description?: string;
+  description?: ReactNode;
   confirmLabel: string;
   danger?: boolean;
 };
@@ -42,6 +52,7 @@ const EMPTY_FORM = {
 export function AptModal({
   apt, defaultDate = '', defaultTime = '', defaultStaffId = '',
   staffList, onClose, onCreated, onUpdated, onStatusChanged, adminRole,
+  groupApts = [], onGroupChanged,
 }: AptModalProps) {
   const isEdit = !!apt;
   const todayStr = toYMD(new Date());
@@ -70,6 +81,26 @@ export function AptModal({
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  // Ajuste de duración (hora de fin) sobre una cita existente
+  const [editingTime, setEditingTime] = useState(false);
+  const [endEdit, setEndEdit] = useState('');
+  const [savingTime, setSavingTime] = useState(false);
+  const [timeError, setTimeError] = useState('');
+  // Pago/adelanto del grupo (comprobante a revisar antes de confirmar la cita)
+  const [payment, setPayment] = useState<BookingPaymentInfo | null>(null);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+  const [proofOpen, setProofOpen] = useState(false);
+  // Comprobante en acordeón: colapsado por defecto (ocupa mucho espacio).
+  const [proofExpanded, setProofExpanded] = useState(false);
+  // REGLA DE ORO: toda acción de aceptar/rechazar/verificar pide confirmación.
+  const [payConfirm, setPayConfirm] = useState<'approve' | 'reject' | null>(null);
+  // Aceptar/rechazar el PAQUETE completo (grupo del mismo día) — con confirmación.
+  const [groupConfirm, setGroupConfirm] = useState<'accept' | 'reject' | null>(null);
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [groupError, setGroupError] = useState('');
+  // Crear un recibo de cobro/adelanto prellenado desde esta cita.
+  const [showReceipt, setShowReceipt] = useState(false);
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -101,6 +132,20 @@ export function AptModal({
       } catch { setCustomerResults([]); }
     }, 300);
   }, [isEdit, customerQuery]);
+
+  // Cargar el pago/adelanto del grupo (si la cita pertenece a una reserva con adelanto)
+  useEffect(() => {
+    if (!apt?.bookingGroupId) { setPayment(null); return; }
+    let cancelled = false;
+    adminApi().bookingPayments.byGroup(apt.bookingGroupId)
+      .then((rows) => {
+        if (cancelled) return;
+        const list = (rows as BookingPaymentInfo[]) || [];
+        setPayment(list[0] || null);
+      })
+      .catch(() => { if (!cancelled) setPayment(null); });
+    return () => { cancelled = true; };
+  }, [apt?.bookingGroupId]);
 
   // ── Create helpers ───────────────────────────────────────────────────────
   function field(key: keyof typeof EMPTY_FORM, val: string) {
@@ -152,6 +197,67 @@ export function AptModal({
       toast(pendingAction.confirmLabel + ' con éxito');
       setPendingAction(null);
     } finally { setActionLoading(false); }
+  }
+
+  function openTimeEditor() {
+    if (!apt) return;
+    setEndEdit(apt.endTime);
+    setTimeError('');
+    setEditingTime(true);
+  }
+
+  async function handleSaveTime() {
+    if (!apt) return;
+    if (!endEdit || timeToMin(endEdit) <= timeToMin(apt.startTime)) {
+      setTimeError('La hora de fin debe ser posterior a la de inicio'); return;
+    }
+    setSavingTime(true); setTimeError('');
+    try {
+      const updated = await adminApi().appointments.update(apt.id, { endTime: endEdit }) as Appointment;
+      onUpdated(updated);
+      toast('Duración actualizada');
+      setEditingTime(false);
+    } catch (e) {
+      setTimeError(e instanceof Error ? e.message : 'Error al actualizar la duración');
+    } finally { setSavingTime(false); }
+  }
+
+  // Confirmar el pago (verifica el comprobante). markDepositPaid en el backend
+  // confirma automáticamente las citas del grupo → la cita pasa a "confirmed".
+  async function handleVerifyPayment(approved: boolean) {
+    if (!payment || !apt) return;
+    setVerifyingPayment(true); setPaymentError('');
+    try {
+      const updated = await adminApi().bookingPayments.verify(payment.id, approved) as BookingPaymentInfo;
+      setPayment(updated);
+      if (approved) {
+        // El backend ya marcó la(s) cita(s) como confirmadas.
+        onUpdated({ ...apt, status: 'confirmed' });
+        toast('Pago confirmado — cita confirmada');
+      } else {
+        toast('Comprobante rechazado');
+      }
+    } catch (e) {
+      setPaymentError(e instanceof Error ? e.message : 'No se pudo procesar el pago');
+    } finally { setVerifyingPayment(false); }
+  }
+
+  // Confirmar/rechazar el PAQUETE: opera sobre TODAS las citas del grupo del mismo
+  // día (el addon/prueba de otra fecha es independiente) y envía UN solo correo.
+  async function handleGroupAction(accept: boolean) {
+    if (!apt?.bookingGroupId) return;
+    setGroupLoading(true); setGroupError('');
+    try {
+      const date = aptDateStr(apt);
+      if (accept) await adminApi().appointments.confirmGroupByBooking(apt.bookingGroupId, date);
+      else await adminApi().appointments.rejectGroup(apt.bookingGroupId, date);
+      setGroupConfirm(null);
+      toast(accept ? 'Paquete confirmado — se avisó al cliente por correo' : 'Paquete rechazado — se avisó al cliente por correo');
+      onUpdated({ ...apt, status: accept ? 'confirmed' : 'cancelled' });
+      onGroupChanged?.();
+    } catch (e) {
+      setGroupError(e instanceof Error ? e.message : 'No se pudo actualizar el paquete');
+    } finally { setGroupLoading(false); }
   }
 
   async function handleAssign() {
@@ -271,7 +377,8 @@ export function AptModal({
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Servicio *</label>
-              <select value={form.serviceId} onChange={e => field('serviceId', e.target.value)}
+              <select value={form.serviceId}
+                onChange={e => { setForm(f => ({ ...f, serviceId: e.target.value, startTime: '', endTime: '' })); setError(''); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white">
                 <option value="">Seleccionar servicio...</option>
                 {services.map(s => <option key={s.id} value={s.id}>{s.name} ({s.duration} min)</option>)}
@@ -280,7 +387,8 @@ export function AptModal({
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Estilista</label>
-              <select value={form.staffId} onChange={e => field('staffId', e.target.value)}
+              <select value={form.staffId}
+                onChange={e => { setForm(f => ({ ...f, staffId: e.target.value, startTime: '', endTime: '' })); setError(''); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white">
                 <option value="">Estilista de turno (asignar luego)</option>
                 {staffList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -350,7 +458,50 @@ export function AptModal({
   const cfg = STATUS[apt.status];
   const canAct = apt.status !== 'completed' && apt.status !== 'cancelled' && apt.status !== 'no_show';
   const canCancel = adminRole !== 'estilista';
+  // Hay un adelanto pendiente de verificar → NO se puede confirmar la cita hasta
+  // confirmar el pago (revisar el comprobante). 'paid'/'rejected' ya no bloquean.
+  const paymentPending = !!payment && payment.status !== 'paid' && payment.status !== 'rejected';
+  const money = (n: number | string) => `S/ ${Number(n || 0).toFixed(2)}`;
+  const PAY_STATUS: Record<string, { label: string; cls: string }> = {
+    pending:               { label: 'Adelanto pendiente',  cls: 'bg-amber-100 text-amber-700' },
+    awaiting_verification: { label: 'Por verificar',       cls: 'bg-amber-100 text-amber-700' },
+    paid:                  { label: 'Pago verificado',     cls: 'bg-emerald-100 text-emerald-700' },
+    rejected:              { label: 'Rechazado',           cls: 'bg-red-100 text-red-600' },
+    expired:               { label: 'Expirado',            cls: 'bg-gray-100 text-gray-500' },
+  };
   const canManageStaff = adminRole !== 'estilista' && apt.status !== 'cancelled' && apt.status !== 'no_show';
+
+  // ── Paquete (novia/quinceañera): grupo del mismo día + addon aparte ───────
+  const pkg = apt.package || null;
+  const isPkgApt = !!(apt.packageId && pkg);
+  const isAddon = isPkgApt && isPackageAddon(apt);
+  const aptDay = aptDateStr(apt);
+  const sameDayGroup = (apt.bookingGroupId
+    ? groupApts.filter(a => a.bookingGroupId === apt.bookingGroupId && aptDateStr(a) === aptDay)
+    : []
+  ).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const groupAllPending = sameDayGroup.length > 0 && sameDayGroup.every(a => a.status === 'pending');
+  const showGroupActions = isPkgApt && !isAddon && groupAllPending;
+  // Si la sección de paquete gestiona la confirmación, se oculta el botón individual.
+  const groupHandlesConfirm = isPkgApt && !isAddon && sameDayGroup.length > 0;
+  const accent = pkg?.eventType?.accentColor || '#d4af37';
+  const fechaLabel = new Date(`${aptDay}T12:00:00`).toLocaleDateString('es-PE', {
+    weekday: 'short', day: 'numeric', month: 'short',
+  });
+
+  // Prefill del recibo desde la cita: para un paquete usa su nombre/precio; para
+  // una cita suelta, el servicio y su total.
+  const receiptPrefill: ReceiptPrefill = {
+    customerName: clientName(apt),
+    customerPhone: apt.guestPhone || '',
+    customerEmail: apt.guestEmail || '',
+    title: isPkgApt && pkg ? (pkg.eventType?.name ? `${pkg.eventType.name} · ${pkg.name}` : pkg.name) : apt.service.name,
+    items: isPkgApt && pkg?.pricePen != null
+      ? [{ description: pkg.name, amountPen: Number(pkg.pricePen) }]
+      : [{ description: apt.service.name, amountPen: Number(apt.totalPen) }],
+    bookingGroupId: apt.bookingGroupId || null,
+    packageId: apt.packageId || null,
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -380,16 +531,264 @@ export function AptModal({
           <div className={`${cfg.bgLight} border-l-4 ${cfg.border} rounded-xl p-4`}>
             <div className="flex items-center gap-2 mb-2">
               <Clock className={`w-4 h-4 ${cfg.text}`} />
-              <span className="font-bold text-gray-900 text-lg">{apt.startTime} &ndash; {apt.endTime}</span>
+              <span className="font-bold text-gray-900 text-lg">{fmtTime12(apt.startTime)} &ndash; {fmtTime12(apt.endTime)}</span>
+              {canAct && !editingTime && (
+                <button
+                  onClick={openTimeEditor}
+                  title="Ajustar duración"
+                  className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-gray-500 hover:text-gold-600 px-2 py-1 rounded-lg hover:bg-white/60 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Ajustar
+                </button>
+              )}
             </div>
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                <Scissors className="w-3.5 h-3.5 text-gray-400" />{apt.service.name}
-              </p>
-              <p className="text-base font-bold text-gray-900">S/ {Number(apt.totalPen).toFixed(2)}</p>
+
+            {editingTime ? (
+              <div className="bg-white rounded-xl p-3 border border-gray-200 mb-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2">Hora de término</p>
+                <DateTimePicker
+                  mode="time"
+                  theme="light"
+                  value={endEdit}
+                  minTime={minToHHMM(timeToMin(apt.startTime) + 5)}
+                  onChange={(v) => setEndEdit((v as string) || '')}
+                />
+                {timeError && <p className="text-xs text-red-500 mt-2">{timeError}</p>}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => setEditingTime(false)}
+                    disabled={savingTime}
+                    className="flex-1 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSaveTime}
+                    disabled={savingTime}
+                    className="flex-1 py-2 bg-gold-400 hover:bg-gold-500 text-gray-900 rounded-xl text-xs font-bold disabled:opacity-50"
+                  >
+                    {savingTime ? 'Guardando...' : 'Guardar duración'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="font-medium">{apt.service.name}</span>
+                </p>
+                {(apt.service.category || apt.atHome) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5 pl-5">
+                    <CategoryChip apt={apt} />
+                    <AtHomeChip apt={apt} />
+                  </div>
+                )}
+              </div>
+              {/* Precio: una cita de paquete (no addon) NO muestra precio aquí — vive
+                  una sola vez en la tarjeta Paquete (en BD el reparto por cita es
+                  arbitrario). El addon sí muestra su precio propio. */}
+              {isAddon ? (
+                <div className="text-right shrink-0">
+                  <p className="text-base font-bold text-gray-900">{money(apt.totalPen)}</p>
+                  <p className="text-[10px] text-gray-500 leading-tight">Servicio adicional</p>
+                </div>
+              ) : !isPkgApt ? (
+                <p className="text-base font-bold text-gray-900 shrink-0">{money(apt.totalPen)}</p>
+              ) : null}
             </div>
-            <p className="text-xs text-gray-500 mt-1 pl-5">{apt.service.duration} min</p>
+            <p className="text-xs text-gray-500 mt-1 pl-5">
+              {Math.max(0, timeToMin(apt.endTime) - timeToMin(apt.startTime))} min
+            </p>
           </div>
+
+          {/* Paquete (novia/quinceañera): citas del grupo + aceptar/rechazar TODO junto */}
+          {isPkgApt && (
+            <div className="rounded-xl border border-gray-200 overflow-hidden">
+              <div
+                className="px-4 py-3 flex items-center justify-between gap-2"
+                style={{ backgroundColor: `${accent}1A`, borderBottom: `2px solid ${accent}` }}
+              >
+                <p className="text-sm font-bold text-gray-900 flex items-center gap-2 min-w-0">
+                  <span
+                    className="w-6 h-6 rounded-full ring-1 ring-white flex items-center justify-center text-[12px] shrink-0"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {eventTypeIcon(pkg?.eventType)}
+                  </span>
+                  <span className="truncate">
+                    {pkg?.eventType?.name ? `${pkg.eventType.name} · ` : ''}{pkg?.name}
+                  </span>
+                </p>
+                {pkg?.pricePen != null && (
+                  <p className="text-sm font-bold text-gray-900 whitespace-nowrap">{money(pkg.pricePen)}</p>
+                )}
+              </div>
+
+              {isAddon ? (
+                <p className="px-4 py-3 text-xs text-gray-600">
+                  Esta cita es la <strong>prueba (servicio adicional)</strong> del paquete: tiene su propia
+                  fecha y se gestiona <strong>aparte</strong> del grupo principal.
+                </p>
+              ) : (
+                <>
+                  {/* Citas hermanas del mismo día (el grupo que se acepta/rechaza junto) */}
+                  <div className="divide-y divide-gray-100">
+                    {sameDayGroup.map(a => {
+                      const sCfg = STATUS[a.status];
+                      const isCurrent = a.id === apt.id;
+                      return (
+                        <div key={a.id} className={`px-4 py-2 flex items-center gap-2 text-xs ${isCurrent ? 'bg-amber-50/60' : ''}`}>
+                          <span className="font-semibold text-gray-700 whitespace-nowrap">{fmtTime12(a.startTime)}</span>
+                          <span className="text-gray-900 font-medium truncate flex-1 flex items-center gap-1">
+                            <CategoryGlyph apt={a} className="text-[11px]" />
+                            <span className="truncate">{a.service.name}</span>
+                            {isCurrent && <span className="text-[10px] text-gold-600 font-bold shrink-0"> · esta cita</span>}
+                          </span>
+                          <span className="text-gray-400 truncate max-w-[90px]">{a.staff?.name || 'Turno'}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sCfg.bgLight} ${sCfg.text} whitespace-nowrap`}>
+                            {sCfg.label}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {groupError && (
+                    <p className="px-4 py-2 text-xs text-red-600 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />{groupError}
+                    </p>
+                  )}
+
+                  {/* Aceptar/rechazar el paquete completo (un solo correo al cliente).
+                      Con adelanto por verificar NO se confirma aquí: verificar el pago
+                      (abajo) ya confirma todo el grupo. */}
+                  {showGroupActions && (
+                    <div className="px-4 py-3 flex gap-2 border-t border-gray-100">
+                      {canCancel && (
+                        <button
+                          onClick={() => setGroupConfirm('reject')}
+                          disabled={groupLoading}
+                          className="flex-1 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+                        >
+                          Rechazar paquete
+                        </button>
+                      )}
+                      {!paymentPending ? (
+                        <button
+                          onClick={() => setGroupConfirm('accept')}
+                          disabled={groupLoading}
+                          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                        >
+                          <Check className="w-4 h-4" /> Confirmar paquete
+                        </button>
+                      ) : (
+                        <div className="flex-1 py-2 px-2 bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-semibold rounded-xl flex items-center justify-center gap-1 text-center">
+                          <Receipt className="w-3.5 h-3.5 shrink-0" /> Verifica el pago (abajo): eso confirma el paquete
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Adelanto / Comprobante de pago — visible para revisar antes de confirmar */}
+          {payment && (
+            <div className={`rounded-xl border p-4 ${paymentPending ? 'border-amber-200 bg-amber-50/60' : 'border-emerald-200 bg-emerald-50/60'}`}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+                  <Receipt className="w-3.5 h-3.5" /> Adelanto / Pago
+                </p>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${PAY_STATUS[payment.status]?.cls || 'bg-gray-100 text-gray-500'}`}>
+                  {PAY_STATUS[payment.status]?.label || payment.status}
+                </span>
+              </div>
+
+              {/* Comprobante en acordeón (colapsado por defecto — la imagen ocupa
+                  mucho espacio; los montos y botones quedan siempre a la vista) */}
+              {payment.proofImageUrl ? (
+                <div className="mb-3 rounded-lg border border-gray-200 bg-white overflow-hidden">
+                  <button
+                    onClick={() => setProofExpanded(v => !v)}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Receipt className="w-3.5 h-3.5 text-gray-500" /> Comprobante adjunto
+                    </span>
+                    <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                      {proofExpanded ? 'Ocultar' : 'Ver'}
+                      {proofExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </span>
+                  </button>
+                  {proofExpanded && (
+                    /\.pdf($|\?)/i.test(payment.proofImageUrl) ? (
+                      <a href={payment.proofImageUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 py-3 border-t border-gray-100 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                        <Receipt className="w-4 h-4" /> Ver comprobante (PDF) <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    ) : (
+                      <button onClick={() => setProofOpen(true)}
+                        className="relative block w-full border-t border-gray-100 overflow-hidden group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={payment.proofImageUrl} alt="Comprobante de pago" className="w-full max-h-52 object-contain bg-white" />
+                        <span className="absolute bottom-1.5 right-1.5 flex items-center gap-1 text-[10px] font-semibold text-white bg-black/55 px-2 py-1 rounded-full">
+                          <ExternalLink className="w-3 h-3" /> Ampliar
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500 mb-3 italic">El cliente aún no subió comprobante.</p>
+              )}
+
+              {/* Montos */}
+              <div className="grid grid-cols-3 gap-2 text-center mb-3">
+                <div className="bg-white rounded-lg py-2 border border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase">Total</p>
+                  <p className="text-sm font-bold text-gray-900">{money(payment.totalPen)}</p>
+                </div>
+                <div className="bg-white rounded-lg py-2 border border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase">Adelanto</p>
+                  <p className="text-sm font-bold text-emerald-600">{money(payment.depositPen)}</p>
+                </div>
+                <div className="bg-white rounded-lg py-2 border border-gray-100">
+                  <p className="text-[10px] text-gray-400 uppercase">Saldo</p>
+                  <p className="text-sm font-bold text-amber-700">{money(payment.balancePen)}</p>
+                </div>
+              </div>
+
+              {paymentError && <p className="text-xs text-red-500 mb-2">{paymentError}</p>}
+
+              {/* Acciones de pago — ambas piden confirmación (regla de oro) */}
+              {paymentPending && canCancel && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPayConfirm('reject')}
+                    disabled={verifyingPayment}
+                    className="flex-1 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Rechazar
+                  </button>
+                  <button
+                    onClick={() => setPayConfirm('approve')}
+                    disabled={verifyingPayment}
+                    className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> {verifyingPayment ? 'Confirmando...' : 'Confirmar pago'}
+                  </button>
+                </div>
+              )}
+              {payment.status === 'paid' && (
+                <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" /> Pago verificado{payment.receiptNumber ? ` · Recibo ${payment.receiptNumber}` : ''}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Client */}
           <div className="space-y-1.5">
@@ -410,14 +809,13 @@ export function AptModal({
                 <span className="text-sm text-gray-700 truncate">{apt.guestEmail}</span>
               </a>
             )}
-            {apt.atHome && (
-              <div className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-100 rounded-lg">
-                <Home className="w-4 h-4 text-purple-500" />
-                <span className="text-sm text-purple-700">
-                  A domicilio{apt.atHomeDistrict ? ` · ${apt.atHomeDistrict}` : ''}
-                </span>
-              </div>
-            )}
+            {/* "A domicilio" se muestra arriba (chip junto al servicio), no se repite aquí. */}
+            <button
+              onClick={() => setShowReceipt(true)}
+              className="w-full mt-1 flex items-center justify-center gap-1.5 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 transition-colors"
+            >
+              <Receipt className="w-3.5 h-3.5" /> Crear recibo
+            </button>
           </div>
 
           {/* Stylist */}
@@ -479,35 +877,58 @@ export function AptModal({
           {/* Status actions */}
           {canAct && (
             <div className="space-y-2 pt-2 border-t border-gray-100">
-              {apt.status === 'pending' && (
-                <button
-                  onClick={() => setPendingAction({
-                    type: 'confirmed', confirmLabel: 'Confirmar',
-                    title: '¿Confirmar esta cita?',
-                    description: `${clientName(apt)} · ${apt.startTime}`,
-                  })}
-                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                >
-                  <Check className="w-4 h-4" /> Confirmar cita
-                </button>
+              {apt.status === 'pending' && groupHandlesConfirm && (
+                // El paquete se confirma/rechaza COMPLETO desde la sección "Paquete" (arriba).
+                <div className="w-full py-2.5 bg-gray-50 border border-gray-200 text-gray-500 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 text-center px-3">
+                  <Receipt className="w-3.5 h-3.5 shrink-0" /> Esta cita se gestiona con el <strong>paquete</strong> (arriba).
+                </div>
+              )}
+              {apt.status === 'pending' && !groupHandlesConfirm && (
+                paymentPending ? (
+                  // No se puede confirmar la cita hasta confirmar el pago (arriba).
+                  <div className="w-full py-2.5 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5 text-center px-3">
+                    <Receipt className="w-3.5 h-3.5 shrink-0" /> Revisa y <strong>confirma el pago</strong> (arriba) para confirmar la cita.
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setPendingAction({
+                      type: 'confirmed', confirmLabel: 'Confirmar',
+                      title: '¿Confirmar esta cita?',
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
+                    })}
+                    className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Check className="w-4 h-4" /> Confirmar cita
+                  </button>
+                )
               )}
               {apt.status === 'confirmed' && (
                 <>
                   <button
                     onClick={() => setPendingAction({
-                      type: 'completed', confirmLabel: 'Marcar completada',
-                      title: '¿Marcar como completada?',
-                      description: `${clientName(apt)} · ${apt.startTime}`,
+                      type: 'in_progress', confirmLabel: 'Iniciar',
+                      title: '¿Marcar la cita en curso?',
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
+                    })}
+                    className="w-full py-2.5 bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <Check className="w-4 h-4" /> Iniciar (en curso)
+                  </button>
+                  <button
+                    onClick={() => setPendingAction({
+                      type: 'completed', confirmLabel: 'Marcar atendida',
+                      title: '¿Marcar como atendida?',
+                      description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
                     })}
                     className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                   >
-                    <Check className="w-4 h-4" /> Marcar completada
+                    <Check className="w-4 h-4" /> Marcar atendida
                   </button>
                   <button
                     onClick={() => setPendingAction({
                       type: 'no_show', confirmLabel: 'Confirmar',
                       title: '¿El cliente no asistió?',
-                      description: 'Esta acción cambiará el estado a "No asistió".',
+                      description: (<>La cita de <HL>{clientName(apt)}</HL> pasará a <Danger>“No asistió”</Danger>.</>),
                     })}
                     className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-colors"
                   >
@@ -515,12 +936,24 @@ export function AptModal({
                   </button>
                 </>
               )}
+              {apt.status === 'in_progress' && (
+                <button
+                  onClick={() => setPendingAction({
+                    type: 'completed', confirmLabel: 'Marcar atendida',
+                    title: '¿Marcar como atendida?',
+                    description: (<>Cliente <HL>{clientName(apt)}</HL> · <New>{fmtTime12(apt.startTime)}</New></>),
+                  })}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Check className="w-4 h-4" /> Marcar atendida
+                </button>
+              )}
               {canCancel && (
                 <button
                   onClick={() => setPendingAction({
                     type: 'cancelled', confirmLabel: 'Cancelar cita', danger: true,
                     title: '¿Cancelar esta cita?',
-                    description: 'Esta acción no se puede deshacer.',
+                    description: (<>Se cancelará la cita de <HL>{clientName(apt)}</HL> del <HL>{fmtTime12(apt.startTime)}</HL>. <Danger>Esta acción no se puede deshacer</Danger> y se le avisará por correo.</>),
                   })}
                   className="w-full py-2 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl flex items-center justify-center gap-1 transition-colors"
                 >
@@ -531,6 +964,91 @@ export function AptModal({
           )}
         </div>
       </div>
+
+      {/* Confirmación de aceptar/rechazar el pago (regla de oro: siempre preguntar) */}
+      {payConfirm && payment && (
+        <ConfirmModal
+          dialog={payConfirm === 'approve'
+            ? {
+                title: '¿Confirmar el pago?',
+                message: (
+                  <>Verificarás el adelanto de <Money>{money(payment.depositPen)}</Money> de <HL>{clientName(apt)}</HL>.{' '}
+                  La cita quedará <New>confirmada</New> y se enviará el correo de confirmación.</>
+                ),
+                confirmLabel: 'Sí, confirmar pago',
+                confirmClass: 'bg-emerald-600 hover:bg-emerald-500',
+                onConfirm: () => { void handleVerifyPayment(true); },
+              }
+            : {
+                title: '¿Rechazar el comprobante?',
+                message: (
+                  <>Marcarás el comprobante de <HL>{clientName(apt)}</HL> como <Danger>rechazado</Danger>.{' '}
+                  La cita <Danger>NO se confirmará</Danger>. Se puede revertir pidiendo un nuevo comprobante.</>
+                ),
+                confirmLabel: 'Sí, rechazar',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: () => { void handleVerifyPayment(false); },
+              }}
+          onClose={() => setPayConfirm(null)}
+        />
+      )}
+
+      {/* Confirmación de aceptar/rechazar el PAQUETE completo (regla de oro) */}
+      {groupConfirm && (
+        <ConfirmModal
+          dialog={groupConfirm === 'accept'
+            ? {
+                title: '¿Confirmar el paquete completo?',
+                message: (
+                  <>Se confirmarán las <New>{String(sameDayGroup.length)} citas</New> del paquete{' '}
+                  <HL>{pkg?.name}</HL> de <HL>{clientName(apt)}</HL> del <New>{fechaLabel}</New>.{' '}
+                  Se enviará <HL>un solo correo</HL> de confirmación al cliente.</>
+                ),
+                confirmLabel: groupLoading ? 'Confirmando...' : 'Sí, confirmar paquete',
+                confirmClass: 'bg-blue-600 hover:bg-blue-500',
+                onConfirm: () => { void handleGroupAction(true); },
+              }
+            : {
+                title: '¿Rechazar el paquete completo?',
+                message: (
+                  <>Se <Danger>cancelarán las {String(sameDayGroup.length)} citas</Danger> del paquete{' '}
+                  <HL>{pkg?.name}</HL> de <HL>{clientName(apt)}</HL> del <HL>{fechaLabel}</HL>
+                  {paymentPending ? <> y el <Danger>adelanto quedará rechazado</Danger></> : null}.{' '}
+                  Se avisará al cliente <HL>por correo</HL>. <Danger>Esta acción no se puede deshacer.</Danger></>
+                ),
+                confirmLabel: groupLoading ? 'Rechazando...' : 'Sí, rechazar paquete',
+                confirmClass: 'bg-red-600 hover:bg-red-500',
+                onConfirm: () => { void handleGroupAction(false); },
+              }}
+          onClose={() => setGroupConfirm(null)}
+        />
+      )}
+
+      {/* Crear recibo prellenado desde esta cita */}
+      {showReceipt && (
+        <NewReceiptModal
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+          onCreated={() => { setShowReceipt(false); toast('Recibo creado'); }}
+          prefill={receiptPrefill}
+        />
+      )}
+
+      {/* Lightbox del comprobante — ampliar para revisar a detalle */}
+      {proofOpen && payment?.proofImageUrl && (
+        <div className="fixed inset-0 z-[70] bg-black/80 flex items-center justify-center p-4" onClick={() => setProofOpen(false)}>
+          <button className="absolute top-4 right-4 text-white/80 hover:text-white" onClick={() => setProofOpen(false)}>
+            <X className="w-6 h-6" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={payment.proofImageUrl} alt="Comprobante de pago" className="max-w-full max-h-[88vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          <a href={payment.proofImageUrl} target="_blank" rel="noopener noreferrer"
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 text-xs font-semibold text-white bg-white/15 hover:bg-white/25 px-3 py-2 rounded-full"
+            onClick={(e) => e.stopPropagation()}>
+            <ExternalLink className="w-3.5 h-3.5" /> Abrir original
+          </a>
+        </div>
+      )}
     </div>
   );
 }

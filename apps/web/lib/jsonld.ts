@@ -78,7 +78,7 @@ export function beautySalonLd(opts: BusinessOpts = {}) {
     '@id': `${SITE.url}#salon`,
     name: SITE.name,
     image: `${SITE.url}${SITE.ogImage}`,
-    logo: `${SITE.url}/logo.png`,
+    logo: `${SITE.url}/icons/icon-512.png`,
     url: SITE.url,
     telephone: opts.phone,
     email: opts.email,
@@ -88,7 +88,7 @@ export function beautySalonLd(opts: BusinessOpts = {}) {
     address: {
       '@type': 'PostalAddress',
       streetAddress: opts.street || 'Lima',
-      addressLocality: opts.district || 'Surco',
+      addressLocality: opts.district || 'Cieneguilla',
       addressRegion: 'Lima',
       addressCountry: 'PE',
     },
@@ -100,7 +100,9 @@ export function beautySalonLd(opts: BusinessOpts = {}) {
     openingHoursSpecification: hoursSpec.length ? hoursSpec : undefined,
     sameAs: SAME_AS,
     areaServed: [
-      { '@type': 'City', name: 'Lima' },
+      { '@type': 'City', name: 'Cieneguilla' },
+      { '@type': 'City', name: 'La Molina' },
+      { '@type': 'City', name: 'Pachacámac' },
       { '@type': 'AdministrativeArea', name: 'Lima Metropolitana' },
     ],
     hasOfferCatalog: {
@@ -133,7 +135,7 @@ export function organizationLd() {
     '@id': `${SITE.url}#org`,
     name: SITE.name,
     url: SITE.url,
-    logo: `${SITE.url}/logo.png`,
+    logo: `${SITE.url}/icons/icon-512.png`,
     sameAs: SAME_AS,
   };
 }
@@ -174,7 +176,10 @@ export function serviceLd(s: ServiceOpts) {
     description: s.description,
     serviceType: s.category || 'Beauty Service',
     provider: { '@id': `${SITE.url}#salon` },
-    areaServed: { '@type': 'City', name: 'Lima' },
+    areaServed: [
+      { '@type': 'City', name: 'Cieneguilla' },
+      { '@type': 'AdministrativeArea', name: 'Lima Metropolitana' },
+    ],
     url: `${SITE.url}/servicios/${s.slug}`,
     image: s.image ? (s.image.startsWith('http') ? s.image : `${SITE.url}${s.image}`) : undefined,
     offers: {

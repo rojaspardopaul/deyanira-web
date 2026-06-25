@@ -1,6 +1,6 @@
 // ─── Core domain types ────────────────────────────────────────────────────────
 
-export type AptStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show';
+export type AptStatus = 'pending' | 'confirmed' | 'in_progress' | 'cancelled' | 'completed' | 'no_show';
 
 export type CalView = 'month' | 'week' | 'day' | 'resource' | 'agenda';
 
@@ -18,9 +18,40 @@ export type Appointment = {
   atHome?: boolean;
   atHomeDistrict?: string;
   onDutyStaff?: boolean;
-  service: { id: string; name: string; duration: number };
+  bookingGroupId?: string | null;
+  packageId?: string | null;
+  /** Paquete (novia/quinceañera): el precio se muestra a nivel paquete y el
+   *  eventType da el icono/color del badge en el calendario. */
+  package?: {
+    id: string;
+    name: string;
+    pricePen?: number | string | null;
+    groupLabel?: string | null;
+    trialAddonServiceId?: string | null;
+    eventType?: { id: string; name: string; slug: string; icon?: string | null; accentColor?: string | null } | null;
+  } | null;
+  service: {
+    id: string;
+    name: string;
+    duration: number;
+    category?: { id: string; name: string; slug: string; icon?: string | null } | null;
+  };
   staff: { id: string; name: string } | null;
-  customer?: { name?: string; phone?: string; email?: string } | null;
+  customer?: { id?: string; name?: string; phone?: string; email?: string } | null;
+};
+
+// Pago/adelanto asociado a un grupo de reserva (paquete con adelanto)
+export type BookingPaymentInfo = {
+  id: string;
+  status: 'pending' | 'awaiting_verification' | 'paid' | 'rejected' | 'expired';
+  proofImageUrl?: string | null;
+  method?: string | null;
+  totalPen: number | string;
+  depositPen: number | string;
+  paidPen: number | string;
+  balancePen: number | string;
+  receiptNumber?: string | null;
+  customerName?: string | null;
 };
 
 export type StaffMember = { id: string; name: string };

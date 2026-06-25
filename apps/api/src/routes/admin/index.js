@@ -6,22 +6,18 @@ const cache = require('../../lib/cache');
 const { revalidateFrontend } = require('../../lib/revalidate');
 const { parsePagination, paginate } = require('../../lib/pagination');
 const { validate } = require('../../lib/validate');
+const { BadRequest } = require('../../lib/errors');
 const S = require('./schemas');
 const prisma = require('../../lib/prisma');
 const logger = require('../../lib/logger');
 const accountingRouter = require('./accounting');
 const mfaRouter = require('./mfa');
 const eventTypesAdminRouter = require('./event-types');
-const {
-  sendAppointmentConfirmation,
-  sendAppointmentCancelled,
-  sendAppointmentCompleted,
-  sendOrderStatusUpdate,
-  sendBookingConfirmation,
-  sendDepositReceipt,
-} = require('../../lib/notifications/email');
-const { scheduleItems, assertNoConflicts } = require('../../lib/booking/scheduleBatch');
-const { markDepositPaid, generateReceiptNumber } = require('../../lib/payments/bookingDeposit');
+const { crearRouterAdminCitas } = require('../../modules/appointments/presentation/appointments.admin.routes');
+const { crearRouterAdminAdelantos } = require('../../modules/booking-payments/presentation/booking-payments.admin.routes');
+const { crearRouterAdminRecibos } = require('../../modules/receipts/presentation/receipts.admin.routes');
+const { crearRouterAdminFinanzas } = require('../../modules/financial/presentation/financial.admin.routes');
+const { sendOrderStatusUpdate } = require('../../lib/notifications/email');
 const { randomUUID } = require('crypto');
 
 const router = Router();
@@ -74,6 +70,12 @@ router.use('/mfa', mfaRouter);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Normaliza la lista de certificados/títulos de una estilista (array de strings).
+function sanitizeCertifications(v) {
+  if (!Array.isArray(v)) return [];
+  return v.filter((s) => typeof s === 'string').map((s) => s.trim()).filter(Boolean).slice(0, 20);
+}
+
 // Role helpers (requireRole importado de middleware/auth)
 const isSuperAdmin = requireRole('super_admin');
 // eslint-disable-next-line no-unused-vars
@@ -99,7 +101,6 @@ function pick(obj, keys) {
   return result;
 }
 
-const APPOINTMENT_STATUSES = ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'];
 const ORDER_STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
 const PAYMENT_STATUSES = ['pending', 'paid', 'failed'];
 const PROMOTION_TYPES = ['percent', 'fixed'];
@@ -130,459 +131,32 @@ router.get('/dashboard', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── Citas ─────────────────────────────────────────────────────
-router.post('/appointments', async (req, res, next) => {
-  try {
-    const { staffId, serviceId, date, startTime, endTime, guestName, guestPhone, guestEmail, notes, status } = req.body;
+// ── Gestión admin de citas (módulo, Strangler Fig completado) ─
+// El módulo appointments es la ÚNICA implementación de la gestión admin de citas:
+// GET/POST /appointments, POST /appointments/confirm-group, PATCH /appointments/:id
+// y POST /appointments/package (alta de paquete + adelanto). Ya no queda lógica de
+// citas en este god-file. Lo de abajo (/booking-payments/*) es gestión de adelantos.
+router.use(crearRouterAdminCitas());
 
-    if (!serviceId || !date || !startTime || !endTime) {
-      return res.status(400).json({ error: 'serviceId, date, startTime y endTime son requeridos' });
-    }
-    // staffId opcional → estilista de turno
-    const resolvedStaffId = (staffId && staffId !== 'on-duty') ? staffId : null;
-    if (resolvedStaffId && !UUID_RE.test(resolvedStaffId)) {
-      return res.status(400).json({ error: 'staffId inválido' });
-    }
-    if (!UUID_RE.test(serviceId)) {
-      return res.status(400).json({ error: 'serviceId inválido' });
-    }
-    const TIME_RE_LOCAL = /^\d{2}:\d{2}$/;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !TIME_RE_LOCAL.test(startTime) || !TIME_RE_LOCAL.test(endTime)) {
-      return res.status(400).json({ error: 'Formato de fecha u hora inválido' });
-    }
-    if (startTime >= endTime) {
-      return res.status(400).json({ error: 'La hora de fin debe ser posterior a la hora de inicio' });
-    }
-    if (!guestName || !String(guestName).trim()) {
-      return res.status(400).json({ error: 'Nombre del cliente es requerido' });
-    }
+// ── Adelantos / pagos de reserva (módulo booking-payments) ────
+// Toda la gestión admin de adelantos vive en el módulo booking-payments:
+// GET /booking-payments (listado), POST /booking-payments/:id/verify (aprobar/
+// rechazar comprobante) y POST /booking-payments/:id/record (registro manual).
+router.use(crearRouterAdminAdelantos());
 
-    // Validar que la fecha no esté en el pasado (Lima)
-    const todayLima = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    if (date < todayLima) {
-      return res.status(400).json({ error: 'No se pueden crear citas en fechas pasadas' });
-    }
-    // Si la fecha es hoy, validar que la hora no haya pasado
-    if (date === todayLima) {
-      const nowLima = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit' });
-      if (startTime < nowLima) {
-        return res.status(400).json({ error: 'La hora seleccionada ya pasó' });
-      }
-    }
+// ── Recibos (módulo receipts) ─────────────────────────────────
+// Recibos de cualquier cobro con historial de abonos, PDF y envío por correo:
+// GET/POST /receipts, GET /receipts/:id, POST /receipts/:id/payments|cancel|
+// send-email, GET /receipts/:id/pdf.
+router.use(crearRouterAdminRecibos());
 
-    const service = await prisma.service.findUnique({ where: { id: serviceId } });
-    if (!service) return res.status(404).json({ error: 'Servicio no encontrado' });
-
-    const appointmentDate = new Date(date + 'T12:00:00Z');
-    const aptStatus = APPOINTMENT_STATUSES.includes(status) ? status : 'confirmed';
-
-    // Validar conflicto: si hay estilista específico, no debe tener otra cita activa que se solape
-    if (resolvedStaffId) {
-      const conflict = await prisma.appointment.findFirst({
-        where: {
-          staffId: resolvedStaffId,
-          date: appointmentDate,
-          status: { in: ['pending', 'confirmed'] },
-          startTime: { lt: endTime },
-          endTime: { gt: startTime },
-        },
-        include: { service: true },
-      });
-      if (conflict) {
-        return res.status(409).json({
-          error: `La estilista ya tiene una cita de "${conflict.service.name}" entre ${conflict.startTime} y ${conflict.endTime}`,
-        });
-      }
-    }
-
-    const appointment = await prisma.appointment.create({
-      data: {
-        staffId: resolvedStaffId,
-        onDutyStaff: !resolvedStaffId,
-        serviceId,
-        date: appointmentDate,
-        startTime, endTime,
-        status: aptStatus,
-        totalPen: service.pricePen,
-        notes: notes ? String(notes).slice(0, 500) : null,
-        guestName: String(guestName).slice(0, 100),
-        guestPhone: guestPhone ? String(guestPhone).slice(0, 20) : null,
-        guestEmail: guestEmail ? String(guestEmail).slice(0, 100) : null,
-      },
-      include: { service: true, staff: true },
-    });
-    res.status(201).json(appointment);
-  } catch (err) { next(err); }
-});
-
-router.get('/appointments', async (req, res, next) => {
-  try {
-    const { date, dateFrom, dateTo, staffId, status } = req.query;
-    const where = {};
-    if (date && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      where.date = new Date(date + 'T12:00:00Z');
-    } else if (dateFrom || dateTo) {
-      where.date = {};
-      if (dateFrom && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
-        where.date.gte = new Date(dateFrom + 'T00:00:00Z');
-      }
-      if (dateTo && /^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
-        where.date.lte = new Date(dateTo + 'T23:59:59Z');
-      }
-    }
-    // Estilista only sees their own appointments
-    if (req.admin.role === 'estilista') {
-      where.staffId = req.admin.staffId || 'none';
-    } else {
-      if (staffId && UUID_RE.test(staffId)) where.staffId = staffId;
-    }
-    if (status && APPOINTMENT_STATUSES.includes(status)) where.status = status;
-
-    const include = {
-      service: true,
-      staff: true,
-      customer: true,
-      package: {
-        select: {
-          id: true, name: true,
-          eventType: { select: { id: true, name: true, slug: true, accentColor: true, icon: true } },
-        },
-      },
-    };
-    const orderBy = [{ date: 'asc' }, { startTime: 'asc' }];
-
-    const pg = parsePagination(req.query);
-    if (pg.hasPage) {
-      const result = await paginate(prisma.appointment, { where, include, orderBy }, pg);
-      return res.json(result);
-    }
-    // Legacy (sin ?page): array con tope de seguridad
-    const appointments = await prisma.appointment.findMany({ where, include, orderBy, take: 2000 });
-    res.json(appointments);
-  } catch (err) { next(err); }
-});
-
-// ── Confirmar todas las citas de un paquete en una fecha (un solo email) ──
-router.post('/appointments/confirm-group', async (req, res, next) => {
-  try {
-    const { packageId, date, customerKey } = req.body;
-    if (!packageId || !UUID_RE.test(packageId)) return res.status(400).json({ error: 'packageId inválido' });
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'date debe ser YYYY-MM-DD' });
-    if (!customerKey) return res.status(400).json({ error: 'customerKey requerido (guestEmail o customerId)' });
-
-    const dateObj = new Date(date + 'T12:00:00Z');
-    // Encontrar todas las citas del mismo paquete + fecha + customer
-    const isUuid = UUID_RE.test(customerKey);
-    const filter = isUuid ? { customerId: customerKey } : { guestEmail: customerKey };
-    const group = await prisma.appointment.findMany({
-      where: { packageId, date: dateObj, status: { in: ['pending', 'confirmed'] }, ...filter },
-      include: { service: true, staff: true, package: { include: { eventType: true } } },
-      orderBy: { startTime: 'asc' },
-    });
-    if (group.length === 0) return res.status(404).json({ error: 'No hay citas en este grupo' });
-
-    // Confirmar todas
-    await prisma.appointment.updateMany({
-      where: { id: { in: group.map(a => a.id) }, status: 'pending' },
-      data: { status: 'confirmed' },
-    });
-
-    // Email único de confirmación al cliente
-    const first = group[0];
-    const clientEmail = first.guestEmail || (first.customer && first.customer.email);
-    const clientName = first.guestName || (first.customer && first.customer.name) || 'Cliente';
-    if (clientEmail) {
-      // Recargar con status confirmado
-      const updated = await prisma.appointment.findMany({
-        where: { id: { in: group.map(a => a.id) } },
-        include: { service: true, staff: true },
-        orderBy: { startTime: 'asc' },
-      });
-      const { sendBookingConfirmation } = require('../../lib/notifications/email');
-      const pkg = first.package;
-      sendBookingConfirmation({
-        appointments: updated,
-        packageInfo: pkg ? { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType } : null,
-        email: clientEmail,
-        name: clientName,
-        atHomeExtraPen: first.atHomeExtraPen,
-      }).catch(err => logger.error('email_failed', { msg: err.message }));
-    }
-
-    res.json({ ok: true, count: group.length });
-  } catch (err) { next(err); }
-});
-
-router.patch('/appointments/:id', async (req, res, next) => {
-  try {
-    const { status, staffId: assignStaffId, notes } = req.body;
-
-    // Estilista cannot cancel
-    if (req.admin.role === 'estilista' && status === 'cancelled') {
-      return res.status(403).json({ error: 'No tienes permiso para cancelar citas' });
-    }
-
-    const data = {};
-    if (status) {
-      if (!APPOINTMENT_STATUSES.includes(status)) {
-        return res.status(400).json({ error: 'Estado de cita inválido' });
-      }
-      data.status = status;
-    }
-    if (assignStaffId !== undefined) {
-      if (assignStaffId && !UUID_RE.test(assignStaffId)) {
-        return res.status(400).json({ error: 'staffId inválido' });
-      }
-      // Verificar que no haya conflicto al reasignar
-      if (assignStaffId) {
-        const current = await prisma.appointment.findUnique({ where: { id: req.params.id } });
-        if (current) {
-          const conflict = await prisma.appointment.findFirst({
-            where: {
-              id: { not: req.params.id },
-              staffId: assignStaffId,
-              date: current.date,
-              status: { in: ['pending', 'confirmed'] },
-              startTime: { lt: current.endTime },
-              endTime: { gt: current.startTime },
-            },
-            include: { service: true },
-          });
-          if (conflict) {
-            return res.status(409).json({
-              error: `Esa estilista ya tiene una cita de "${conflict.service.name}" entre ${conflict.startTime} y ${conflict.endTime}`,
-            });
-          }
-        }
-      }
-      data.staffId = assignStaffId || null;
-      data.onDutyStaff = !assignStaffId;
-    }
-    if (notes !== undefined) data.notes = notes ? String(notes).slice(0, 500) : null;
-    if (!Object.keys(data).length) return res.status(400).json({ error: 'Nada que actualizar' });
-
-    const updated = await prisma.appointment.update({
-      where: { id: req.params.id },
-      data,
-      include: {
-        service: true, staff: true,
-        package: { include: { eventType: true } },
-      },
-    });
-
-    // Enviar email al cliente cuando cambia el estado.
-    // POLÍTICA: para citas de PAQUETE NO enviamos email aquí. El admin debe usar
-    // el botón "Confirmar grupo" (POST /admin/appointments/confirm-group) para que
-    // se envíe un único email consolidado con todas las citas del paquete en esa fecha.
-    if (status) {
-      const clientEmail = updated.guestEmail;
-      const clientName  = updated.guestName || 'Cliente';
-      const isPackage = !!updated.packageId;
-      if (clientEmail) {
-        if (status === 'confirmed' && !isPackage) {
-          sendAppointmentConfirmation({ appointment: updated, email: clientEmail, name: clientName }).catch(console.error);
-        } else if (status === 'cancelled') {
-          sendAppointmentCancelled({ appointment: updated, email: clientEmail, name: clientName, reason: 'Cancelado por el salón' }).catch(console.error);
-        } else if (status === 'completed' && !isPackage) {
-          sendAppointmentCompleted({ appointment: updated, email: clientEmail, name: clientName }).catch(console.error);
-        }
-      }
-    }
-
-    res.json(updated);
-  } catch (err) { next(err); }
-});
-
-// ── Alta de reserva de PAQUETE (multi-servicio) + adelanto opcional ──
-// Crea N citas confirmadas en un grupo y, si se registra adelanto, su BookingPayment + recibo.
-router.post('/appointments/package', async (req, res, next) => {
-  try {
-    const {
-      packageId, items, date, startTime,
-      guestName, guestPhone, guestEmail, customerId, notes,
-      recordDeposit, depositPaidPen, method, proofImageUrl,
-    } = req.body;
-
-    if (!packageId || !UUID_RE.test(packageId)) return res.status(400).json({ error: 'packageId inválido' });
-    if (!Array.isArray(items) || items.length === 0) return res.status(400).json({ error: 'items requerido' });
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return res.status(400).json({ error: 'date debe ser YYYY-MM-DD' });
-    if (!/^\d{2}:\d{2}$/.test(startTime || '')) return res.status(400).json({ error: 'startTime inválido' });
-    if (!guestName || !String(guestName).trim()) return res.status(400).json({ error: 'Nombre del cliente requerido' });
-
-    const todayLima = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Lima' });
-    if (date < todayLima) return res.status(400).json({ error: 'No se pueden crear citas en el pasado' });
-
-    const pkg = await prisma.servicePackage.findUnique({
-      where: { id: packageId },
-      include: { eventType: { select: { id: true, name: true, slug: true } } },
-    });
-    if (!pkg) return res.status(404).json({ error: 'Paquete no encontrado' });
-
-    // Cargar servicios de los items (acepta inactivos por ser de paquete)
-    const serviceIds = Array.from(new Set(items.map((i) => i.serviceId)));
-    const services = await prisma.service.findMany({
-      where: { id: { in: serviceIds } },
-      include: { modifierGroups: { include: { options: true } } },
-    });
-    const serviceById = new Map(services.map((s) => [s.id, s]));
-    for (const it of items) {
-      if (!it.serviceId || !UUID_RE.test(it.serviceId) || !serviceById.has(it.serviceId)) {
-        return res.status(404).json({ error: `Servicio inválido en items` });
-      }
-    }
-
-    const scheduled = scheduleItems({ items, serviceById, date, startTime });
-    const bookingGroupId = randomUUID();
-    const total = Number(pkg.pricePen);
-
-    let created;
-    try {
-      created = await prisma.$transaction(async (tx) => {
-        await assertNoConflicts(tx, scheduled);
-        const rows = [];
-        for (let i = 0; i < scheduled.length; i++) {
-          const s = scheduled[i];
-          const appt = await tx.appointment.create({
-            data: {
-              onDutyStaff: s.onDutyStaff,
-              staffId: s.staffId,
-              serviceId: s.serviceId,
-              packageId: pkg.id,
-              bookingGroupId,
-              date: new Date(s.date + 'T12:00:00Z'),
-              startTime: s.startTime,
-              endTime: s.endTime,
-              status: 'confirmed', // alta admin = confirmada
-              totalPen: i === 0 ? total : 0,
-              notes: i === 0 ? (notes ? String(notes).slice(0, 500) : null) : null,
-              customerId: (customerId && UUID_RE.test(customerId)) ? customerId : null,
-              guestName: String(guestName).slice(0, 100),
-              guestPhone: guestPhone ? String(guestPhone).slice(0, 20) : null,
-              guestEmail: guestEmail ? String(guestEmail).slice(0, 100) : null,
-            },
-            include: { service: true, staff: true },
-          });
-          rows.push(appt);
-        }
-        return rows;
-      });
-    } catch (err) {
-      if (err.status === 409) return res.status(409).json({ error: err.message });
-      throw err;
-    }
-
-    // Registro de adelanto (si aplica)
-    let payment = null;
-    if (recordDeposit) {
-      const depositPercent = pkg.depositPercent ?? 50;
-      const depositPen = Math.round(total * depositPercent) / 100;
-      const paid = depositPaidPen != null ? Number(depositPaidPen) : depositPen;
-      const balance = Math.max(0, Math.round((total - paid) * 100) / 100);
-      const receiptNumber = await generateReceiptNumber(prisma);
-      payment = await prisma.bookingPayment.create({
-        data: {
-          bookingGroupId,
-          packageId: pkg.id,
-          customerId: (customerId && UUID_RE.test(customerId)) ? customerId : null,
-          customerName: String(guestName).slice(0, 100),
-          customerEmail: guestEmail || null,
-          customerPhone: guestPhone || null,
-          totalPen: total,
-          depositPercent,
-          depositPen,
-          paidPen: paid,
-          balancePen: balance,
-          method: method || 'cash',
-          status: 'paid',
-          proofImageUrl: proofImageUrl || null,
-          receiptNumber,
-          verifiedBy: req.admin?.id || null,
-          verifiedAt: new Date(),
-        },
-      });
-      if (guestEmail) {
-        const appts = await prisma.appointment.findMany({
-          where: { bookingGroupId }, include: { service: true, staff: true },
-          orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-        });
-        const packageInfo = { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType };
-        sendDepositReceipt({ payment, appointments: appts, packageInfo, email: guestEmail, name: guestName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-      }
-    }
-
-    res.status(201).json({ bookingGroupId, appointments: created, bookingPaymentId: payment?.id || null, receiptNumber: payment?.receiptNumber || null });
-  } catch (err) { next(err); }
-});
-
-// ── Adelantos / pagos de reserva ──────────────────────────────
-router.get('/booking-payments', async (req, res, next) => {
-  try {
-    const { status } = req.query;
-    const where = {};
-    if (status && ['pending', 'awaiting_verification', 'paid', 'rejected', 'expired'].includes(status)) where.status = status;
-    const payments = await prisma.bookingPayment.findMany({
-      where,
-      include: { package: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 200,
-    });
-    res.json(payments);
-  } catch (err) { next(err); }
-});
-
-// Verificar/rechazar un comprobante subido por el cliente
-router.post('/booking-payments/:id/verify', async (req, res, next) => {
-  try {
-    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'id inválido' });
-    const { approved, notes } = req.body;
-    const payment = await prisma.bookingPayment.findUnique({ where: { id: req.params.id } });
-    if (!payment) return res.status(404).json({ error: 'Pago no encontrado' });
-
-    if (!approved) {
-      const rejected = await prisma.bookingPayment.update({
-        where: { id: payment.id },
-        data: { status: 'rejected', notes: notes ? String(notes).slice(0, 500) : payment.notes, verifiedBy: req.admin?.id || null, verifiedAt: new Date() },
-      });
-      // (Opcional) email al cliente para re-subir — se omite para no spamear.
-      return res.json(rejected);
-    }
-
-    let settled;
-    try {
-      settled = await markDepositPaid(prisma, payment.id, { method: payment.method, verifiedBy: req.admin?.id || null });
-    } catch (e) {
-      if (e.status === 409) return res.status(409).json({ error: e.message });
-      throw e;
-    }
-    const email = settled.payment.customerEmail;
-    if (email) {
-      sendBookingConfirmation({ appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName, atHomeExtraPen: 0 }).catch((e) => logger.error('email_failed', { msg: e.message }));
-      sendDepositReceipt({ payment: settled.payment, appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-    }
-    res.json(settled.payment);
-  } catch (err) { next(err); }
-});
-
-// Registrar manualmente un adelanto sobre un grupo existente (efectivo/yape/etc)
-router.post('/booking-payments/:id/record', async (req, res, next) => {
-  try {
-    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'id inválido' });
-    const { method, paidPen } = req.body;
-    let settled;
-    try {
-      settled = await markDepositPaid(prisma, req.params.id, { method: method || 'cash', paidPen, verifiedBy: req.admin?.id || null });
-    } catch (e) {
-      if (e.status === 404) return res.status(404).json({ error: e.message });
-      if (e.status === 409) return res.status(409).json({ error: e.message });
-      throw e;
-    }
-    const email = settled.payment.customerEmail;
-    if (email) {
-      sendDepositReceipt({ payment: settled.payment, appointments: settled.appointments, packageInfo: settled.packageInfo, email, name: settled.payment.customerName }).catch((e) => logger.error('email_failed', { msg: e.message }));
-    }
-    res.json(settled.payment);
-  } catch (err) { next(err); }
-});
+// ── Centro Financiero (módulo financial) ──────────────────────
+// Libro mayor central (financial_movements) + cuentas. KPIs del dashboard,
+// timeline de movimientos, alta/anulación manual y CRUD de cajas:
+// GET /finanzas/resumen|serie|movimientos|cuentas, POST /finanzas/movimientos,
+// POST /finanzas/movimientos/:id/anular, POST|PATCH /finanzas/cuentas.
+// La captura manual heredada (/accounting/*) se conserva y proyecta al ledger.
+router.use(crearRouterAdminFinanzas());
 
 // ── Servicios ─────────────────────────────────────────────────
 router.get('/services', async (_req, res, next) => {
@@ -1064,6 +638,23 @@ router.patch('/orders/:id', validate({ params: S.IdParam, body: S.OrderUpdate })
       sendOrderStatusUpdate({ order, email: orderEmail, newStatus: data.status }).catch(console.error);
     }
 
+    // Proyección al libro mayor: venta de productos cuando el pedido queda pagado.
+    // Idempotente por (source order + orderId), así que no duplica con Culqi.
+    if (data.paymentStatus === 'paid') {
+      const { proyectarMovimiento } = require('../../modules/financial');
+      proyectarMovimiento({
+        tipo: 'venta',
+        monto: Number(order.totalPen),
+        descripcion: `Pedido de productos`,
+        fecha: new Date(order.createdAt).toISOString().slice(0, 10),
+        categoria: 'productos',
+        metodoPago: order.paymentMethod || null,
+        source: 'order',
+        orderId: order.id,
+        customerId: order.customerId || null,
+      }).catch(() => {});
+    }
+
     res.json(order);
   } catch (err) { next(err); }
 });
@@ -1080,9 +671,20 @@ router.get('/staff', async (_req, res, next) => {
   try {
     const staff = await prisma.staff.findMany({
       include: { schedules: { orderBy: { dayOfWeek: 'asc' } }, staffServices: true },
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
     res.json(staff);
+  } catch (err) { next(err); }
+});
+
+// PUT /staff/reorder — reordena las estilistas según el array de ids (índice = orden).
+// Definido ANTES de /staff/:id para que no lo capture la ruta param.
+router.put('/staff/reorder', async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id) => UUID_RE.test(id)) : [];
+    if (ids.length === 0) return res.status(400).json({ error: 'ids debe ser un array de UUIDs' });
+    await prisma.$transaction(ids.map((id, i) => prisma.staff.update({ where: { id }, data: { sortOrder: i } })));
+    res.json({ ok: true, count: ids.length });
   } catch (err) { next(err); }
 });
 
@@ -1102,6 +704,8 @@ router.post('/staff', validate({ body: S.StaffCreate }), async (req, res, next) 
   try {
     const { schedules, serviceIds } = req.body;
     const data = pick(req.body, ['name', 'role', 'photoUrl', 'bio', 'isActive']);
+    if (req.body.certifications !== undefined) data.certifications = sanitizeCertifications(req.body.certifications);
+    data.sortOrder = await prisma.staff.count(); // nuevas estilistas van al final
 
     // Si no se especifican horarios, usar el horario por defecto
     const schedulesToCreate = Array.isArray(schedules) && schedules.length > 0
@@ -1125,6 +729,7 @@ router.post('/staff', validate({ body: S.StaffCreate }), async (req, res, next) 
 router.patch('/staff/:id', validate({ params: S.IdParam }), async (req, res, next) => {
   try {
     const data = pick(req.body, ['name', 'role', 'photoUrl', 'bio', 'isActive']);
+    if (req.body.certifications !== undefined) data.certifications = sanitizeCertifications(req.body.certifications);
     const staff = await prisma.staff.update({
       where: { id: req.params.id },
       data,
@@ -1222,13 +827,37 @@ router.get('/gallery', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Hosts permitidos para URLs ya subidas (evita SSRF / URLs externas).
+function isCloudinaryUrl(u) {
+  try {
+    const url = new URL(u);
+    return url.protocol === 'https:' && (url.hostname === 'res.cloudinary.com' || url.hostname.endsWith('.cloudinary.com'));
+  } catch { return false; }
+}
+
 router.post('/gallery/upload', validate({ body: S.GalleryUpload }), async (req, res, next) => {
   try {
-    const { file, category, caption } = req.body;
-    const uploaded = await uploadImage(file, 'galeria');
+    const { file, imageUrl, thumbnailUrl, category, caption } = req.body;
+
+    let mediaUrl;
+    let posterUrl = null;
+    if (imageUrl) {
+      // Flujo nuevo: el medio (imagen o video) ya se subió a Cloudinary desde el
+      // cliente vía /admin/upload o /admin/upload-video. Solo se persiste el registro.
+      if (!isCloudinaryUrl(imageUrl)) return next(BadRequest('URL de medio no permitida'));
+      if (thumbnailUrl && !isCloudinaryUrl(thumbnailUrl)) return next(BadRequest('URL de miniatura no permitida'));
+      mediaUrl = imageUrl;
+      posterUrl = thumbnailUrl || null;
+    } else {
+      // Compat: base64 → se sube como imagen.
+      const uploaded = await uploadImage(file, 'galeria');
+      mediaUrl = uploaded.url;
+    }
+
     const photo = await prisma.gallery.create({
       data: {
-        imageUrl: uploaded.url,
+        imageUrl: mediaUrl,
+        thumbnailUrl: posterUrl,
         category: category || null,
         caption: caption ? String(caption).slice(0, 200) : null,
       },
@@ -1415,9 +1044,10 @@ router.patch('/settings', async (req, res, next) => {
       'facebookUrl', 'instagramUrl', 'tiktokUrl',
       'bookingNoticeHours', 'cancellationHours',
       'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen',
+      'storeEnabled',
       'bookingTimerSeconds',
       'bookingMinHour', 'packageMinHour',
-      'logoUrl', 'logoDarkUrl', 'logoIconUrl',
+      'logoUrl', 'logoDarkUrl', 'logoIconUrl', 'teamPhotoUrl', 'salonPhotoUrl',
       'homeSlides',
       // Datos de pago / adelanto
       'depositExpiryHours',

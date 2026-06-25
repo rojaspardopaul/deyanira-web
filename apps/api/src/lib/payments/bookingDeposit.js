@@ -54,14 +54,46 @@ async function markDepositPaid(db, paymentId, { method, paidPen, culqiChargeId =
   });
 
   const updated = await db.bookingPayment.findUnique({ where: { id: paymentId } });
+
+  // ── Proyección al libro mayor (fire-and-forget) ──────────────
+  // El adelanto pagado entra como ingreso 'adelanto' (trazable a la reserva).
+  // Idempotente por (source booking_payment + bookingPaymentId), así que un
+  // reintento o el backfill no lo duplican.
+  try {
+    const METODO_LEDGER = { cash: 'efectivo', transfer: 'transferencia', yape: 'yape', plin: 'plin', culqi: 'culqi' };
+    const { proyectarMovimiento } = require('../../modules/financial');
+    proyectarMovimiento({
+      tipo: 'adelanto',
+      monto: paid,
+      descripcion: `Adelanto reserva ${receiptNumber}`,
+      fecha: limaYmd(),
+      categoria: 'adelanto',
+      metodoPago: METODO_LEDGER[updated.method] || updated.method || null,
+      source: 'booking_payment',
+      bookingPaymentId: paymentId,
+      customerId: updated.customerId || null,
+    }).catch(() => {});
+  } catch { /* el ledger nunca rompe el flujo de pago */ }
+
   const appointments = await db.appointment.findMany({
     where: { bookingGroupId: payment.bookingGroupId },
-    include: { service: true, staff: true, package: { include: { eventType: true } } },
+    include: {
+      service: true,
+      staff: true,
+      package: { include: { eventType: true, items: { select: { serviceId: true } } } },
+    },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
   });
   const pkg = appointments.find((a) => a.package)?.package || null;
   const packageInfo = pkg
-    ? { name: pkg.name, groupLabel: pkg.groupLabel, eventType: pkg.eventType }
+    ? {
+        name: pkg.name,
+        groupLabel: pkg.groupLabel,
+        eventType: pkg.eventType,
+        pricePen: Number(pkg.pricePen) || 0,
+        includedServiceIds: (pkg.items || []).map((it) => it.serviceId).filter(Boolean),
+        trialAddonServiceId: pkg.trialAddonServiceId || null,
+      }
     : null;
 
   return { payment: updated, appointments, packageInfo, package: pkg };

@@ -46,7 +46,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
   title: {
-    default: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
+    default: 'Deyanira Makeup Beauty | Salón de Belleza en Cieneguilla, Lima',
     template: '%s | Deyanira Makeup Beauty',
   },
   description: SITE.defaultDescription,
@@ -74,20 +74,16 @@ export const metadata: Metadata = {
     type: 'website',
     locale: SITE.locale,
     siteName: SITE.name,
-    title: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
+    title: 'Deyanira Makeup Beauty | Salón de Belleza en Cieneguilla, Lima',
     description: SITE.defaultDescription,
     url: SITE.url,
-    images: [
-      { url: `${SITE.url}${SITE.ogImage}`, width: 1200, height: 630, alt: SITE.name },
-    ],
   },
   twitter: {
     card: 'summary_large_image',
     site: SITE.twitter,
     creator: SITE.twitter,
-    title: 'Deyanira Makeup Beauty | Salón de Belleza en Lima, Perú',
+    title: 'Deyanira Makeup Beauty | Salón de Belleza en Cieneguilla, Lima',
     description: SITE.defaultDescription,
-    images: [`${SITE.url}${SITE.ogImage}`],
   },
   robots: {
     index: true,

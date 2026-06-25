@@ -1,5 +1,7 @@
 'use client';
 
+import { fmtRange12 } from '@/lib/time';
+
 // Resumen simple de la reserva para mostrar en pantalla tras confirmar.
 // Sin logo, sin decoraciones — solo los datos clave.
 // El diseño "premium con logo" vive en <BookingTicket /> y se usa solo
@@ -10,6 +12,8 @@ export interface SummaryItem {
   staff: string;
   price?: number;
   isAddon?: boolean;
+  /** Servicio incluido en el paquete: muestra "Incluido en el paquete" sin monto. */
+  isIncluded?: boolean;
   options?: Array<{ label: string; delta?: number }>;
 }
 
@@ -24,6 +28,8 @@ interface Props {
   customerName: string;
   packageName?: string;
   packageLabel?: string;
+  /** Precio del paquete: se muestra en el bloque del paquete, no por servicio. */
+  packagePricePen?: number;
   dateGroups: SummaryDateGroup[];
   totalPen: number;
   atHome?: { address: string; district: string } | null;
@@ -38,7 +44,7 @@ function fmtFullDate(iso: string): string {
 }
 
 export default function BookingSummary({
-  customerName, packageName, packageLabel,
+  customerName, packageName, packageLabel, packagePricePen,
   dateGroups, totalPen, atHome,
 }: Props) {
   return (
@@ -60,13 +66,20 @@ export default function BookingSummary({
 
       {/* Paquete (si aplica) */}
       {packageName && (
-        <div className="px-5 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#D4AF37' }}>
-            Paquete
-          </p>
-          <p className="text-sm font-semibold text-white mt-1">{packageName}</p>
-          {packageLabel && (
-            <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{packageLabel}</p>
+        <div className="px-5 py-3 border-b flex items-start justify-between gap-3" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: '#D4AF37' }}>
+              Paquete
+            </p>
+            <p className="text-sm font-semibold text-white mt-1">{packageName}</p>
+            {packageLabel && (
+              <p className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>{packageLabel}</p>
+            )}
+          </div>
+          {packagePricePen != null && (
+            <p className="text-sm font-bold shrink-0 whitespace-nowrap mt-4" style={{ color: '#D4AF37' }}>
+              S/ {Number(packagePricePen).toFixed(2)}
+            </p>
           )}
         </div>
       )}
@@ -90,7 +103,7 @@ export default function BookingSummary({
                 Hora
               </p>
               <p className="text-sm font-bold text-white mt-0.5">
-                {g.startTime}{g.endTime ? ` – ${g.endTime}` : ''}
+                {fmtRange12(g.startTime, g.endTime)}
               </p>
             </div>
           </div>
@@ -104,7 +117,11 @@ export default function BookingSummary({
                     <span style={{ color: '#FF4FA2', marginRight: 6 }}>◆</span>
                     {it.name}
                   </p>
-                  {it.price != null && it.price > 0 && (
+                  {it.isIncluded ? (
+                    <p className="text-[11px] italic shrink-0 whitespace-nowrap mt-0.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      Incluido en el paquete
+                    </p>
+                  ) : it.price != null && it.price > 0 && (
                     <p className="text-sm font-bold shrink-0 whitespace-nowrap"
                       style={{ color: it.isAddon ? '#FF4FA2' : '#fff' }}>
                       {it.isAddon ? '+' : ''}S/ {it.price.toFixed(2)}

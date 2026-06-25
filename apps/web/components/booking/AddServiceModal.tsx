@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Search, X, Check, Clock, Plus, Scissors } from 'lucide-react';
+import { focalImg } from '@/lib/cloudinary-client';
+import { getCategoryTheme } from '@/lib/categoryTheme';
 
 // Popup para agregar servicios extra a una reserva sin contaminar la pantalla.
 // Incluye buscador, filtro por categorías y selección múltiple. Al confirmar,
@@ -10,12 +12,11 @@ import { Search, X, Check, Clock, Plus, Scissors } from 'lucide-react';
 type Service = {
   id: string; name: string; duration: number; pricePen: number;
   description?: string; categoryId?: string | null;
-  category?: { id: string; name: string } | null;
+  imageUrl?: string | null;
+  category?: { id: string; name: string; slug?: string | null } | null;
   [key: string]: unknown;
 };
 type Category = { id: string; name: string; icon?: string | null; slug?: string };
-
-const PINK = '#FF4FA2';
 
 export default function AddServiceModal({
   services, categories, selectedIds, onAdd, onClose,
@@ -150,32 +151,51 @@ export default function AddServiceModal({
           ) : (
             filtered.map(s => {
               const on = picked.has(s.id);
+              const t = getCategoryTheme(s.category?.slug, s.category?.name);
+              const im = s.imageUrl ? focalImg(s.imageUrl, 220) : null;
               return (
                 <button key={s.id} onClick={() => togglePick(s.id)}
-                  className="w-full text-left rounded-2xl p-3.5 transition-all duration-200 active:scale-[0.98]"
-                  style={on ? {
-                    background: 'rgba(255,79,162,0.1)', border: '2px solid rgba(255,79,162,0.5)',
-                  } : {
-                    background: 'rgba(255,255,255,0.04)', border: '2px solid rgba(255,255,255,0.08)',
+                  className="w-full text-left rounded-2xl p-2.5 transition-all duration-200 active:scale-[0.98]"
+                  style={{
+                    background: '#fff',
+                    border: on ? `2px solid ${t.accent}` : '2px solid transparent',
+                    boxShadow: on ? `0 6px 18px ${t.accent}40` : '0 2px 10px rgba(0,0,0,0.18)',
                   }}>
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-all"
-                      style={on
-                        ? { background: 'linear-gradient(135deg, #FF4FA2, #e6368a)', boxShadow: '0 2px 8px rgba(255,79,162,0.4)' }
-                        : { background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.15)' }}>
-                      {on && <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
+                    {/* Thumb: imagen real o degradado+emoji de la categoría */}
+                    <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center text-xl shrink-0"
+                      style={{ background: t.gradient, boxShadow: `0 3px 10px ${t.accent}33` }}>
+                      {im
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={im.src} alt={s.name} loading="lazy" decoding="async" className="w-full h-full object-cover" style={{ objectPosition: im.objectPosition }} />
+                        : <span aria-hidden="true">{t.emoji}</span>}
                     </div>
+
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-white leading-tight">{s.name}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3 shrink-0" style={{ color: 'rgba(255,255,255,0.3)' }} />
-                        <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{s.duration} min</span>
+                      {s.category?.name && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold mb-1"
+                          style={{ background: t.soft, color: t.chipText }}>
+                          {t.emoji} {s.category.name}
+                        </span>
+                      )}
+                      <p className="font-bold text-[13.5px] leading-tight line-clamp-1" style={{ color: '#171013' }}>{s.name}</p>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3 shrink-0" style={{ color: t.accent }} />
+                        <span className="text-[11px] font-medium" style={{ color: '#9b8089' }}>{s.duration} min</span>
                       </div>
                     </div>
-                    <span className="font-bold text-base shrink-0"
-                      style={{ color: on ? PINK : 'rgba(255,255,255,0.7)' }}>
-                      S/ {Number(s.pricePen).toFixed(0)}
-                    </span>
+
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <span className="font-extrabold text-[15px]" style={{ color: '#171013' }}>S/{Number(s.pricePen).toFixed(0)}</span>
+                      <span className="w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                        style={on
+                          ? { background: t.accent, boxShadow: `0 2px 8px ${t.accent}55` }
+                          : { background: '#f1edef', border: '1.5px solid #e2dadf' }}>
+                        {on
+                          ? <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                          : <Plus className="w-3.5 h-3.5" style={{ color: '#b3a1a9' }} />}
+                      </span>
+                    </div>
                   </div>
                 </button>
               );
