@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 # ── Build stage ──────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 
 # Seguridad: no ejecutar como root incluso en build
 RUN apk add --no-cache dumb-init openssl
@@ -29,7 +29,7 @@ RUN npm ci --omit=dev --workspace apps/api --include-workspace-root \
 COPY apps/api ./apps/api
 
 # ── Runtime stage (mínima) ───────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:26-alpine AS runner
 
 # Chromium del sistema para Puppeteer (recibos PDF). El binario empaquetado de
 # puppeteer no corre sobre musl/Alpine, así que usamos el de los repos de Alpine.
