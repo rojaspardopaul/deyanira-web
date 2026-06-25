@@ -31,7 +31,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "lru-cache": "^10.4.3",
-    "otplib": "^12.0.1",
+    "otplib": "^13.4.1",
     "prisma": "^5.22.0",
     "puppeteer": "^25.1.0",
     "qrcode": "^1.5.4",
