@@ -116,7 +116,7 @@ function PackageCard({
           style={
             inCompare
               ? { background: '#3b82f6', color: 'white', boxShadow: '0 4px 14px rgba(59,130,246,0.35)' }
-              : { background: 'rgba(255,255,255,0.95)', color: '#1f2937', border: '1px solid rgba(0,0,0,0.12)', backdropFilter: 'blur(8px)' }
+              : { background: '#ffffff', color: '#1f2937', border: '1px solid rgba(0,0,0,0.12)' }
           }
         >
           {inCompare ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
@@ -200,8 +200,8 @@ function PackageCard({
             {/* Servicio de prueba — siempre visible, tachado cuando el toggle está apagado */}
             {pkg.trialAddon && (
               <li
-                className="flex items-start gap-2 text-sm transition-opacity"
-                style={{ color: '#3a2630', opacity: trialOn ? 1 : 0.55 }}
+                className="flex items-start gap-2 text-sm"
+                style={{ color: trialOn ? '#3a2630' : '#9b8e95' }}
               >
                 <Check className="w-4 h-4 mt-0.5 shrink-0" style={{ color: trialOn ? accent : '#9ca3af' }} />
                 <span className="flex-1 inline-flex flex-wrap items-baseline gap-1.5">
