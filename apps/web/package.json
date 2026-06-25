@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@deyanira/contracts": "*",
-    "@supabase/ssr": "^0.5.2",
+    "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.46.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
