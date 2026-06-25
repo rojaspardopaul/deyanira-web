@@ -1,13 +1,17 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { Upload, X, Loader2, ImagePlus, RotateCw, Film } from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { Upload, X, Loader2, ImagePlus, RotateCw, Film, Move } from 'lucide-react';
 import { adminApi } from '@/lib/api';
+import { clImage, getFocal, withFocal, stripFocal, isCloudinaryUrl } from '@/lib/cloudinary-client';
+import { IMAGE_SLOTS, type ImageSlotKey } from '@/lib/imagePresets';
 
-type Folder = 'galeria' | 'productos' | 'servicios' | 'staff' | 'blog' | 'general' | 'logos' | 'eventos' | 'paquetes' | 'catalogos' | 'addons' | 'carrusel';
+type Folder = 'galeria' | 'productos' | 'servicios' | 'staff' | 'blog' | 'general' | 'logos' | 'eventos' | 'paquetes' | 'catalogos' | 'addons' | 'carrusel' | 'equipo';
 
 const ACCEPTED_IMAGE = 'image/jpeg,image/jpg,image/png,image/webp,image/gif';
 const ACCEPTED_VIDEO = 'video/mp4,video/webm,video/quicktime,video/x-matroska';
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
 
 export function ImageUploader({
   value,
@@ -16,6 +20,7 @@ export function ImageUploader({
   label,
   helpText,
   aspect = '16/9',
+  slot,
   className = '',
   onError,
   accept = 'image',
@@ -26,8 +31,14 @@ export function ImageUploader({
   folder?: Folder;
   label?: string;
   helpText?: string;
-  /** CSS aspect-ratio for the preview area, e.g. '16/9', '1/1', '4/3' */
+  /** CSS aspect-ratio for the preview area, e.g. '16/9', '1/1', '4/3'. Lo sobreescribe `slot`. */
   aspect?: string;
+  /**
+   * Slot de imagen (ver `lib/imagePresets.ts`). Si se pasa, el preview muestra la
+   * imagen EXACTAMENTE como saldrá en la web (mismo recorte que el público) y,
+   * si el slot recorta, habilita un punto focal arrastrable.
+   */
+  slot?: ImageSlotKey;
   className?: string;
   onError?: (msg: string) => void;
   /** 'image' (default), 'video', o 'both' para permitir ambos. */
@@ -39,8 +50,59 @@ export function ImageUploader({
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
 
-  const isVideoUrl = !!value && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(value);
+  const slotDef = slot ? IMAGE_SLOTS[slot] : null;
+  const effAspect = slotDef?.aspect ?? aspect;
 
+  const base = stripFocal(value);
+  const isVideoUrl = !!base && /\.(mp4|webm|mov|mkv)(\?|$)/i.test(base);
+  const isCloud = isCloudinaryUrl(base);
+  // El punto focal aplica solo a slots que recortan, sobre una imagen (no video).
+  const focalEnabled = !!slotDef?.crops && !!value && !isVideoUrl;
+
+  // ── Punto focal (x,y normalizados) ──────────────────────────
+  const [focal, setFocal] = useState<{ x: number; y: number }>(() => getFocal(value) ?? { x: 0.5, y: 0.5 });
+  const focalRef = useRef(focal);
+  const setFocalBoth = useCallback((f: { x: number; y: number }) => { focalRef.current = f; setFocal(f); }, []);
+  // Resetea el focal SOLO cuando cambia la imagen de fondo (no al editar el fragmento).
+  useEffect(() => {
+    const f = getFocal(value) ?? { x: 0.5, y: 0.5 };
+    focalRef.current = f;
+    setFocal(f);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [base]);
+
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [draggingFocal, setDraggingFocal] = useState(false);
+
+  const focalFromEvent = useCallback((clientX: number, clientY: number) => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setFocalBoth({
+      x: clamp01((clientX - r.left) / r.width),
+      y: clamp01((clientY - r.top) / r.height),
+    });
+  }, [setFocalBoth]);
+
+  function onFocalPointerDown(e: React.PointerEvent) {
+    if (!focalEnabled) return;
+    if ((e.target as HTMLElement).closest('button')) return; // no interferir con Cambiar/Quitar
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDraggingFocal(true);
+    focalFromEvent(e.clientX, e.clientY);
+  }
+  function onFocalPointerMove(e: React.PointerEvent) {
+    if (!draggingFocal) return;
+    focalFromEvent(e.clientX, e.clientY);
+  }
+  function commitFocal() {
+    if (!draggingFocal) return;
+    setDraggingFocal(false);
+    if (value) onChange(withFocal(value, focalRef.current.x, focalRef.current.y));
+  }
+
+  // ── Subida ──────────────────────────────────────────────────
   async function handleFile(file: File) {
     const isVideo = file.type.startsWith('video/');
     const isImage = file.type.startsWith('image/');
@@ -91,6 +153,13 @@ export function ImageUploader({
     if (f) handleFile(f);
   }
 
+  // ── Fuentes de imagen para el preview ───────────────────────
+  // Imagen base optimizada (sin recorte) para previews tipo cover con object-position.
+  const coverSrc = isCloud ? clImage(base, { w: 1280, crop: 'limit' }) : (base || '');
+  // Imagen ya recortada/padded por Cloudinary (slots que NO recortan).
+  const renderedSrc = slotDef ? slotDef.render(value) : '';
+  const objPos = `${(focal.x * 100).toFixed(1)}% ${(focal.y * 100).toFixed(1)}%`;
+
   return (
     <div className={className}>
       {label && (
@@ -111,42 +180,138 @@ export function ImageUploader({
       />
 
       {value ? (
-        // ── Con imagen/video: preview + acciones ──
-        <div
-          className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 group"
-          style={{ aspectRatio: aspect }}
-        >
-          {isVideoUrl ? (
-            <video src={value} muted loop autoPlay playsInline className="w-full h-full object-cover" />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={value} alt="" className="w-full h-full object-contain bg-black/5" />
-          )}
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
-            <button
-              type="button"
-              onClick={openPicker}
-              disabled={uploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-semibold text-gray-800 shadow disabled:opacity-50"
+        slotDef ? (
+          // ── WYSIWYG: se ve como en la web ──
+          <>
+            <div
+              ref={wrapRef}
+              className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 select-none"
+              style={{ aspectRatio: effAspect, cursor: focalEnabled ? (draggingFocal ? 'grabbing' : 'grab') : 'default', touchAction: focalEnabled ? 'none' : undefined }}
+              onPointerDown={onFocalPointerDown}
+              onPointerMove={onFocalPointerMove}
+              onPointerUp={commitFocal}
+              onPointerCancel={commitFocal}
             >
-              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
-              Cambiar
-            </button>
-            <button
-              type="button"
-              onClick={() => onChange(null)}
-              disabled={uploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500 rounded-full text-xs font-semibold text-white shadow disabled:opacity-50"
-            >
-              <X className="w-3.5 h-3.5" /> Quitar
-            </button>
-          </div>
-          {uploading && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-              <Loader2 className="w-6 h-6 animate-spin text-white" />
+              {isVideoUrl ? (
+                <video src={base} muted loop autoPlay playsInline className="w-full h-full object-cover" />
+              ) : slotDef.crops ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverSrc} alt="" draggable={false} className="w-full h-full object-cover" style={{ objectPosition: objPos }} />
+              ) : (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={renderedSrc} alt="" draggable={false} className="w-full h-full object-contain bg-black/5" />
+              )}
+
+              {/* Punto focal */}
+              {focalEnabled && (
+                <div
+                  className="absolute z-20 pointer-events-none"
+                  style={{ left: `${focal.x * 100}%`, top: `${focal.y * 100}%`, transform: 'translate(-50%, -50%)' }}
+                >
+                  <span className="block w-7 h-7 rounded-full border-2 border-white bg-amber-500/40 shadow-[0_0_0_2px_rgba(0,0,0,0.35)] backdrop-blur-[1px]" />
+                  <Move className="w-3.5 h-3.5 text-white absolute inset-0 m-auto drop-shadow" />
+                </div>
+              )}
+
+              {/* Acciones (esquina, fuera del centro de arrastre) */}
+              <div className="absolute top-2 right-2 z-30 flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={openPicker}
+                  disabled={uploading}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-white/95 rounded-full text-[11px] font-semibold text-gray-800 shadow disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+                  Cambiar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onChange(null)}
+                  disabled={uploading}
+                  className="inline-flex items-center justify-center w-7 h-7 bg-red-500 rounded-full text-white shadow disabled:opacity-50"
+                  title="Quitar"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {uploading && (
+                <div className="absolute inset-0 z-40 bg-black/40 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-white" />
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {focalEnabled && (
+              <p className="text-[10px] text-amber-700 mt-1 font-semibold flex items-center gap-1">
+                <Move className="w-3 h-3" /> Arrastra el punto para elegir qué parte se ve en la web
+              </p>
+            )}
+
+            {/* Tiles de otras superficies del mismo archivo */}
+            {slotDef.also && slotDef.also.length > 0 && !isVideoUrl && (
+              <div className="flex flex-wrap gap-3 mt-2">
+                {slotDef.also.map((key) => {
+                  const s = IMAGE_SLOTS[key];
+                  return (
+                    <div key={key} className="text-center">
+                      <div
+                        className="rounded-lg overflow-hidden border border-gray-200 bg-gray-100"
+                        style={{ aspectRatio: s.aspect, width: 96 }}
+                      >
+                        {s.crops ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={coverSrc} alt="" className="w-full h-full object-cover" style={{ objectPosition: objPos }} />
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={s.render(value)} alt="" className="w-full h-full object-contain bg-black/5" />
+                        )}
+                      </div>
+                      <p className="text-[9px] text-gray-400 mt-0.5">{s.label}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        ) : (
+          // ── Modo clásico (sin slot): imagen completa + acciones al hover ──
+          <div
+            className="relative rounded-2xl overflow-hidden border border-gray-200 bg-gray-100 group"
+            style={{ aspectRatio: effAspect }}
+          >
+            {isVideoUrl ? (
+              <video src={base} muted loop autoPlay playsInline className="w-full h-full object-cover" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={base} alt="" className="w-full h-full object-contain bg-black/5" />
+            )}
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+              <button
+                type="button"
+                onClick={openPicker}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full text-xs font-semibold text-gray-800 shadow disabled:opacity-50"
+              >
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCw className="w-3.5 h-3.5" />}
+                Cambiar
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange(null)}
+                disabled={uploading}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-500 rounded-full text-xs font-semibold text-white shadow disabled:opacity-50"
+              >
+                <X className="w-3.5 h-3.5" /> Quitar
+              </button>
+            </div>
+            {uploading && (
+              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                <Loader2 className="w-6 h-6 animate-spin text-white" />
+              </div>
+            )}
+          </div>
+        )
       ) : (
         // ── Sin imagen: dropzone ──
         <button
@@ -158,7 +323,7 @@ export function ImageUploader({
           disabled={uploading}
           className="w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed transition-colors disabled:opacity-50"
           style={{
-            aspectRatio: aspect,
+            aspectRatio: effAspect,
             background: dragOver ? 'rgba(245,158,11,0.05)' : '#fafafa',
             borderColor: dragOver ? '#f59e0b' : '#e5e7eb',
           }}
@@ -185,7 +350,7 @@ export function ImageUploader({
                   ? 'MP4, WebM — máx. 50 MB'
                   : accept === 'both'
                     ? 'Imagen (8MB) o video MP4/WebM (50MB)'
-                    : 'JPG, PNG, WebP — máx. 8 MB'}
+                    : 'JPG, PNG, WebP — máx. 8 MB · se guarda en WebP'}
               </p>
               {recommendedSize && (
                 <p className="text-[10px] text-amber-700 mt-1 px-3 text-center font-semibold">

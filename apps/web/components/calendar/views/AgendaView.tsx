@@ -6,6 +6,8 @@ import { aptDateStr, clientName, toYMD, addDays } from '../utils/date';
 import { fmtTime12 } from '../utils/time';
 import { STATUS } from '../status';
 import { MONTH_NAMES } from '../constants';
+import { eventTypeIcon } from '../utils/package';
+import { CategoryChip, AtHomeChip } from '../blocks/AptIndicators';
 import type { Appointment, AptStatus } from '../types';
 
 type AgendaViewProps = {
@@ -127,13 +129,24 @@ export function AgendaView({
 
                         {/* Content */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-xs font-bold text-gray-800">
                               {clientName(apt)}
                             </span>
                             <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${cfg.bgLight} ${cfg.text}`}>
                               {cfg.label}
                             </span>
+                            <CategoryChip apt={apt} />
+                            {apt.package?.eventType && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold leading-none"
+                                style={{ backgroundColor: `${apt.package.eventType.accentColor || '#d4af37'}22`, color: apt.package.eventType.accentColor || '#a9821f' }}
+                                title={`Paquete ${apt.package.eventType.name}`}
+                              >
+                                {eventTypeIcon(apt.package.eventType)} {apt.package.name}
+                              </span>
+                            )}
+                            <AtHomeChip apt={apt} />
                           </div>
                           <p className="text-xs text-gray-500 truncate mt-0.5">
                             {apt.service.name}

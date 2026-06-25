@@ -9,6 +9,8 @@ import { Toast, type ToastState } from '@/components/ui/Toast';
 import { ImageUploader } from '@/components/ui/ImageUploader';
 import { confirmAction } from '@/lib/confirm';
 import { HL, Danger } from '@/components/ui/highlight';
+import { ZoomableImage } from '@/components/catalog/ZoomableImage';
+import { clImage } from '@/lib/cloudinary-client';
 
 type CatalogItemRow = {
   id: string;
@@ -152,12 +154,16 @@ export default function AdminCatalogDetailPage() {
           Object.entries(groups).map(([groupLabel, items]) => (
             <section key={groupLabel} className="mb-6">
               <h2 className="font-bold text-lg mb-3">{groupLabel}</h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-3">
                 {items.map((it) => (
-                  <article key={it.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <article key={it.id} className="mb-3 break-inside-avoid bg-white rounded-2xl border border-gray-100 overflow-hidden">
                     {it.imageUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={it.imageUrl} alt={it.title} className="w-full aspect-[4/3] object-cover" />
+                      <ZoomableImage
+                        src={clImage(it.imageUrl, { w: 800, crop: 'limit' })}
+                        full={clImage(it.imageUrl, { w: 1600, crop: 'limit' })}
+                        alt={it.title}
+                        className="w-full h-auto"
+                      />
                     )}
                     <div className="p-3">
                       <h3 className="font-bold text-sm">{it.title}</h3>
@@ -215,7 +221,7 @@ export default function AdminCatalogDetailPage() {
                 onChange={(url) => setForm({ ...form, imageUrl: url || '' })}
                 folder="catalogos"
                 label="Imagen del item"
-                aspect="4/3"
+                slot="catalogItem"
                 onError={(msg) => setToast({ type: 'error', msg })}
               />
               <div className="grid grid-cols-3 gap-3">

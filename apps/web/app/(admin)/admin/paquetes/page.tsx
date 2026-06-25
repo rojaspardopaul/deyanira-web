@@ -366,7 +366,7 @@ export default function AdminPaquetesPage() {
                 folder="eventos"
                 label="Imagen principal (hero)"
                 helpText="Se muestra como fondo del evento en /servicios/[slug]"
-                aspect="21/9"
+                slot="eventHero"
                 onError={(msg) => setToast({ type: 'error', msg })}
               />
 

@@ -18,7 +18,7 @@ import type { Appointment } from '../types';
 export function useAppointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
-  const channelRef = useRef<ReturnType<typeof import('@supabase/ssr').createBrowserClient> extends { channel: (...a: any[]) => infer C } ? C : unknown | null>(null);
+  const channelRef = useRef<unknown>(null);
 
   const load = useCallback(async (params: URLSearchParams) => {
     setLoading(true);

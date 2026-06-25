@@ -80,9 +80,20 @@ export class CrearPaqueteAdmin {
 
     const scheduled = this.scheduler.programar({ items: c.items, serviceById, date: c.date, startTime: c.startTime });
     const bookingGroupId = randomUUID();
-    const total = Number(pkg.pricePen);
+    const pkgPrice = Number(pkg.pricePen);
 
-    // Alta admin: la primera cita lleva el precio del paquete; el resto 0.
+    // Precio por cita: el servicio adicional (prueba) lleva SU propio precio
+    // (addonPricePen); el precio del paquete va a la primera cita NO-addon (sin
+    // depender del orden, por si el addon —fecha anterior— quedara primero); el
+    // resto de servicios incluidos = 0 (van dentro del precio del paquete).
+    let pkgAssigned = false;
+    const totals = scheduled.map((s) => {
+      if ((s.addonPricePen || 0) > 0) return Number(s.addonPricePen) || 0;
+      if (!pkgAssigned) { pkgAssigned = true; return pkgPrice; }
+      return 0;
+    });
+    const grandTotal = totals.reduce((sum, n) => sum + Number(n || 0), 0);
+
     const lineas: LineaReserva[] = scheduled.map((s, i) => ({
       onDutyStaff: s.onDutyStaff,
       staffId: s.staffId,
@@ -90,18 +101,19 @@ export class CrearPaqueteAdmin {
       date: s.date,
       startTime: s.startTime,
       endTime: s.endTime,
-      totalPen: i === 0 ? total : 0,
+      totalPen: totals[i],
     }));
 
     // Adelanto (si el admin lo registra): se guarda como pagado + recibo.
+    // El adelanto se calcula sobre el TOTAL de la reserva (paquete + addon).
     let deposito: DepositoAdminInput | null = null;
     if (c.recordDeposit) {
       const depositPercent = pkg.depositPercent ?? DEPOSITO_PORCENTAJE_DEFECTO;
-      const depositPen = Math.round(total * depositPercent) / 100;
+      const depositPen = Math.round(grandTotal * depositPercent) / 100;
       const paidPen = c.depositPaidPen != null ? Number(c.depositPaidPen) : depositPen;
-      const balancePen = Math.max(0, Math.round((total - paidPen) * 100) / 100);
+      const balancePen = Math.max(0, Math.round((grandTotal - paidPen) * 100) / 100);
       deposito = {
-        total,
+        total: grandTotal,
         depositPercent,
         depositPen,
         paidPen,
@@ -127,15 +139,22 @@ export class CrearPaqueteAdmin {
       deposito,
     });
 
-    // Recibo de adelanto al cliente (fire-and-forget en el adaptador).
-    if (payment && c.guestEmail) {
+    // Aviso al cliente (el alta admin deja la reserva CONFIRMADA), fire-and-forget:
+    //   · con adelanto → recibo de adelanto (que ya comunica la confirmación),
+    //   · sin adelanto → correo de confirmación de la reserva.
+    if (c.guestEmail) {
       const paquete = infoPaqueteDesde(pkg);
       const ordenadas = [...created].sort(
         (a, b) =>
           String(a.date).localeCompare(String(b.date)) ||
           String(a.startTime).localeCompare(String(b.startTime)),
       );
-      this.notificador.reciboAdelanto(payment, ordenadas, { email: c.guestEmail, nombre: String(c.guestName) }, paquete);
+      const contacto = { email: c.guestEmail, nombre: String(c.guestName) };
+      if (payment) {
+        this.notificador.reciboAdelanto(payment, ordenadas, contacto, paquete);
+      } else {
+        this.notificador.reservaConfirmada(ordenadas, contacto, paquete, null);
+      }
     }
 
     return {

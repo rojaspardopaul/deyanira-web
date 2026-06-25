@@ -13,18 +13,22 @@ type CalendarSidebarProps = {
   staffList: StaffMember[];
   staffVisibility: Record<string, boolean>;
   hiddenStatuses: AptStatus[];
+  categoryOptions: { slug: string; name: string }[];
+  hiddenCategories: string[];
   closedDaysOfWeek?: Set<number>;
   onDateSelect: (date: string) => void;
   onToggleStaff: (id: string) => void;
   onToggleStatus: (s: AptStatus) => void;
+  onToggleCategory: (slug: string) => void;
   onClose: () => void;
 };
 
 export function CalendarSidebar({
   open, curDate, today, markedDates,
   staffList, staffVisibility, hiddenStatuses,
+  categoryOptions, hiddenCategories,
   closedDaysOfWeek,
-  onDateSelect, onToggleStaff, onToggleStatus,
+  onDateSelect, onToggleStaff, onToggleStatus, onToggleCategory,
   onClose,
 }: CalendarSidebarProps) {
   return (
@@ -49,6 +53,9 @@ export function CalendarSidebar({
             onToggleStaff={onToggleStaff}
             hiddenStatuses={hiddenStatuses}
             onToggleStatus={onToggleStatus}
+            categoryOptions={categoryOptions}
+            hiddenCategories={hiddenCategories}
+            onToggleCategory={onToggleCategory}
           />
         </div>
       </aside>
@@ -82,6 +89,9 @@ export function CalendarSidebar({
           onToggleStaff={onToggleStaff}
           hiddenStatuses={hiddenStatuses}
           onToggleStatus={onToggleStatus}
+          categoryOptions={categoryOptions}
+          hiddenCategories={hiddenCategories}
+          onToggleCategory={onToggleCategory}
         />
       </div>
     </>

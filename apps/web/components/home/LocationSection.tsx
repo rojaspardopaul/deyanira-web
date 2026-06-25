@@ -6,9 +6,9 @@ import { useSalonSettings } from '@/lib/useSalonSettings';
 const LAT = -12.1109913;
 const LNG = -76.8182017;
 
-// OpenStreetMap — no requiere API key, siempre funciona
+// Google Maps embed — mismo lugar real del negocio que en /contacto (sin API key)
 const MAP_EMBED_URL =
-  `https://www.openstreetmap.org/export/embed.html?bbox=${LNG - 0.01}%2C${LAT - 0.01}%2C${LNG + 0.01}%2C${LAT + 0.01}&layer=mapnik&marker=${LAT}%2C${LNG}`;
+  'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3901.6!2d-76.8182017!3d-12.1109913!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x9105eb6d5ce17247%3A0xce4bf1bb73951425!2sSalon%20%7C%20Deyanira%20Makeup%20Beauty%20%7C%20Profesional!5e0!3m2!1ses!2spe';
 
 const GMAPS_URL = `https://www.google.com/maps/search/?api=1&query=${LAT},${LNG}`;
 
@@ -17,7 +17,7 @@ export default function LocationSection() {
 
   const address = s
     ? [s.address, s.district, s.city || 'Lima'].filter(Boolean).join(', ')
-    : 'Villa El Salvador, Lima, Perú';
+    : 'Cieneguilla, Lima, Perú';
 
   const hours = [
     { label: 'Lun – Vie', value: s?.hoursWeekday  || '9:00 – 19:00', closed: false },

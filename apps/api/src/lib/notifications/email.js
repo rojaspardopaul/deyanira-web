@@ -285,6 +285,12 @@ function alertBoxText(text, status = 'info') { return alertBox(esc(text), status
 
 // ── Stepper de estados (línea principal de 3 pasos) ───────────
 // current ∈ 'requested' | 'confirmed' | 'completed'. Table-based (Gmail/Outlook).
+//
+// IMPORTANTE: UNA SOLA fila. Cada paso (círculo + etiqueta apilados) vive en una
+// única celda de ancho fijo; los conectores son celdas intermedias flexibles.
+// (No usar dos filas con estructuras de columna distintas: Gmail reconcilia los
+// anchos entre filas, comprime las celdas → círculos deformados en óvalos y
+// etiquetas desalineadas, como se veía antes.)
 function statusStepper(current) {
   const steps = [
     { key: 'requested', label: 'Solicitada' },
@@ -294,36 +300,45 @@ function statusStepper(current) {
   const idx = steps.findIndex(s => s.key === current);
   const ci = idx < 0 ? 0 : idx;
 
+  // Badge circular robusto: tabla de UNA celda con width/height iguales (atributo
+  // + estilo) y line-height = alto, dentro de una celda con holgura para que Gmail
+  // no lo comprima en óvalo. El check usa entidad HTML (no el carácter literal).
   const badge = (i) => {
     const st = i < ci ? 'done' : (i === ci ? 'active' : 'todo');
     const c = T.stepper[st];
-    const content = st === 'todo' ? String(i + 1) : '✓';
-    const border = st === 'todo' ? `border:2px solid ${T.stepper.todo.border};` : 'border:2px solid transparent;';
-    const ring = st === 'active' ? 'box-shadow:0 0 0 4px rgba(219,39,119,0.22);' : '';
-    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center"><tr>`
-      + `<td width="44" height="44" align="center" valign="middle" style="width:44px;height:44px;background:${c.bg};border-radius:50%;${border}${ring}font-family:${T.font.sans};font-size:16px;font-weight:700;color:${c.fg};">${content}</td>`
+    const content = st === 'todo' ? String(i + 1) : '&#10003;';
+    const border = st === 'todo' ? `border:2px solid ${T.stepper.todo.border};` : '';
+    return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr>`
+      + `<td width="40" height="40" align="center" valign="middle" bgcolor="${c.bg}" style="width:40px;min-width:40px;height:40px;line-height:40px;background:${c.bg};border-radius:50%;${border}font-family:${T.font.sans};font-size:15px;font-weight:700;color:${c.fg};mso-line-height-rule:exactly;">${content}</td>`
       + `</tr></table>`;
   };
-  const seg = (i) => {
-    const done = i < ci;
-    return `<td valign="middle" style="padding:0 2px;"><div style="height:3px;border-radius:3px;background:${done ? T.color.gold : 'rgba(212,175,55,0.28)'};line-height:3px;font-size:0;">&nbsp;</div></td>`;
-  };
-  const labelCell = (i) => {
+
+  // Celda completa de un paso: círculo + etiqueta apilados en el mismo eje (sin
+  // reconciliación de columnas entre filas → nada se deforma ni se desalinea).
+  const stepCell = (i) => {
     const st = i < ci ? 'done' : (i === ci ? 'active' : 'todo');
     const col = st === 'todo' ? T.stepper.todo.fg : T.color.cream;
-    const sub = st === 'active'
-      ? `<div style="font-size:10px;font-weight:600;color:${T.color.primaryGlow};margin-top:3px;">¡Aquí estás!</div>`
+    const sub = i === ci
+      ? `<div style="font-size:10px;font-weight:600;color:${T.color.primaryGlow};margin-top:2px;line-height:1.2;">¡Aquí estás!</div>`
       : '';
-    return `<td width="78" align="center" style="padding-top:9px;font-family:${T.font.sans};font-size:11px;font-weight:700;color:${col};">${esc(steps[i].label)}${sub}</td>`;
+    return `<td width="84" align="center" valign="top">`
+      + badge(i)
+      + `<div style="margin-top:8px;font-family:${T.font.sans};font-size:11px;font-weight:700;color:${col};line-height:1.3;">${esc(steps[i].label)}${sub}</div>`
+      + `</td>`;
   };
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 22px;">
+  // Conector: celda flexible, alineada al centro vertical del círculo (≈20px).
+  const connector = (i) => {
+    const done = i < ci;
+    return `<td valign="top" style="padding:19px 4px 0;font-size:0;line-height:0;">`
+      + `<div style="height:2px;border-radius:2px;background:${done ? T.color.gold : 'rgba(212,175,55,0.30)'};line-height:2px;font-size:0;">&nbsp;</div>`
+      + `</td>`;
+  };
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
     <tr>
-      <td width="78" align="center" valign="top">${badge(0)}</td>${seg(0)}
-      <td width="78" align="center" valign="top">${badge(1)}</td>${seg(1)}
-      <td width="78" align="center" valign="top">${badge(2)}</td>
+      ${stepCell(0)}${connector(0)}${stepCell(1)}${connector(1)}${stepCell(2)}
     </tr>
-    <tr>${labelCell(0)}<td></td>${labelCell(1)}<td></td>${labelCell(2)}</tr>
   </table>`;
 }
 
@@ -453,7 +468,7 @@ function bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen }) {
     return `<tr>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};border-bottom:1px solid ${T.color.rowLine};">
         <strong>${esc(apt.service?.name || '—')}</strong>
-        <div style="font-size:11px;color:${T.color.textFaint};margin-top:2px;">${esc(fmt12(apt.startTime))} – ${esc(fmt12(apt.endTime))} · ${esc(staffName)}</div>
+        <div style="font-size:11px;color:${T.color.textFaint};margin-top:2px;">${apt.date ? `${esc(capFirst(fmtShort(apt.date)))} · ` : ''}${esc(fmt12(apt.startTime))} – ${esc(fmt12(apt.endTime))} · ${esc(staffName)}</div>
       </td>
       <td style="padding:11px 16px;font-family:${T.font.sans};font-size:13px;color:${T.color.cream};text-align:right;border-bottom:1px solid ${T.color.rowLine};white-space:nowrap;">
         ${priceCell}
@@ -947,10 +962,12 @@ async function sendDepositReceipt({ payment, appointments = [], packageInfo, ema
   const methodLabel = { culqi: 'Tarjeta', yape: 'Yape', plin: 'Plin', transfer: 'Transferencia', cash: 'Efectivo' }[payment.method] || '—';
   const receiptUrl = `${WEB_URL}/reserva/${payment.id}/recibo`;
 
+  const titulo = packageInfo ? '¡Reserva confirmada!' : '¡Cita confirmada!';
   const body = `
-    ${heading('💳', '¡Adelanto confirmado!')}
+    ${statusStepper('confirmed')}
+    ${heading('🎉', titulo)}
     ${greeting(name || payment.customerName)}
-    ${bodyText(`Recibimos el adelanto de tu reserva${packageInfo ? ` del paquete <strong style="color:#f6ecf0;">${esc(packageInfo.name)}</strong>` : ''}. Aquí tu recibo:`)}
+    ${bodyText(`Tu reserva${packageInfo ? ` del paquete <strong style="color:#f6ecf0;">${esc(packageInfo.name)}</strong>` : ''} quedó <strong style="color:#f6ecf0;">confirmada</strong> y registramos tu adelanto. Aquí el detalle y tu recibo:`)}
     ${appointments.length ? bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen: 0 }) : ''}
     ${infoTable([
       ['N° de recibo', payment.receiptNumber || '—'],
@@ -959,13 +976,13 @@ async function sendDepositReceipt({ payment, appointments = [], packageInfo, ema
       ['Saldo pendiente', { html: `<strong style="color:${T.color.warning.fg};">${esc(fmtPrice(saldo))}</strong>` }],
       ['Método de pago', methodLabel],
     ])}
-    ${alertBox('El <strong>saldo pendiente</strong> se paga el día del servicio. ¡Te esperamos!', 'success')}
+    ${alertBox('✅ <strong>Tu cita está reservada.</strong> El <strong>saldo pendiente</strong> se paga el día del servicio. ¡Te esperamos!', 'success')}
     ${ctaBtn('Ver / imprimir recibo', receiptUrl)}
   `;
   await safeSend('deposit_receipt', {
     to: email,
-    subject: `Adelanto confirmado · Recibo ${payment.receiptNumber || ''} — ${SALON}`,
-    html: baseHtml('Adelanto confirmado', body, settings),
+    subject: `${titulo} · Recibo ${payment.receiptNumber || ''} — ${SALON}`,
+    html: baseHtml('Reserva confirmada', body, settings),
   });
 }
 
@@ -1042,6 +1059,40 @@ async function sendOrderProofToSalon({ order }) {
   });
 }
 
+// ════════════════════════════════════════════════════════════
+//  RECIBOS (módulo receipts) — recibo de cualquier cobro con PDF adjunto
+// ════════════════════════════════════════════════════════════
+async function sendReceiptEmail({ receipt, pdfBuffer, email, name }) {
+  if (!canSend() || !email) return;
+  const settings = await getEmailSettings();
+  const total  = Number(receipt.totalPen || 0);
+  const pagado = Number(receipt.paidPen || 0);
+  const saldo  = Number(receipt.balancePen != null ? receipt.balancePen : total - pagado);
+
+  const body = `
+    ${heading('🧾', 'Tu recibo')}
+    ${greeting(name || receipt.customerName)}
+    ${bodyText(`Adjuntamos tu recibo <strong style="color:#f6ecf0;">${esc(receipt.receiptNumber || '')}</strong> en PDF. Aquí el resumen:`)}
+    ${infoTable([
+      ['N° de recibo', receipt.receiptNumber || '—'],
+      ...(receipt.title ? [['Concepto', receipt.title]] : []),
+      ['Total', fmtPrice(total)],
+      ['Pagado', { html: `<strong style="color:${T.color.positive};">${esc(fmtPrice(pagado))}</strong>` }],
+      ['Saldo', { html: `<strong style="color:${saldo > 0 ? T.color.warning.fg : T.color.positive};">${esc(fmtPrice(saldo))}</strong>` }],
+    ])}
+    ${saldo <= 0
+      ? alertBox('✅ <strong>Pago completo.</strong> ¡Gracias por tu preferencia!', 'success')
+      : alertBox(`Queda un saldo pendiente de <strong>${esc(fmtPrice(saldo))}</strong>.`, 'info')}
+    ${SALON_PHONE ? ctaBtnGhost('Escribir por WhatsApp', `https://wa.me/${SALON_PHONE}`) : ''}
+  `;
+  await safeSend('receipt', {
+    to: email,
+    subject: `Recibo ${receipt.receiptNumber || ''} — ${SALON}`,
+    html: baseHtml('Tu recibo', body, settings),
+    attachments: pdfBuffer ? [{ filename: `Recibo-${receipt.receiptNumber || 'recibo'}.pdf`, content: pdfBuffer }] : undefined,
+  });
+}
+
 module.exports = {
   // línea principal (stepper)
   sendAppointmentRequested,
@@ -1065,6 +1116,7 @@ module.exports = {
   sendDepositProofReceived,
   sendDepositProofToSalon,
   sendOrderProofToSalon,
+  sendReceiptEmail,
   // helpers exportados por si se reutilizan
   baseHtml, getEmailSettings,
   heading, greeting, bodyText, ctaBtn, ctaBtnGhost, alertBox, goldDivider,

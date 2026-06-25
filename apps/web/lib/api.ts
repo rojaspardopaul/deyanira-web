@@ -14,6 +14,10 @@ import { customersApi, bookingsApi } from '@/features/account/api/account.api';
 
 export type { Paged } from '@/shared/api/client';
 export { adminAuth, adminApi } from '@/features/admin/api/admin.api';
+export type {
+  FinanceResumen, FinanceSeriePoint, FinanceMovement, FinancePage,
+  FinanceAccount, FinanceTotales, FinanceDesglose, FinanceVoucher, FinanceConciliacion, FinanceSugerencia,
+} from '@/features/admin/api/admin.api';
 
 // ── API pública (barrel por feature) ──────────────────────
 export const api = {

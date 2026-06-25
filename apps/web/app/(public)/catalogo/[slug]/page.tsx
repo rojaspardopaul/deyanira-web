@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation';
 import { ChevronLeft, Sparkles, Clock, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { buildMetadata } from '@/lib/seo';
+import { ZoomableImage } from '@/components/catalog/ZoomableImage';
+import { clImage } from '@/lib/cloudinary-client';
 
 type CatalogItem = {
   id: string;
@@ -87,13 +89,16 @@ export default async function CatalogPage({ params }: { params: Promise<{ slug: 
               <h2 className="font-display font-bold italic text-2xl md:text-3xl mb-4" style={{ color: '#0F0F0F' }}>
                 {group.label}
               </h2>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="columns-1 sm:columns-2 lg:columns-3 gap-4">
                 {group.items.map((it) => (
-                  <article key={it.id} className="bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-all">
+                  <article key={it.id} className="mb-4 break-inside-avoid bg-white rounded-2xl overflow-hidden border border-gray-100 hover:shadow-md transition-all">
                     {it.imageUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={it.imageUrl} alt={it.title}
-                        className="w-full aspect-[4/3] object-cover" />
+                      <ZoomableImage
+                        src={clImage(it.imageUrl, { w: 900, crop: 'limit' })}
+                        full={clImage(it.imageUrl, { w: 1600, crop: 'limit' })}
+                        alt={it.title}
+                        className="w-full h-auto"
+                      />
                     ) : (
                       <div className="w-full aspect-[4/3]" style={{ background: 'linear-gradient(135deg, #E8C04022, #FF4FA222)' }} />
                     )}

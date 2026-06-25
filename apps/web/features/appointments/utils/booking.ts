@@ -110,17 +110,23 @@ export async function tryNativeShareWithFile(blob: Blob, text: string): Promise<
   }
 }
 
+// Recargo por servicio a domicilio. La SEDE del salón es Cieneguilla, así que las
+// distancias son km aproximados DESDE Cieneguilla. Fórmula: base + (km - kmBase) * tarifa/km.
+// Debe mantenerse IDÉNTICA a la del backend (apps/api .../ConfiguracionDomicilioPrisma.ts)
+// para que el estimado mostrado coincida con el recargo realmente cobrado.
+const AT_HOME_DIST_KM: Record<string, number> = {
+  Cieneguilla: 0, Pachacámac: 12, 'La Molina': 14, Chaclacayo: 16, Ate: 18, Lurín: 18,
+  Lurigancho: 20, 'Santa Anita': 20, Surco: 22, 'San Borja': 22, 'San Luis': 22, 'El Agustino': 22,
+  'San Juan de Lurigancho': 24, 'La Victoria': 26, Surquillo: 26, 'Lima Cercado': 27, Lince: 27,
+  Breña: 28, 'Jesús María': 28, 'Villa María del Triunfo': 28, Rímac: 29, Miraflores: 30,
+  'San Isidro': 30, 'Pueblo Libre': 31, Barranco: 32, Magdalena: 32, Chorrillos: 33,
+  'Villa El Salvador': 33, 'San Miguel': 34, 'San Martín de Porres': 36, Independencia: 37,
+  'Los Olivos': 38, Comas: 42, Carabayllo: 46, 'Puente Piedra': 48, Otro: 30,
+};
+
 export function atHomeExtra(district: string) {
-  const DIST_KM: Record<string, number> = {
-    Surco: 2, 'La Molina': 6, 'San Borja': 6, Miraflores: 7, 'San Isidro': 8, Barranco: 9,
-    Chorrillos: 10, Ate: 8, 'Santa Anita': 12, 'La Victoria': 12, Lince: 12, 'Jesús María': 13,
-    Magdalena: 13, 'Pueblo Libre': 14, 'San Miguel': 15, 'El Agustino': 13, 'Lima Cercado': 14,
-    Rímac: 15, Breña: 15, 'Villa María del Triunfo': 16, 'Villa El Salvador': 18,
-    'Los Olivos': 22, 'San Martín de Porres': 20, Independencia: 21, Comas: 26,
-    'San Juan de Lurigancho': 20, Otro: 20,
-  };
-  const km = DIST_KM[district] ?? 20;
-  return Math.round((20 + Math.max(0, km - 5) * 3) * 100) / 100;
+  const km = AT_HOME_DIST_KM[district] ?? 30;
+  return Math.round((120 + Math.max(0, km - 15) * 4) * 100) / 100;
 }
 
 export function computeDisplayEnd(

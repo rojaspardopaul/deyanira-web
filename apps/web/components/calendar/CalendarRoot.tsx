@@ -55,6 +55,7 @@ export function CalendarRoot({
   const [selectedTime, setSelectedTime]       = useState<string | null>(null);
   const [selectedApt, setSelectedApt]         = useState<Appointment | null>(null);
   const [hiddenStatuses, setHiddenStatuses]   = useState<AptStatus[]>(defaultHiddenStatuses);
+  const [hiddenCategories, setHiddenCategories] = useState<string[]>([]); // slugs de categoría ocultas
   const [staffVisibility, setStaffVisibility] = useState<Record<string, boolean>>({});
   const [sidebarOpen, setSidebarOpen]         = useState(false);
   const [closedDaysOfWeek, setClosedDaysOfWeek] = useState<Set<number>>(new Set());
@@ -227,14 +228,28 @@ export function CalendarRoot({
 
   const weekStart = getWeekStart(new Date(curDate + 'T12:00:00'));
 
-  // Appointments filtered by staff visibility (for all views)
+  // Appointments filtered by staff visibility + category (for all views).
+  // El filtro de categoría va aquí (no en cada vista) para que aplique uniforme.
   const visibleAppointments = useMemo(() =>
     appointments.filter(a => {
       if (a.staff && staffVisibility[a.staff.id] === false) return false;
+      const slug = a.service.category?.slug;
+      if (slug && hiddenCategories.includes(slug)) return false;
       return true;
     }),
-    [appointments, staffVisibility],
+    [appointments, staffVisibility, hiddenCategories],
   );
+
+  // Categorías presentes en las citas cargadas (leyenda + filtro de la barra lateral).
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>(); // slug -> name
+    for (const a of appointments) {
+      const c = a.service.category;
+      if (c?.slug) map.set(c.slug, c.name);
+    }
+    return Array.from(map, ([slug, name]) => ({ slug, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [appointments]);
 
   // Staff list filtered by visibility (for ResourceView columns)
   const filteredStaffList = useMemo(() =>
@@ -321,6 +336,10 @@ export function CalendarRoot({
     setHiddenStatuses(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   }
 
+  function toggleCategory(slug: string) {
+    setHiddenCategories(prev => prev.includes(slug) ? prev.filter(x => x !== slug) : [...prev, slug]);
+  }
+
   function toggleStaffVisibility(id: string) {
     setStaffVisibility(prev => ({ ...prev, [id]: prev[id] !== false }));
   }
@@ -371,10 +390,13 @@ export function CalendarRoot({
           staffList={staffList}
           staffVisibility={staffVisibility}
           hiddenStatuses={hiddenStatuses}
+          categoryOptions={categoryOptions}
+          hiddenCategories={hiddenCategories}
           closedDaysOfWeek={closedDaysOfWeek}
           onDateSelect={handleSidebarDateSelect}
           onToggleStaff={toggleStaffVisibility}
           onToggleStatus={toggleHidden}
+          onToggleCategory={toggleCategory}
           onClose={() => setSidebarOpen(false)}
         />
 

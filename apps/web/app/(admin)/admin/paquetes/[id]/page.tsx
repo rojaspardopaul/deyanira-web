@@ -640,7 +640,7 @@ export default function AdminEventDetailPage() {
                 folder="paquetes"
                 label="Imagen del paquete"
                 helpText="Se muestra en la card del paquete"
-                aspect="16/9"
+                slot="packageCard"
                 onError={(msg) => setToast({ type: 'error', msg })}
               />
 

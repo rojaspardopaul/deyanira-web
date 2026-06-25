@@ -15,6 +15,8 @@ const mfaRouter = require('./mfa');
 const eventTypesAdminRouter = require('./event-types');
 const { crearRouterAdminCitas } = require('../../modules/appointments/presentation/appointments.admin.routes');
 const { crearRouterAdminAdelantos } = require('../../modules/booking-payments/presentation/booking-payments.admin.routes');
+const { crearRouterAdminRecibos } = require('../../modules/receipts/presentation/receipts.admin.routes');
+const { crearRouterAdminFinanzas } = require('../../modules/financial/presentation/financial.admin.routes');
 const { sendOrderStatusUpdate } = require('../../lib/notifications/email');
 const { randomUUID } = require('crypto');
 
@@ -67,6 +69,12 @@ router.use((req, res, next) => {
 router.use('/mfa', mfaRouter);
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Normaliza la lista de certificados/títulos de una estilista (array de strings).
+function sanitizeCertifications(v) {
+  if (!Array.isArray(v)) return [];
+  return v.filter((s) => typeof s === 'string').map((s) => s.trim()).filter(Boolean).slice(0, 20);
+}
 
 // Role helpers (requireRole importado de middleware/auth)
 const isSuperAdmin = requireRole('super_admin');
@@ -135,6 +143,20 @@ router.use(crearRouterAdminCitas());
 // GET /booking-payments (listado), POST /booking-payments/:id/verify (aprobar/
 // rechazar comprobante) y POST /booking-payments/:id/record (registro manual).
 router.use(crearRouterAdminAdelantos());
+
+// ── Recibos (módulo receipts) ─────────────────────────────────
+// Recibos de cualquier cobro con historial de abonos, PDF y envío por correo:
+// GET/POST /receipts, GET /receipts/:id, POST /receipts/:id/payments|cancel|
+// send-email, GET /receipts/:id/pdf.
+router.use(crearRouterAdminRecibos());
+
+// ── Centro Financiero (módulo financial) ──────────────────────
+// Libro mayor central (financial_movements) + cuentas. KPIs del dashboard,
+// timeline de movimientos, alta/anulación manual y CRUD de cajas:
+// GET /finanzas/resumen|serie|movimientos|cuentas, POST /finanzas/movimientos,
+// POST /finanzas/movimientos/:id/anular, POST|PATCH /finanzas/cuentas.
+// La captura manual heredada (/accounting/*) se conserva y proyecta al ledger.
+router.use(crearRouterAdminFinanzas());
 
 // ── Servicios ─────────────────────────────────────────────────
 router.get('/services', async (_req, res, next) => {
@@ -616,6 +638,23 @@ router.patch('/orders/:id', validate({ params: S.IdParam, body: S.OrderUpdate })
       sendOrderStatusUpdate({ order, email: orderEmail, newStatus: data.status }).catch(console.error);
     }
 
+    // Proyección al libro mayor: venta de productos cuando el pedido queda pagado.
+    // Idempotente por (source order + orderId), así que no duplica con Culqi.
+    if (data.paymentStatus === 'paid') {
+      const { proyectarMovimiento } = require('../../modules/financial');
+      proyectarMovimiento({
+        tipo: 'venta',
+        monto: Number(order.totalPen),
+        descripcion: `Pedido de productos`,
+        fecha: new Date(order.createdAt).toISOString().slice(0, 10),
+        categoria: 'productos',
+        metodoPago: order.paymentMethod || null,
+        source: 'order',
+        orderId: order.id,
+        customerId: order.customerId || null,
+      }).catch(() => {});
+    }
+
     res.json(order);
   } catch (err) { next(err); }
 });
@@ -632,9 +671,20 @@ router.get('/staff', async (_req, res, next) => {
   try {
     const staff = await prisma.staff.findMany({
       include: { schedules: { orderBy: { dayOfWeek: 'asc' } }, staffServices: true },
-      orderBy: { name: 'asc' },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
     });
     res.json(staff);
+  } catch (err) { next(err); }
+});
+
+// PUT /staff/reorder — reordena las estilistas según el array de ids (índice = orden).
+// Definido ANTES de /staff/:id para que no lo capture la ruta param.
+router.put('/staff/reorder', async (req, res, next) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.filter((id) => UUID_RE.test(id)) : [];
+    if (ids.length === 0) return res.status(400).json({ error: 'ids debe ser un array de UUIDs' });
+    await prisma.$transaction(ids.map((id, i) => prisma.staff.update({ where: { id }, data: { sortOrder: i } })));
+    res.json({ ok: true, count: ids.length });
   } catch (err) { next(err); }
 });
 
@@ -654,6 +704,8 @@ router.post('/staff', validate({ body: S.StaffCreate }), async (req, res, next) 
   try {
     const { schedules, serviceIds } = req.body;
     const data = pick(req.body, ['name', 'role', 'photoUrl', 'bio', 'isActive']);
+    if (req.body.certifications !== undefined) data.certifications = sanitizeCertifications(req.body.certifications);
+    data.sortOrder = await prisma.staff.count(); // nuevas estilistas van al final
 
     // Si no se especifican horarios, usar el horario por defecto
     const schedulesToCreate = Array.isArray(schedules) && schedules.length > 0
@@ -677,6 +729,7 @@ router.post('/staff', validate({ body: S.StaffCreate }), async (req, res, next) 
 router.patch('/staff/:id', validate({ params: S.IdParam }), async (req, res, next) => {
   try {
     const data = pick(req.body, ['name', 'role', 'photoUrl', 'bio', 'isActive']);
+    if (req.body.certifications !== undefined) data.certifications = sanitizeCertifications(req.body.certifications);
     const staff = await prisma.staff.update({
       where: { id: req.params.id },
       data,
@@ -991,9 +1044,10 @@ router.patch('/settings', async (req, res, next) => {
       'facebookUrl', 'instagramUrl', 'tiktokUrl',
       'bookingNoticeHours', 'cancellationHours',
       'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen',
+      'storeEnabled',
       'bookingTimerSeconds',
       'bookingMinHour', 'packageMinHour',
-      'logoUrl', 'logoDarkUrl', 'logoIconUrl',
+      'logoUrl', 'logoDarkUrl', 'logoIconUrl', 'teamPhotoUrl', 'salonPhotoUrl',
       'homeSlides',
       // Datos de pago / adelanto
       'depositExpiryHours',

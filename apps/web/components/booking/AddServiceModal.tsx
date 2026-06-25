@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { Search, X, Check, Clock, Plus, Scissors } from 'lucide-react';
-import { clImage } from '@/lib/cloudinary-client';
+import { focalImg } from '@/lib/cloudinary-client';
 import { getCategoryTheme } from '@/lib/categoryTheme';
 
 // Popup para agregar servicios extra a una reserva sin contaminar la pantalla.
@@ -152,7 +152,7 @@ export default function AddServiceModal({
             filtered.map(s => {
               const on = picked.has(s.id);
               const t = getCategoryTheme(s.category?.slug, s.category?.name);
-              const img = s.imageUrl ? clImage(s.imageUrl, { w: 110, h: 110, crop: 'fill' }) || s.imageUrl : '';
+              const im = s.imageUrl ? focalImg(s.imageUrl, 220) : null;
               return (
                 <button key={s.id} onClick={() => togglePick(s.id)}
                   className="w-full text-left rounded-2xl p-2.5 transition-all duration-200 active:scale-[0.98]"
@@ -165,9 +165,9 @@ export default function AddServiceModal({
                     {/* Thumb: imagen real o degradado+emoji de la categoría */}
                     <div className="w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center text-xl shrink-0"
                       style={{ background: t.gradient, boxShadow: `0 3px 10px ${t.accent}33` }}>
-                      {img
+                      {im
                         // eslint-disable-next-line @next/next/no-img-element
-                        ? <img src={img} alt={s.name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+                        ? <img src={im.src} alt={s.name} loading="lazy" decoding="async" className="w-full h-full object-cover" style={{ objectPosition: im.objectPosition }} />
                         : <span aria-hidden="true">{t.emoji}</span>}
                     </div>
 

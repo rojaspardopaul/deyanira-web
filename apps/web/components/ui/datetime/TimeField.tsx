@@ -187,8 +187,8 @@ export default function TimeField({
   const labelCls = 'text-[10px] font-bold uppercase mb-1';
 
   return (
-    <div className="flex items-end justify-center gap-2">
-      <div className="flex flex-col items-center">
+    <div className="flex items-end gap-2 w-full">
+      <div className="flex flex-col items-center flex-1 min-w-0">
         <span className={labelCls} style={{ color: t.wheelColLabel }}>Hora</span>
         <input
           ref={hRef}
@@ -202,13 +202,13 @@ export default function TimeField({
           onBlur={normalizeOnBlur}
           onKeyDown={onHoursKey}
           onChange={e => onHours(e.target.value)}
-          className={`${boxBase} w-14 py-2`}
+          className={`${boxBase} w-full min-w-0 py-2`}
         />
       </div>
 
-      <span className="font-bold text-lg pb-2" style={{ color: t.wheelColLabel }}>:</span>
+      <span className="font-bold text-lg pb-2 shrink-0" style={{ color: t.wheelColLabel }}>:</span>
 
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center flex-1 min-w-0">
         <span className={labelCls} style={{ color: t.wheelColLabel }}>Min</span>
         <input
           ref={mRef}
@@ -222,12 +222,12 @@ export default function TimeField({
           onBlur={normalizeOnBlur}
           onChange={e => onMinutes(e.target.value)}
           onKeyDown={onMinutesKey}
-          className={`${boxBase} w-14 py-2`}
+          className={`${boxBase} w-full min-w-0 py-2`}
         />
       </div>
 
       {is12 && (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center shrink-0">
           <span className={labelCls} style={{ color: t.wheelColLabel }}>Período</span>
           <button
             type="button"

@@ -8,10 +8,12 @@ import DateTimePicker from '@/components/ui/datetime';
 type Obj = Record<string, unknown>;
 const money = (n: number) => `S/ ${Number(n || 0).toFixed(2)}`;
 
+type TrialAddon = { serviceId: string; name: string; duration: number; extraPricePen: number; daysBeforeMain: number };
 type PackageDetail = {
   id: string; name: string; pricePen: number;
   requiresDeposit?: boolean; depositPercent?: number;
   items: Array<{ id: string; label: string; serviceId: string | null; duration?: number }>;
+  trialAddon?: TrialAddon | null;
 };
 
 export default function PackageBookingModal({ token, onClose, onCreated }: {
@@ -33,6 +35,11 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
   const [date, setDate] = useState('');
   const [startTime, setStartTime] = useState('10:00');
   const [staffId, setStaffId] = useState(''); // '' = on-duty (turno)
+
+  // Servicio adicional del paquete (prueba): opcional y en OTRA fecha (anticipada).
+  const [includeTrial, setIncludeTrial] = useState(false);
+  const [trialDate, setTrialDate] = useState('');
+  const [trialTime, setTrialTime] = useState('10:00');
 
   const [recordDeposit, setRecordDeposit] = useState(true);
   const [depositPaidPen, setDepositPaidPen] = useState('');
@@ -62,8 +69,10 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
     adminApi(token).packages.list(eventTypeId).then((p) => setPackages(p as Obj[])).catch(() => setPackages([]));
   }, [eventTypeId, token]);
 
-  // Cargar detalle del paquete (items + adelanto)
+  // Cargar detalle del paquete (items + adelanto). Al cambiar de paquete se
+  // resetea el servicio adicional.
   useEffect(() => {
+    setIncludeTrial(false); setTrialDate('');
     if (!packageId) { setPkg(null); return; }
     setLoadingPkg(true);
     api.eventTypes.package(packageId)
@@ -72,10 +81,21 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
       .finally(() => setLoadingPkg(false));
   }, [packageId]);
 
-  const total = pkg ? Number(pkg.pricePen) : 0;
+  const trial = pkg?.trialAddon || null;
+  const trialExtra = includeTrial && trial ? Number(trial.extraPricePen) || 0 : 0;
+  const total = (pkg ? Number(pkg.pricePen) : 0) + trialExtra;
   const depositPercent = pkg?.depositPercent ?? 50;
   const depositPen = useMemo(() => (pkg?.requiresDeposit ? Math.round(total * depositPercent) / 100 : 0), [pkg, total, depositPercent]);
   const bookableItems = useMemo(() => (pkg?.items || []).filter((it) => it.serviceId), [pkg]);
+
+  // La prueba debe agendarse al menos `daysBeforeMain` días antes del día central.
+  const maxTrialDate = useMemo(() => {
+    if (!date || !trial) return undefined;
+    const d = new Date(date + 'T12:00:00');
+    d.setDate(d.getDate() - (trial.daysBeforeMain || 0));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, [date, trial]);
+  const trialTooSoon = !!(maxTrialDate && maxTrialDate < today);
 
   function searchCustomers(q: string) {
     setCustomerQuery(q); setSelectedCustomerId(null);
@@ -109,6 +129,10 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
     if (bookableItems.length === 0) { setError('Este paquete no tiene servicios reservables'); return; }
     if (!guestName.trim()) { setError('Ingresa el nombre del cliente'); return; }
     if (!date) { setError('Selecciona la fecha'); return; }
+    if (includeTrial && trial) {
+      if (trialTooSoon) { setError(`El día central es muy próximo: la prueba necesita ${trial.daysBeforeMain} días de anticipación`); return; }
+      if (!trialDate) { setError('Selecciona la fecha de la prueba (servicio adicional)'); return; }
+    }
 
     setCreating(true);
     try {
@@ -118,11 +142,23 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
         const up = await adminApi(token).upload(proofPreview, 'general') as { url?: string };
         proofImageUrl = up?.url;
       }
-      const items = bookableItems.map((it) => ({
+      type Item = { serviceId: string | null; staffId: string | null; onDuty: boolean; date?: string; startTime?: string; addonPricePen?: number };
+      const items: Item[] = bookableItems.map((it) => ({
         serviceId: it.serviceId,
         staffId: staffId || null,
         onDuty: !staffId,
       }));
+      // Servicio adicional (prueba): su propia fecha/hora y su precio extra.
+      if (includeTrial && trial) {
+        items.push({
+          serviceId: trial.serviceId,
+          staffId: staffId || null,
+          onDuty: !staffId,
+          date: trialDate,
+          startTime: trialTime,
+          addonPricePen: Number(trial.extraPricePen) || 0,
+        });
+      }
       const res = await adminApi(token).appointments.createPackage({
         packageId: pkg.id,
         items,
@@ -248,6 +284,44 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
             />
           </div>
 
+          {/* Servicio adicional (prueba) — opcional, en otra fecha (anticipada) */}
+          {trial && (
+            <div className="rounded-xl border border-gray-200 p-3">
+              <label className="flex items-start gap-2 text-sm font-semibold text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={includeTrial} onChange={(e) => setIncludeTrial(e.target.checked)} className="rounded mt-0.5" />
+                <span>
+                  Incluir &ldquo;{trial.name}&rdquo; <span className="text-pink-600">(+{money(trial.extraPricePen)})</span>
+                  <span className="block text-[11px] font-normal text-gray-400 mt-0.5">
+                    Servicio adicional · se agenda en <strong>otra fecha</strong>, al menos {trial.daysBeforeMain} días antes del día central.
+                  </span>
+                </span>
+              </label>
+              {includeTrial && (
+                <div className="mt-3">
+                  {!date ? (
+                    <p className="text-[11px] text-amber-600">Elige primero la fecha del día central (arriba).</p>
+                  ) : trialTooSoon ? (
+                    <p className="text-[11px] text-amber-600">El día central es muy próximo: la prueba necesita {trial.daysBeforeMain} días de anticipación. Elige una fecha central más lejana.</p>
+                  ) : (
+                    <>
+                      <label className="block text-xs font-semibold text-gray-500 mb-2">Fecha y hora de la prueba *</label>
+                      <DateTimePicker
+                        mode="datetime"
+                        variant="inline"
+                        theme="light"
+                        minDate={today}
+                        maxDate={maxTrialDate}
+                        minuteStep={15}
+                        value={{ date: trialDate, startTime: trialTime }}
+                        onChange={(v) => { setTrialDate(v.date); setTrialTime(v.startTime); }}
+                      />
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Adelanto */}
           {pkg && (
             <div className="rounded-xl border border-pink-100 bg-pink-50/50 p-3">
@@ -293,7 +367,7 @@ export default function PackageBookingModal({ token, onClose, onCreated }: {
 
         <div className="flex justify-end gap-3 px-5 pb-5">
           <button onClick={onClose} className="px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 rounded-xl">Cancelar</button>
-          <button onClick={submit} disabled={creating || !pkg || !guestName || !date}
+          <button onClick={submit} disabled={creating || !pkg || !guestName || !date || (includeTrial && (!trialDate || trialTooSoon))}
             className="px-5 py-2 bg-pink-600 hover:bg-pink-500 disabled:opacity-50 text-white font-bold rounded-xl text-sm inline-flex items-center gap-2">
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {creating ? 'Creando...' : 'Crear reserva'}

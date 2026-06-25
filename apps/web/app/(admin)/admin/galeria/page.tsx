@@ -3,14 +3,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api';
-import Link from 'next/link';
 import {
-  ChevronLeft, Trash2, Eye, EyeOff, UploadCloud, Loader2, Film,
-  Check, AlertCircle, Tag,
+  Trash2, Eye, EyeOff, UploadCloud, Loader2, Film,
+  Check, AlertCircle, Tag, Images,
 } from 'lucide-react';
 import { confirmAction } from '@/lib/confirm';
 import { HL, Danger } from '@/components/ui/highlight';
 import { getCategoryTheme } from '@/lib/categoryTheme';
+import ImagenesTabs from '@/components/admin/imagenes/ImagenesTabs';
 
 type GalleryItem = {
   id: string;
@@ -183,10 +183,15 @@ export default function AdminGaleriaPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-6">
-        <div className="flex items-center gap-3 mb-5">
-          <Link href="/admin" className="text-gray-500 hover:text-amber-600"><ChevronLeft className="w-5 h-5" /></Link>
-          <h1 className="font-display font-bold text-2xl text-gray-900">Galería</h1>
-          <span className="ml-auto text-xs text-gray-400 font-medium">{items.length} elemento{items.length !== 1 ? 's' : ''}</span>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2 mb-1">
+          <Images className="w-7 h-7" /> Imágenes
+        </h1>
+        <p className="text-sm text-gray-500 mb-5">Catálogos visuales, galería de fotos y marca/portada del salón.</p>
+
+        <ImagenesTabs active="galeria" />
+
+        <div className="flex items-center mb-4">
+          <span className="text-xs text-gray-400 font-medium ml-auto">{items.length} elemento{items.length !== 1 ? 's' : ''}</span>
         </div>
 
         {/* ── Categoría del lote + Dropzone ── */}

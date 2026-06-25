@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
 import { useLoading } from '@/lib/loading';
+import { useSalonSettings } from '@/lib/useSalonSettings';
 import { fmtTime12 } from '@/lib/time';
 import { Calendar, ChevronLeft, Clock, MessageCircle } from 'lucide-react';
 
@@ -106,7 +107,8 @@ function AppointmentCard({ apt }: { apt: Record<string, unknown> }) {
   const s = STATUS_LABEL[apt.status as string] || { label: apt.status as string, color: 'bg-gray-100 text-gray-600' };
   const isUpcoming = apt.status === 'pending' || apt.status === 'confirmed';
 
-  const WHATSAPP_NUMBER = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '51999999999';
+  const settings = useSalonSettings();
+  const WHATSAPP_NUMBER = (settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '51999999999').replace(/\D/g, '');
   const serviceName = (apt.service as Record<string, unknown>)?.name as string;
   const dateStr = apt.date
     ? new Date(apt.date as string).toLocaleDateString('es-PE', {

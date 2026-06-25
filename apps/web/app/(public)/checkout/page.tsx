@@ -7,16 +7,9 @@ import { ChevronLeft, Check, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
 import { useSalonSettings } from '@/lib/useSalonSettings';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 
 type CartItem = { id: string; slug: string; name: string; pricePen: number; image: string | null; qty: number };
-
-const DISTRITOS = [
-  'Miraflores', 'San Isidro', 'Surco', 'La Molina', 'San Borja',
-  'Barranco', 'Pueblo Libre', 'Jesús María', 'Lince', 'Magdalena',
-  'San Miguel', 'Breña', 'Lima Cercado', 'Rímac', 'Los Olivos',
-  'San Martín de Porres', 'Independencia', 'Comas', 'Ate', 'Santa Anita',
-  'El Agustino', 'San Juan de Lurigancho', 'La Victoria', 'Otro',
-];
 
 function CheckoutContent() {
   const router = useRouter();
@@ -28,7 +21,7 @@ function CheckoutContent() {
   const [mounted, setMounted] = useState(false);
   const [form, setForm] = useState({
     name: '', phone: '', email: '',
-    address: '', district: 'Miraflores',
+    address: '', district: 'Cieneguilla',
   });
   const [payMethod, setPayMethod] = useState<'yape' | 'culqi'>('yape');
   const [loading, setLoading] = useState(false);
@@ -141,7 +134,7 @@ function CheckoutContent() {
   if (!mounted) return null;
 
   if (success) {
-    const waNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, '') || '';
+    const waNumber = (settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
     const waMsg = payMethod === 'yape'
       ? `Hola! Hice un pedido (#${orderId}) y pagué por Yape. Adjunto mi comprobante.`
       : `Hola! Hice el pedido #${orderId}. Por favor confírmenme cuando esté listo.`;
@@ -251,7 +244,7 @@ function CheckoutContent() {
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Distrito</label>
                 <select value={form.district} onChange={set('district')}
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                  {DISTRITOS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
             </div>

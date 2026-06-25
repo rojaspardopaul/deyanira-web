@@ -11,41 +11,15 @@ import PackageBookingModal from '@/components/admin/PackageBookingModal';
 import { confirmAction } from '@/lib/confirm';
 import { HL, New, Danger } from '@/components/ui/highlight';
 import { fmtTime12 } from '@/lib/time';
-
-const STATUS_MAP = {
-  pending:   { label: 'Pendiente',  color: 'bg-yellow-100 text-yellow-700' },
-  confirmed: { label: 'Confirmada', color: 'bg-green-100 text-green-700' },
-  completed: { label: 'Completada', color: 'bg-blue-100 text-blue-700' },
-  cancelled: { label: 'Cancelada',  color: 'bg-red-100 text-red-500' },
-  no_show:   { label: 'No asistió', color: 'bg-gray-100 text-gray-500' },
-};
+import { STATUS_MAP } from '@/lib/appointmentStatus';
+import { toISO, getWeekRange, getMonthRange, type PeriodMode } from '@/lib/period';
 
 type Apt = Record<string, unknown>;
-type PeriodMode = 'day' | 'week' | 'month' | 'custom';
 
 const EMPTY_FORM = {
   guestName: '', guestPhone: '', serviceId: '',
   staffId: '', date: '', startTime: '', endTime: '', notes: '',
 };
-
-function toISO(d: Date) {
-  return d.toISOString().split('T')[0];
-}
-function getWeekRange() {
-  const ref = new Date();
-  const day = ref.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const mon = new Date(ref); mon.setDate(ref.getDate() + diff);
-  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
-  return { from: toISO(mon), to: toISO(sun) };
-}
-function getMonthRange() {
-  const ref = new Date();
-  return {
-    from: toISO(new Date(ref.getFullYear(), ref.getMonth(), 1)),
-    to: toISO(new Date(ref.getFullYear(), ref.getMonth() + 1, 0)),
-  };
-}
 
 export default function AdminCitasPage() {
   const router = useRouter();
@@ -346,6 +320,7 @@ export default function AdminCitasPage() {
                 '':          active ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
                 pending:     active ? 'bg-yellow-500 text-white' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100',
                 confirmed:   active ? 'bg-green-600 text-white'  : 'bg-green-50 text-green-700 hover:bg-green-100',
+                in_progress: active ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
                 completed:   active ? 'bg-blue-600 text-white'   : 'bg-blue-50 text-blue-700 hover:bg-blue-100',
                 cancelled:   active ? 'bg-red-500 text-white'    : 'bg-red-50 text-red-600 hover:bg-red-100',
                 no_show:     active ? 'bg-gray-500 text-white'   : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
@@ -371,7 +346,7 @@ export default function AdminCitasPage() {
               >
                 Hoy
               </button>
-              <div className="w-44">
+              <div className="w-56 sm:w-64">
                 <DateTimePicker
                   mode="date"
                   theme="light"

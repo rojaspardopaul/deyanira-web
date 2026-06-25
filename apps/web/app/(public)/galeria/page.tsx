@@ -6,7 +6,7 @@ import { buildMetadata } from '@/lib/seo';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Galería de Trabajos — Maquillaje, Uñas y Cabello en Lima',
-  description: 'Portafolio real de trabajos: maquillaje de novia, looks sociales, uñas decoradas, balayage y diseño de cejas en Deyanira Makeup Beauty, Surco - Lima.',
+  description: 'Portafolio real de trabajos: maquillaje de novia, looks sociales, uñas decoradas, balayage y diseño de cejas en Deyanira Makeup Beauty, Cieneguilla - Lima.',
   path: '/galeria',
   keywords: [
     'galería maquillaje Lima',

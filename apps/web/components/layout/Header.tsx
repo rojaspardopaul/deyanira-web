@@ -28,6 +28,9 @@ export default function Header() {
   const router      = useRouter();
   const isHome      = pathname === '/';
   const salonSettings = useSalonSettings();
+  // Tienda visible salvo que esté explícitamente deshabilitada en Configuración.
+  const showStore = salonSettings?.storeEnabled !== false;
+  const navLinks = NAV_LINKS.filter((l) => l.href !== '/tienda' || showStore);
 
   if (pathname.startsWith('/admin')) return null;
 
@@ -127,7 +130,7 @@ export default function Header() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-8">
-            {NAV_LINKS.map(({ href, label }) => {
+            {navLinks.map(({ href, label }) => {
               const isActive = pathname.startsWith(href);
               return (
                 <Link
@@ -155,11 +158,13 @@ export default function Header() {
 
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-1">
-            <Link href="/tienda"
-              className="p-2 rounded-xl transition-all duration-200 text-white/60 hover:text-white hover:bg-white/8"
-              aria-label="Tienda">
-              <ShoppingBag className="w-5 h-5" />
-            </Link>
+            {showStore && (
+              <Link href="/tienda"
+                className="p-2 rounded-xl transition-all duration-200 text-white/60 hover:text-white hover:bg-white/8"
+                aria-label="Tienda">
+                <ShoppingBag className="w-5 h-5" />
+              </Link>
+            )}
 
             {/* User avatar / login */}
             {authUser ? (
@@ -267,7 +272,7 @@ export default function Header() {
               </Link>
             )}
 
-            {NAV_LINKS.map(({ href, label }) => {
+            {navLinks.map(({ href, label }) => {
               const isActive = pathname.startsWith(href);
               return (
                 <Link

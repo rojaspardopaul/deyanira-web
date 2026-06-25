@@ -12,15 +12,17 @@ import type {
   ConfiguracionDomicilioSalon,
 } from '../domain/ports/ConfiguracionDomicilio';
 
-// Distancias aproximadas (km desde Surco).
+// Distancias aproximadas (km DESDE Cieneguilla, sede del salón).
+// Debe mantenerse IDÉNTICA a la del frontend
+// (apps/web/features/appointments/utils/booking.ts) para que el estimado = el cobro.
 const DISTRICT_DIST_KM: Record<string, number> = {
-  Surco: 2, 'La Molina': 6, 'San Borja': 6, 'San Luis': 7, Miraflores: 7,
-  'San Isidro': 8, Barranco: 9, Chorrillos: 10, Ate: 8, 'Santa Anita': 12,
-  'La Victoria': 12, Lince: 12, 'Jesús María': 13, Magdalena: 13, 'Pueblo Libre': 14,
-  'San Miguel': 15, 'El Agustino': 13, 'Lima Cercado': 14, Rímac: 15, Breña: 15,
-  'Villa María del Triunfo': 16, 'Villa El Salvador': 18, 'Los Olivos': 22,
-  'San Martín de Porres': 20, Independencia: 21, Comas: 26,
-  'San Juan de Lurigancho': 20, Lurigancho: 22, 'Puente Piedra': 30, Otro: 20,
+  Cieneguilla: 0, Pachacámac: 12, 'La Molina': 14, Chaclacayo: 16, Ate: 18, Lurín: 18,
+  Lurigancho: 20, 'Santa Anita': 20, Surco: 22, 'San Borja': 22, 'San Luis': 22, 'El Agustino': 22,
+  'San Juan de Lurigancho': 24, 'La Victoria': 26, Surquillo: 26, 'Lima Cercado': 27, Lince: 27,
+  Breña: 28, 'Jesús María': 28, 'Villa María del Triunfo': 28, Rímac: 29, Miraflores: 30,
+  'San Isidro': 30, 'Pueblo Libre': 31, Barranco: 32, Magdalena: 32, Chorrillos: 33,
+  'Villa El Salvador': 33, 'San Miguel': 34, 'San Martín de Porres': 36, Independencia: 37,
+  'Los Olivos': 38, Comas: 42, Carabayllo: 46, 'Puente Piedra': 48, Otro: 30,
 };
 
 interface TarifaDomicilio {
@@ -30,10 +32,10 @@ interface TarifaDomicilio {
 }
 
 function calcularRecargo(distrito: string, s: TarifaDomicilio): number {
-  const distKm = DISTRICT_DIST_KM[distrito] ?? 20;
-  const basePen = Number(s.atHomeBasePen ?? 20);
-  const baseKm = Number(s.atHomeBaseKm ?? 5);
-  const ratePen = Number(s.atHomeRatePen ?? 3);
+  const distKm = DISTRICT_DIST_KM[distrito] ?? 30;
+  const basePen = Number(s.atHomeBasePen ?? 120);
+  const baseKm = Number(s.atHomeBaseKm ?? 15);
+  const ratePen = Number(s.atHomeRatePen ?? 4);
   return Math.round((basePen + Math.max(0, distKm - baseKm) * ratePen) * 100) / 100;
 }
 

@@ -695,7 +695,7 @@ export default function AdminServiciosPage() {
                 folder="servicios"
                 label="Imagen del servicio (opcional)"
                 helpText="Aparece en la lista de servicios y en el catálogo"
-                aspect="4/3"
+                slot="serviceImage"
                 onError={(msg) => setToast({ type: 'error', msg })}
               />
 

@@ -11,7 +11,7 @@ export const metadata: Metadata = buildMetadata({
     'reservar cita salón belleza Lima',
     'agendar maquillaje Lima',
     'cita uñas online Lima',
-    'reserva belleza Surco',
+    'reserva belleza Cieneguilla',
     'cita peluquería online Lima',
     'maquillaje a domicilio Lima',
   ],

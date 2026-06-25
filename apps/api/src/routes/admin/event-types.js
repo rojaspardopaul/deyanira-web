@@ -370,7 +370,9 @@ router.get('/catalogs/:id', async (req, res, next) => {
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
     const cat = await prisma.catalog.findUnique({
       where: { id: req.params.id },
-      include: { items: { orderBy: [{ groupLabel: 'asc' }, { sortOrder: 'asc' }] } },
+      // Orden global por sortOrder (definido por el admin); el frontend agrupa por
+      // groupLabel respetando el orden de aparición → no alfabético.
+      include: { items: { orderBy: { sortOrder: 'asc' } } },
     });
     if (!cat) return res.status(404).json({ error: 'Catálogo no encontrado' });
     res.json(cat);

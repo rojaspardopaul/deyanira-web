@@ -6,38 +6,72 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   ShoppingBag, Clock, Image, DollarSign, Settings, LogOut,
-  Sparkles, Menu, X, UserCog, CalendarDays, ChevronLeft, ChevronRight,
+  Sparkles, Menu, X, UserCog, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ReceiptText,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { adminAuth } from '@/lib/api';
 import { useSidebarToggle } from '@/components/calendar/hooks/useSidebarToggle';
 import { ConfirmHost } from '@/lib/confirm';
 
 type AdminUser = { id: string; name: string; email: string; role: string; staffId: string | null };
 
-const NAV_SUPER_ADMIN = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
-  { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
-  { href: '/admin/citas', label: 'Citas', icon: Calendar },
-  { href: '/admin/clientes', label: 'Clientes', icon: Users },
-  { href: '/admin/estilistas', label: 'Estilistas', icon: Scissors },
-  { href: '/admin/servicios', label: 'Servicios', icon: Scissors },
-  { href: '/admin/paquetes', label: 'Paquetes', icon: Package },
-  { href: '/admin/catalogos', label: 'Catálogos', icon: Image },
-  { href: '/admin/productos', label: 'Productos', icon: Package },
-  { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingBag },
-  { href: '/admin/horarios', label: 'Horarios', icon: Clock },
-  { href: '/admin/galeria', label: 'Galería', icon: Image },
-  { href: '/admin/contabilidad', label: 'Contabilidad', icon: DollarSign },
-  { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
-  { href: '/admin/usuarios', label: 'Usuarios', icon: UserCog },
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  exact?: boolean;
+  /** Rutas que también marcan este ítem como activo (p. ej. el cluster de Imágenes). */
+  match?: string[];
+};
+type NavGroup = { label: string | null; items: NavItem[] };
+
+// Grupos ordenados de más a menos importante. `label: null` = ítems sueltos (sin
+// encabezado, no colapsables). "Imágenes" es una sola entrada → abre las pestañas
+// Catálogos/Galería/Marca y portada.
+const NAV_SUPER_ADMIN: NavGroup[] = [
+  { label: null, items: [
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
+  ] },
+  { label: 'Agenda', items: [
+    { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
+    { href: '/admin/citas', label: 'Citas', icon: Calendar },
+    { href: '/admin/horarios', label: 'Horarios', icon: Clock },
+  ] },
+  { label: 'Personas', items: [
+    { href: '/admin/clientes', label: 'Clientes', icon: Users },
+    { href: '/admin/estilistas', label: 'Estilistas', icon: Scissors },
+  ] },
+  { label: 'Ventas', items: [
+    { href: '/admin/servicios', label: 'Servicios', icon: Scissors },
+    { href: '/admin/paquetes', label: 'Paquetes', icon: Package },
+    { href: '/admin/productos', label: 'Productos', icon: Package },
+    { href: '/admin/pedidos', label: 'Pedidos', icon: ShoppingBag },
+  ] },
+  { label: null, items: [
+    { href: '/admin/galeria', label: 'Imágenes', icon: Image, match: ['/admin/catalogos', '/admin/galeria', '/admin/imagenes'] },
+  ] },
+  { label: 'Finanzas', items: [
+    { href: '/admin/contabilidad', label: 'Contabilidad', icon: DollarSign },
+    { href: '/admin/recibos', label: 'Recibos', icon: ReceiptText },
+  ] },
+  { label: 'Sistema', items: [
+    { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
+    { href: '/admin/usuarios', label: 'Usuarios', icon: UserCog },
+  ] },
 ];
 
-const NAV_ADMIN = NAV_SUPER_ADMIN.filter(n => n.href !== '/admin/usuarios');
+// Admin = igual pero sin "Usuarios".
+const NAV_ADMIN: NavGroup[] = NAV_SUPER_ADMIN.map((g) => ({
+  ...g,
+  items: g.items.filter((i) => i.href !== '/admin/usuarios'),
+})).filter((g) => g.items.length > 0);
 
-const NAV_ESTILISTA = [
-  { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
-  { href: '/admin/citas', label: 'Mis citas', icon: Calendar },
-  { href: '/admin/horarios', label: 'Mi horario', icon: Clock },
+const NAV_ESTILISTA: NavGroup[] = [
+  { label: null, items: [
+    { href: '/admin/calendario', label: 'Calendario', icon: CalendarDays },
+    { href: '/admin/citas', label: 'Mis citas', icon: Calendar },
+    { href: '/admin/horarios', label: 'Mi horario', icon: Clock },
+  ] },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -45,6 +79,14 @@ const ROLE_LABELS: Record<string, string> = {
   admin: 'Admin',
   estilista: 'Estilista',
 };
+
+const GROUPS_STORAGE_KEY = 'admin_nav_groups';
+
+function isItemActive(pathname: string, item: NavItem): boolean {
+  if (item.exact) return pathname === item.href;
+  if (item.match) return item.match.some((m) => pathname.startsWith(m));
+  return pathname.startsWith(item.href);
+}
 
 function Logo({ collapsed }: { collapsed: boolean }) {
   return (
@@ -61,31 +103,80 @@ function Logo({ collapsed }: { collapsed: boolean }) {
   );
 }
 
-function NavLinks({
-  nav, collapsed, onClose,
+function NavItemLink({
+  item, collapsed, onClose,
 }: {
-  nav: typeof NAV_SUPER_ADMIN;
+  item: NavItem;
   collapsed: boolean;
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const isActive = isItemActive(pathname || '', item);
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      onClick={onClose}
+      title={collapsed ? item.label : undefined}
+      className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-colors
+        ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'}
+        ${isActive ? 'bg-amber-50 text-gold-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
+    >
+      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-gold-600' : 'text-gray-400'}`} />
+      {!collapsed && item.label}
+    </Link>
+  );
+}
+
+function NavGroups({
+  nav, collapsed, openGroups, onToggleGroup, onClose,
+}: {
+  nav: NavGroup[];
+  collapsed: boolean;
+  openGroups: Record<string, boolean>;
+  onToggleGroup: (label: string) => void;
+  onClose?: () => void;
+}) {
   return (
     <>
-      {nav.map(({ href, label, icon: Icon, exact }) => {
-        const isActive = exact ? pathname === href : pathname.startsWith(href);
+      {nav.map((group, gi) => {
+        const items = group.items.map((item) => (
+          <NavItemLink key={item.href} item={item} collapsed={collapsed} onClose={onClose} />
+        ));
+
+        // Ítems sueltos (sin encabezado).
+        if (!group.label) {
+          return (
+            <div key={`g-${gi}`} className={`space-y-0.5 ${gi > 0 && collapsed ? 'pt-1 mt-1 border-t border-gray-100' : ''}`}>
+              {items}
+            </div>
+          );
+        }
+
+        // Colapsado (icon-only): sin encabezado, separador entre grupos.
+        if (collapsed) {
+          return (
+            <div key={group.label} className="space-y-0.5 pt-1 mt-1 border-t border-gray-100">
+              {items}
+            </div>
+          );
+        }
+
+        // Grupo con encabezado colapsable.
+        const open = openGroups[group.label] !== false;
         return (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            title={collapsed ? label : undefined}
-            className={`flex items-center gap-3 rounded-xl text-sm font-medium transition-colors
-              ${collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2'}
-              ${isActive ? 'bg-amber-50 text-gold-600' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}
-          >
-            <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-gold-600' : 'text-gray-400'}`} />
-            {!collapsed && label}
-          </Link>
+          <div key={group.label} className="pt-1">
+            <button
+              type="button"
+              onClick={() => onToggleGroup(group.label!)}
+              className="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-600 transition-colors"
+              aria-expanded={open}
+            >
+              <span>{group.label}</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? '' : '-rotate-90'}`} />
+            </button>
+            {open && <div className="space-y-0.5">{items}</div>}
+          </div>
         );
       })}
     </>
@@ -99,6 +190,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [isMd, setIsMd] = useState(true); // default true to avoid SSR flash on desktop
   const { collapsed, toggle } = useSidebarToggle();
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(GROUPS_STORAGE_KEY);
+      if (raw) setOpenGroups(JSON.parse(raw));
+    } catch { /* ignore */ }
+  }, []);
+
+  function toggleGroup(label: string) {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [label]: prev[label] === false ? true : false };
+      try { window.localStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }
 
   useEffect(() => {
     const mq = window.matchMedia('(min-width: 768px)');
@@ -217,7 +324,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav links */}
         <nav className={`flex-1 py-3 space-y-0.5 overflow-y-auto ${collapsed ? 'px-1' : 'px-2'}`}>
-          <NavLinks nav={nav} collapsed={collapsed} />
+          <NavGroups nav={nav} collapsed={collapsed} openGroups={openGroups} onToggleGroup={toggleGroup} />
         </nav>
 
         {/* User footer */}
@@ -255,7 +362,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
               </div>
               <nav className="flex-1 py-3 px-2 space-y-0.5 overflow-y-auto">
-                <NavLinks nav={nav} collapsed={false} onClose={() => setMobileOpen(false)} />
+                <NavGroups nav={nav} collapsed={false} openGroups={openGroups} onToggleGroup={toggleGroup} onClose={() => setMobileOpen(false)} />
               </nav>
               <div className="border-t border-gray-100 px-3 pb-2">
                 <div className="px-3 py-2 rounded-xl bg-gray-50 mb-1">

@@ -4,8 +4,8 @@ import React from 'react';
 import { STATUS } from '../status';
 import { timeToMin, fmtTime12 } from '../utils/time';
 import { clientName } from '../utils/date';
-import { eventTypeIcon } from '../utils/package';
 import { HOUR_START, HOUR_HEIGHT } from '../constants';
+import { AptCornerBadges, CategoryGlyph } from './AptIndicators';
 import type { Appointment, LayoutInfo } from '../types';
 
 type AptBlockProps = {
@@ -39,6 +39,11 @@ export function AptBlock({
   const widthPct = 100 / layout.totalCols;
   const leftPct  = layout.col * widthPct;
 
+  // Cuántos badges de esquina hay → reservar ese ancho a la derecha del título
+  // para que la hora/cliente no queden tapados por los iconos.
+  const indicatorCount =
+    (apt.package?.eventType ? 1 : 0) + (apt.atHome ? 1 : 0) + (hasPendingPayment ? 1 : 0);
+
   function handlePointerDown(e: React.PointerEvent) {
     if (!draggable || !onDragStart) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -59,25 +64,15 @@ export function AptBlock({
       onPointerDown={draggable ? handlePointerDown : undefined}
       onClick={(e) => { e.stopPropagation(); onClick(apt); }}
     >
-      {hasPendingPayment && (
-        <span
-          title="Comprobante de pago por verificar"
-          className="absolute -top-1 -right-1 z-30 w-4 h-4 rounded-full bg-amber-400 ring-2 ring-white flex items-center justify-center text-[8px] leading-none shadow-sm"
+      {/* Indicadores de esquina (dentro del bloque para no recortarse con overflow-hidden) */}
+      <AptCornerBadges apt={apt} hasPendingPayment={hasPendingPayment} className="absolute top-1 right-1 z-30" />
+
+      <div className="px-1.5 pt-1 pb-0.5 h-full flex flex-col justify-start">
+        <p
+          className={`text-[10px] font-bold ${cfg.text} truncate leading-tight`}
+          style={indicatorCount ? { paddingRight: indicatorCount * 18 } : undefined}
         >
-          💳
-        </span>
-      )}
-      {apt.package?.eventType && (
-        <span
-          title={`Paquete ${apt.package.eventType.name}: ${apt.package.name}`}
-          className={`absolute -top-1 z-30 w-4 h-4 rounded-full ring-2 ring-white flex items-center justify-center text-[8px] leading-none shadow-sm ${hasPendingPayment ? 'right-3.5' : '-right-1'}`}
-          style={{ backgroundColor: apt.package.eventType.accentColor || '#d4af37' }}
-        >
-          {eventTypeIcon(apt.package.eventType)}
-        </span>
-      )}
-      <div className="px-1 py-0.5 h-full flex flex-col justify-start">
-        <p className={`text-[10px] font-bold ${cfg.text} truncate leading-tight`}>
+          <CategoryGlyph apt={apt} className="mr-0.5" />
           {fmtTime12(apt.startTime)} {clientName(apt)}
         </p>
         {!compact && (

@@ -9,7 +9,7 @@ import { api } from '@/lib/api';
 import { buildMetadata } from '@/lib/seo';
 import { SimpleMarkdown } from '@/components/ui/SimpleMarkdown';
 import PackagesComparison, { type Package } from '@/components/eventos/PackagesComparison';
-import { clImage } from '@/lib/cloudinary-client';
+import { focalImg } from '@/lib/cloudinary-client';
 
 type EventTypeDetail = {
   id: string;
@@ -58,39 +58,57 @@ export default async function EventTypePage({
     notFound();
   }
 
+  const settings = await api.settings.public().catch(() => null) as { whatsapp?: string } | null;
+
   const accent = et!.accentColor || '#E8C040';
   const fromPrice = et!.packages.length > 0
     ? Math.min(...et!.packages.map((p) => p.pricePen))
     : null;
 
+  // Portada: imagen a pantalla (object-cover) con foco editable desde el admin.
+  const hero = et!.heroImageUrl ? focalImg(et!.heroImageUrl, 2000, '50% 32%') : null;
+
   return (
     <div className="min-h-screen" style={{ background: '#FAFAFA' }}>
-      {/* ── Hero ──────────────────────────────────────────── */}
-      <section className="relative overflow-hidden pt-20 pb-16 md:pt-24 md:pb-24 px-4" style={{ background: '#0F0F0F' }}>
-        {/* Imagen de fondo con overlay */}
-        {et!.heroImageUrl && (
+      {/* ── Hero — portada alta con la imagen a pantalla y la presentación dentro ── */}
+      <section
+        className="relative overflow-hidden min-h-[92vh] flex flex-col justify-center px-4 py-24 md:py-28"
+        style={{ background: '#0F0F0F' }}
+      >
+        {/* Imagen de fondo: cubre todo el alto; el foco se ajusta desde el admin */}
+        {hero && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={clImage(et!.heroImageUrl, { w: 2000, h: 1000, crop: 'pad', background: 'auto:predominant' }) || et!.heroImageUrl}
+            src={hero.src}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover opacity-30"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: hero.objectPosition }}
           />
         )}
+        {/* Degradado para que el texto se lea sobre la imagen */}
         <div
           className="absolute inset-0 pointer-events-none"
           style={{
-            background: `radial-gradient(ellipse at center, ${accent}22 0%, transparent 70%)`,
+            background:
+              'linear-gradient(to bottom, rgba(15,15,15,0.30) 0%, rgba(15,15,15,0.45) 32%, rgba(15,15,15,0.62) 60%, rgba(15,15,15,0.95) 100%)',
           }}
+        />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: `radial-gradient(ellipse at 50% 36%, ${accent}22 0%, transparent 60%)` }}
         />
         <div className="absolute top-0 left-0 right-0 h-px"
           style={{ background: `linear-gradient(90deg, transparent, ${accent}88, transparent)` }} />
 
-        <div className="relative z-10 max-w-5xl mx-auto text-center">
+        <div
+          className="relative z-10 max-w-3xl mx-auto text-center w-full"
+          style={{ textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}
+        >
           <Link
             href="/servicios"
-            className="inline-flex items-center gap-1 text-xs font-medium mb-6 transition-colors"
-            style={{ color: 'rgba(255,255,255,0.6)' }}
+            className="inline-flex items-center gap-1 text-xs font-medium mb-6 transition-colors hover:text-white"
+            style={{ color: 'rgba(255,255,255,0.75)' }}
           >
             <ChevronLeft className="w-3.5 h-3.5" /> Volver a servicios
           </Link>
@@ -111,21 +129,21 @@ export default async function EventTypePage({
           </h1>
 
           {et!.tagline && (
-            <p className="font-display italic text-lg md:text-2xl mb-5" style={{ color: 'rgba(255,255,255,0.85)' }}>
+            <p className="font-display italic text-lg md:text-2xl mb-5" style={{ color: 'rgba(255,255,255,0.9)' }}>
               &ldquo;{et!.tagline}&rdquo;
             </p>
           )}
 
           {et!.shortDesc && (
-            <p className="max-w-2xl mx-auto text-sm md:text-base mb-8" style={{ color: 'rgba(255,255,255,0.6)' }}>
+            <p className="max-w-2xl mx-auto text-sm md:text-base mb-8" style={{ color: 'rgba(255,255,255,0.78)' }}>
               {et!.shortDesc}
             </p>
           )}
 
           {fromPrice !== null && (
             <div className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.08)', border: `1px solid ${accent}44` }}>
-              <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              style={{ background: 'rgba(255,255,255,0.10)', border: `1px solid ${accent}66`, backdropFilter: 'blur(4px)' }}>
+              <span className="text-xs uppercase tracking-wider font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
                 Desde
               </span>
               <span className="font-display font-bold text-2xl" style={{ color: accent }}>
@@ -133,22 +151,25 @@ export default async function EventTypePage({
               </span>
             </div>
           )}
+
+          {/* ── Presentación, dentro de la portada ── */}
+          {et!.presentationMd && (
+            <div
+              className="mt-10 md:mt-14 pt-8 md:pt-10 border-t max-w-2xl mx-auto"
+              style={{ borderColor: 'rgba(255,255,255,0.16)' }}
+            >
+              <p className="text-xs uppercase tracking-[0.2em] font-semibold mb-3" style={{ color: accent }}>
+                Presentación
+              </p>
+              <div style={{ color: 'rgba(255,255,255,0.92)' }}>
+                <SimpleMarkdown className="text-sm md:text-base leading-relaxed">
+                  {et!.presentationMd}
+                </SimpleMarkdown>
+              </div>
+            </div>
+          )}
         </div>
       </section>
-
-      {/* ── Presentación ──────────────────────────────────── */}
-      {et!.presentationMd && (
-        <section className="py-12 md:py-16 px-4">
-          <div className="max-w-3xl mx-auto">
-            <p className="text-xs uppercase tracking-[0.2em] font-semibold mb-3 text-center" style={{ color: accent }}>
-              Presentación
-            </p>
-            <SimpleMarkdown className="text-base md:text-lg text-center" >
-              {et!.presentationMd}
-            </SimpleMarkdown>
-          </div>
-        </section>
-      )}
 
       {/* ── Paquetes — cards + comparativa selectiva ──── */}
       <section id="paquetes" className="py-12 md:py-16 px-4 pb-24" style={{ background: '#fff', borderTop: '1px solid rgba(0,0,0,0.04)', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
@@ -301,7 +322,7 @@ export default async function EventTypePage({
               <Calendar className="w-4 h-4" /> Ver paquetes
             </Link>
             <a
-              href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, quiero consultar sobre los paquetes de ${et!.name}`)}`}
+              href={`https://wa.me/${(settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '')}?text=${encodeURIComponent(`Hola, quiero consultar sobre los paquetes de ${et!.name}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full font-semibold text-sm text-white transition-all hover:-translate-y-0.5"

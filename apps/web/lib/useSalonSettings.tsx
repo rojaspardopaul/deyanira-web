@@ -24,6 +24,7 @@ export type SalonSettings = {
   bookingNoticeHours?: number;
   cancellationHours?: number;
   atHomeEnabled?: boolean;
+  storeEnabled?: boolean;
   atHomeBasePen?: string | number;
   atHomeBaseKm?: number;
   atHomeRatePen?: string | number;

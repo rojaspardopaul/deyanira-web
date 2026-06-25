@@ -13,6 +13,7 @@ import DateTimePicker from '@/components/ui/datetime';
 import TimeList from '@/components/ui/datetime/TimeList';
 import Select from '@/components/ui/Select';
 import ServiceOptionsForm from '@/components/booking/ServiceOptionsForm';
+import CatalogOptionsButton from '@/components/catalog/CatalogOptionsButton';
 
 // Modales pesados cargados bajo demanda (solo al abrirlos) → aligeran el bundle inicial de /reservar.
 const CatalogPreviewModal = dynamic(
@@ -21,6 +22,7 @@ const CatalogPreviewModal = dynamic(
 );
 const AddServiceModal = dynamic(() => import('@/components/booking/AddServiceModal'), { ssr: false });
 import { fmtRange12 } from '@/lib/time';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 import {
   type Selections, type ModifierGroup, type ServiceForPricing,
 } from '@/lib/pricing';
@@ -47,14 +49,9 @@ export const STEPS = [
   { label: 'Confirmar', icon: Check },
 ];
 
-export const LIMA_DISTRICTS = [
-  'Miraflores','San Isidro','Barranco','Surco','La Molina','San Borja',
-  'Chorrillos','Ate','Santa Anita','La Victoria','Lince','Jesús María',
-  'Magdalena','Pueblo Libre','San Miguel','El Agustino','Lima Cercado',
-  'Rímac','Breña','Villa María del Triunfo','Villa El Salvador',
-  'Los Olivos','San Martín de Porres','Independencia','Comas',
-  'San Juan de Lurigancho','Otro',
-];
+// LIMA_DISTRICTS vive en @/lib/districts (fuente única) — importado arriba y
+// re-exportado aquí por compatibilidad con quien ya lo importaba de este módulo.
+export { LIMA_DISTRICTS } from '@/lib/districts';
 
 export const BOOKING_TIMER_SEC = 10 * 60; // fallback: 10 minutes
 
@@ -627,7 +624,15 @@ export function ServiceStep({
         <div className="space-y-3">
           {filteredByCategory.map(s => {
             const active = selected.some(x => x.id === s.id);
-            return <ServiceCard key={s.id} service={s} active={active} onToggle={onToggle} />;
+            return (
+              <ServiceCard
+                key={s.id}
+                service={s}
+                active={active}
+                onToggle={onToggle}
+                catalogSlug={s.catalogSlug || null}
+              />
+            );
           })}
           {filteredByCategory.length === 0 && (
             <div className="text-center py-16">
@@ -671,6 +676,7 @@ export function ServiceStep({
                 effectivePrice={eff.pricePen}
                 effectiveDuration={eff.duration}
                 referential={hasMods}
+                catalogSlug={(fullSvc.catalogSlug ?? s.catalogSlug) || null}
               />
               {hasMods && (
                 <ServiceModifierBlock
@@ -803,10 +809,12 @@ export function ServiceModifierBlock({
 }
 
 // ── Reusable service card ──────────────────────────────────
-export function ServiceCard({ service: s, active, onToggle, showRemove, effectivePrice, effectiveDuration, referential }: {
+export function ServiceCard({ service: s, active, onToggle, showRemove, effectivePrice, effectiveDuration, referential, catalogSlug }: {
   service: Service; active: boolean; onToggle: (s: Service) => void; showRemove?: boolean;
   // Precio/duración efectivos (con modificadores). Si no se pasan, usa los base.
   effectivePrice?: number; effectiveDuration?: number; referential?: boolean;
+  // Si el servicio tiene catálogo asociado, muestra el ícono "Ver opciones" junto al nombre.
+  catalogSlug?: string | null;
 }) {
   const price = effectivePrice ?? Number(s.pricePen);
   const dur   = effectiveDuration ?? s.duration;
@@ -837,7 +845,10 @@ export function ServiceCard({ service: s, active, onToggle, showRemove, effectiv
             : null}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm text-white leading-tight">{s.name}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="font-semibold text-sm text-white leading-tight">{s.name}</p>
+            {catalogSlug && <CatalogOptionsButton slug={catalogSlug} tone="dark" />}
+          </div>
           {s.description && (
             <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
               {s.description}

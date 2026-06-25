@@ -156,6 +156,32 @@ export class ActualizarCita {
       }
     }
 
+    // ── Proyección al libro mayor (fire-and-forget) ──────────────
+    // Al COMPLETAR una cita individual reconocemos el ingreso del servicio. Las
+    // citas de PAQUETE no se proyectan aquí: su dinero entra como 'adelanto' (al
+    // pagar la reserva) + el saldo que el admin registra aparte, evitando doble
+    // conteo. require perezoso para no acoplar el dominio de citas al financiero.
+    if (c.status === 'completed' && !updated.packageId) {
+      const total = Number(updated.totalPen) || 0;
+      if (total > 0) {
+        const fecha = (updated.date instanceof Date ? updated.date.toISOString() : String(updated.date || '')).slice(0, 10);
+        const svc = (updated.service as { name?: string } | undefined)?.name || 'Servicio';
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { proyectarMovimiento } = require('../../financial');
+        void proyectarMovimiento({
+          tipo: 'pago_final',
+          monto: total,
+          descripcion: `Servicio: ${svc}`,
+          fecha: fecha || new Date().toISOString().slice(0, 10),
+          categoria: 'servicios',
+          source: 'appointment',
+          appointmentId: updated.id,
+          customerId: (updated.customerId as string) ?? null,
+          staffId: (updated.staffId as string) ?? null,
+        });
+      }
+    }
+
     return updated;
   }
 }

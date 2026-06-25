@@ -2,12 +2,12 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import {
   Check, Crown, Sparkles, Users, ChevronRight, ChevronDown, Plus, X,
   GitCompare, Tag, Info,
 } from 'lucide-react';
 import { CatalogPreviewModal } from '@/components/catalog/CatalogPreviewModal';
+import { focalImg } from '@/lib/cloudinary-client';
 
 export type PackageItem = {
   id: string;
@@ -72,6 +72,7 @@ function PackageCard({
   const pct = discountPct(pkg);
   const displayPrice = pkg.pricePen + (trialOn && pkg.trialAddon ? pkg.trialAddon.extraPricePen : 0);
   const reservarUrl = `/reservar?package=${pkg.id}${trialOn ? '&trial=1' : ''}`;
+  const im = pkg.imageUrl ? focalImg(pkg.imageUrl, 800) : null;
 
   return (
     <article
@@ -123,39 +124,47 @@ function PackageCard({
         </button>
       </div>
 
-      {/* Imagen */}
-      {pkg.imageUrl ? (
-        <div className="relative w-full aspect-[16/9] bg-gray-100">
-          <Image src={pkg.imageUrl} alt={pkg.name} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+      {/* Imagen con el nombre + descripción ENCIMA — card compacta (cabe en móvil) */}
+      <div
+        className="relative w-full aspect-[4/3] lg:aspect-[5/4] overflow-hidden"
+        style={im ? { background: '#1a1014' } : { background: `linear-gradient(135deg, ${accent}cc, #1a1014)` }}
+      >
+        {im && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={im.src} alt={pkg.name} className="absolute inset-0 w-full h-full object-cover" style={{ objectPosition: im.objectPosition }} loading="lazy" />
+        )}
+        {/* Degradado para que el texto se lea sobre la imagen */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.45) 34%, rgba(0,0,0,0.05) 62%, transparent 100%)' }}
+        />
+        {/* Nombre + subtítulo + descripción sobre la imagen */}
+        <div className="absolute inset-x-0 bottom-0 p-4 md:p-5" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.6)' }}>
+          <h3 className="font-display font-bold text-2xl md:text-3xl leading-tight text-white">
+            {pkg.name}
+          </h3>
+          {pkg.subtitle && (
+            <p className="text-[11px] uppercase tracking-wider font-semibold mt-0.5" style={{ color: accent }}>
+              {pkg.subtitle}
+            </p>
+          )}
+          {pkg.description && (
+            <p className="text-sm mt-1.5 text-white/85 line-clamp-2">
+              {pkg.description}
+            </p>
+          )}
         </div>
-      ) : (
-        <div className="w-full aspect-[16/9]" style={{ background: `linear-gradient(135deg, ${accent}22, ${accent}08)` }} />
-      )}
+      </div>
 
       {/* Contenido */}
       <div className="p-5 md:p-6 flex flex-col flex-1">
-        <h3 className="font-display font-bold text-2xl md:text-3xl leading-tight" style={{ color: '#0F0F0F' }}>
-          {pkg.name}
-        </h3>
-        {pkg.subtitle && (
-          <p className="text-xs uppercase tracking-wider font-semibold mt-1" style={{ color: accent }}>
-            {pkg.subtitle}
-          </p>
-        )}
-
         {pkg.groupLabel && (
           <div
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mt-3 self-start"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold mb-1 self-start"
             style={{ background: `${accent}15`, color: accent }}
           >
             <Users className="w-3 h-3" /> {pkg.groupLabel}
           </div>
-        )}
-
-        {pkg.description && (
-          <p className="text-sm mt-3" style={{ color: '#6b4d5a' }}>
-            {pkg.description}
-          </p>
         )}
 
         {/* Items — siempre visible (sin acordeón) */}
@@ -543,8 +552,9 @@ export default function PackagesComparison({
 
       {/* Barra sticky inferior con CTA de comparar */}
       {compareIds.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
-          <div className="max-w-6xl mx-auto px-4 pb-4">
+        <div className="fixed bottom-0 left-0 right-0 z-50 pointer-events-none">
+          {/* pb extra en móvil para no quedar detrás del menú inferior (BottomNav) */}
+          <div className="max-w-6xl mx-auto px-4 pb-[calc(env(safe-area-inset-bottom)+5rem)] md:pb-4">
             <div
               className="pointer-events-auto rounded-2xl shadow-2xl p-3 md:p-4 flex items-center gap-3 backdrop-blur-md"
               style={{

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Scissors, CalendarCheck, ShoppingBag, User, type LucideIcon } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { useSalonSettings } from '@/lib/useSalonSettings';
 
 type NavItem = {
   href: string;
@@ -26,7 +27,11 @@ const HIDDEN_ON = ['/admin', '/login', '/registro'];
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const settings = useSalonSettings();
+  const items = ITEMS.filter((i) => i.href !== '/tienda' || settings?.storeEnabled !== false);
   const [initial, setInitial] = useState<string | null>(null);
+  // Se oculta al deslizar hacia abajo y reaparece al deslizar hacia arriba (estilo LinkedIn).
+  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -54,6 +59,27 @@ export default function BottomNav() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Mostrar/ocultar según la dirección del scroll.
+  useEffect(() => {
+    let lastY = window.scrollY;
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = window.scrollY;
+        const delta = y - lastY;
+        if (y < 80) setHidden(false);              // siempre visible cerca del top
+        else if (delta > 6) setHidden(true);       // bajando → ocultar
+        else if (delta < -6) setHidden(false);     // subiendo → mostrar
+        lastY = y;
+        ticking = false;
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   if (HIDDEN_ON.some(p => pathname.startsWith(p))) return null;
 
   return (
@@ -67,10 +93,13 @@ export default function BottomNav() {
           WebkitBackdropFilter: 'blur(24px)',
           borderTop: '1px solid rgba(212,175,55,0.15)',
           paddingBottom: 'env(safe-area-inset-bottom)',
+          transform: hidden ? 'translateY(110%)' : 'translateY(0)',
+          transition: 'transform 0.3s ease',
+          willChange: 'transform',
         }}
       >
         <div className="flex items-center justify-around h-16 px-1">
-          {ITEMS.map(({ href, label, icon: Icon, featured, exact }) => {
+          {items.map(({ href, label, icon: Icon, featured, exact }) => {
             const isActive = exact ? pathname === href : pathname.startsWith(href);
             const isCuenta = href === '/mi-cuenta';
 

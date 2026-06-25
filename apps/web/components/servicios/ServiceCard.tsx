@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { Clock, CalendarClock, Star, ArrowRight, Lock } from 'lucide-react';
-import { clImage } from '@/lib/cloudinary-client';
+import { focalImg } from '@/lib/cloudinary-client';
 import { getCategoryTheme, SERVICE_BTN_GRADIENT, SERVICE_BTN_SHADOW } from '@/lib/categoryTheme';
+import CatalogOptionsButton from '@/components/catalog/CatalogOptionsButton';
 
 export type ServiceCardData = {
   id: string;
@@ -12,6 +13,7 @@ export type ServiceCardData = {
   comparePricePen?: number | string | null;
   imageUrl?: string | null;
   daysBeforeMain?: number | null;
+  catalogSlug?: string | null;
   category?: { slug?: string | null; name?: string | null } | null;
 };
 
@@ -32,9 +34,7 @@ export default function ServiceCard({
   const save = hasDiscount ? compare - price : 0;
   const anticip = service.daysBeforeMain && service.daysBeforeMain > 0 ? service.daysBeforeMain : 0;
 
-  const img = service.imageUrl
-    ? clImage(service.imageUrl, { w: 120, h: 120, crop: 'fill' }) || service.imageUrl
-    : '';
+  const im = service.imageUrl ? focalImg(service.imageUrl, 320) : null;
 
   return (
     <Link
@@ -55,30 +55,39 @@ export default function ServiceCard({
         </span>
       ) : null}
 
-      {/* Cabecera con color de categoría: imagen + chip al costado, título abajo */}
-      <div style={{ background: t.soft }} className="px-4 pb-3.5 pt-4">
-        <div className="mb-3 flex items-center gap-2.5 pr-16">
+      {/* Cabecera: imagen grande a la izquierda + categoría y título a la derecha */}
+      <div style={{ background: t.soft }} className="p-4">
+        <div className="flex items-stretch gap-3">
           <div
-            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-[15px] text-2xl"
+            className="relative flex w-24 shrink-0 self-stretch min-h-[92px] items-center justify-center overflow-hidden rounded-2xl text-4xl"
             style={{ background: t.gradient, boxShadow: `0 4px 12px ${t.accent}33` }}
           >
-            {img ? (
+            {im ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={img} alt={service.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
+              <img src={im.src} alt={service.name} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: im.objectPosition }} />
             ) : (
               <span aria-hidden="true">{t.emoji}</span>
             )}
           </div>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
-            style={{ background: 'rgba(255,255,255,0.9)', color: t.chipText, border: `1px solid ${t.accent}22` }}
-          >
-            <span aria-hidden="true">{t.emoji}</span> {catName}
-          </span>
+          <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+            <span
+              className="inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold"
+              style={{ background: 'rgba(255,255,255,0.9)', color: t.chipText, border: `1px solid ${t.accent}22` }}
+            >
+              <span aria-hidden="true">{t.emoji}</span> {catName}
+            </span>
+            <div className="flex items-start gap-1.5">
+              <h3 className="font-poppins text-[16.5px] font-bold leading-tight line-clamp-2 flex-1" style={{ color: '#171013' }}>
+                {service.name}
+              </h3>
+              {service.catalogSlug && (
+                <span className="mt-0.5">
+                  <CatalogOptionsButton slug={service.catalogSlug} accent={t.accent} />
+                </span>
+              )}
+            </div>
+          </div>
         </div>
-        <h3 className="font-poppins text-[16.5px] font-bold leading-tight line-clamp-2" style={{ color: '#171013' }}>
-          {service.name}
-        </h3>
       </div>
 
       {/* Cuerpo */}

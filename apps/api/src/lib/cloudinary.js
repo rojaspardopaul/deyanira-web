@@ -87,11 +87,12 @@ async function uploadImage(file, folder = 'general') {
   const result = await cloudinary.uploader.upload(file, {
     folder: `deyanira/${folder}`,
     resource_type: 'image',
+    format: 'webp',                    // almacena SIEMPRE como .webp (secure_url termina en .webp)
     overwrite: false,
     invalidate: true,
     transformation: [
-      { quality: 'auto', fetch_format: 'auto' },
       { width: 2400, crop: 'limit' },  // límite máximo razonable
+      { quality: 'auto' },             // q_auto al re-encodear a webp
     ],
   });
   return {
@@ -150,6 +151,59 @@ async function uploadVideo(file, folder = 'general') {
   };
 }
 
+// ── Vouchers / comprobantes (imágenes + PDF) ─────────────────
+// A diferencia de uploadImage (fuerza webp, solo imágenes), un voucher conserva
+// su formato original y admite PDF (boletas, facturas, capturas de Yape/Plin).
+const VOUCHER_MIME = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf',
+]);
+const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46]; // %PDF
+
+function validateVoucherInput(file) {
+  if (typeof file !== 'string' || !file.startsWith('data:')) {
+    throw BadRequest('El comprobante debe ser base64 (data:…;base64,…)');
+  }
+  const mimeMatch = file.match(/^data:([^;]{1,60});base64,/);
+  if (!mimeMatch) throw BadRequest('Formato base64 inválido');
+  const mime = mimeMatch[1].toLowerCase();
+  if (!VOUCHER_MIME.has(mime)) {
+    throw BadRequest('Solo se permiten imágenes (JPG, PNG, WebP, GIF) o PDF');
+  }
+  const base64Part = file.indexOf(',') + 1;
+  const estimatedBytes = Math.ceil((file.length - base64Part) * 0.75);
+  if (estimatedBytes > MAX_DECODED_BYTES) throw BadRequest('El comprobante no puede superar 8MB');
+
+  let head;
+  try { head = Buffer.from(file.slice(base64Part, base64Part + 64), 'base64'); } catch { throw BadRequest('Base64 inválido'); }
+  const okMagic = mime === 'application/pdf'
+    ? PDF_MAGIC.every((b, i) => head[i] === b)
+    : matchesMagic(head, mime);
+  if (!okMagic) throw BadRequest('El contenido del archivo no coincide con el tipo declarado');
+  return mime;
+}
+
+async function uploadVoucher(file, folder = 'vouchers') {
+  const mime = validateVoucherInput(file);
+  const isPdf = mime === 'application/pdf';
+  const result = await cloudinary.uploader.upload(file, {
+    folder: `deyanira/${folder}`,
+    resource_type: isPdf ? 'raw' : 'image',
+    overwrite: false,
+    invalidate: true,
+    ...(isPdf ? {} : { transformation: [{ width: 2400, crop: 'limit' }, { quality: 'auto' }] }),
+  });
+  return {
+    url: result.secure_url,
+    publicId: result.public_id,
+    resourceType: isPdf ? 'raw' : 'image',
+    fileType: isPdf ? 'pdf' : 'image',
+  };
+}
+
+async function deleteVoucher(publicId, resourceType = 'image') {
+  return cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+}
+
 function imageUrl(publicId, { width = 800, height, quality = 'auto', format = 'auto' } = {}) {
   return cloudinary.url(publicId, {
     width, height, quality, fetch_format: format,
@@ -157,4 +211,4 @@ function imageUrl(publicId, { width = 800, height, quality = 'auto', format = 'a
   });
 }
 
-module.exports = { uploadImage, uploadVideo, deleteImage, imageUrl };
+module.exports = { uploadImage, uploadVideo, uploadVoucher, deleteImage, deleteVoucher, imageUrl };

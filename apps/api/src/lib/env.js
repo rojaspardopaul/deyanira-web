@@ -35,6 +35,11 @@ const EnvSchema = z.object({
   CULQI_SECRET_KEY: z.string().optional(),
   CULQI_WEBHOOK_SECRET: z.string().min(20).optional(),
 
+  // Gemini (IA Contable). Opcional: sin esta llave, los endpoints de IA
+  // devuelven 503 (feature deshabilitada) y el resto del módulo funciona igual.
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL:   z.string().default('gemini-2.5-flash'),
+
   // Resend
   RESEND_API_KEY:     z.string().optional(),
   EMAIL_FROM:         z.string().optional(),

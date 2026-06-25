@@ -67,7 +67,7 @@ export default function BookingWizard({
   const [guestInfo, setGuestInfo]               = useState<GuestInfo>({ name: '', phone: '', email: '' });
   const [atHome, setAtHome]                     = useState(false);
   const [atHomeAddress, setAtHomeAddress]       = useState('');
-  const [atHomeDistrict, setAtHomeDistrict]     = useState('Miraflores');
+  const [atHomeDistrict, setAtHomeDistrict]     = useState('Cieneguilla');
   const [atHomeEnabled, setAtHomeEnabled]       = useState(false);
   const [loading, setLoading]                   = useState(false);
   const [confirmed, setConfirmed]               = useState<Record<string, unknown> | null>(null);
@@ -636,7 +636,6 @@ export default function BookingWizard({
               const salonWaDigits = salonWa.replace(/\D/g, '');
               try {
                 // 1. Generamos la imagen del ticket
-                console.log('[WhatsApp] Generando imagen del ticket...');
                 const blob = await generateTicketBlob(ticketRef.current);
                 if (!blob) {
                   setWhatsappError('No se pudo generar la imagen. Se enviará solo el texto.');
@@ -644,12 +643,10 @@ export default function BookingWizard({
                   window.open(`${base}?text=${encodeURIComponent(wsText)}`, '_blank', 'noopener,noreferrer');
                   return;
                 }
-                console.log('[WhatsApp] Imagen generada, tamaño:', blob.size, 'bytes');
 
                 // 2. Mobile: compartir como archivo adjunto real
                 const shared = await tryNativeShareWithFile(blob, wsText);
                 if (shared) {
-                  console.log('[WhatsApp] Compartido via Web Share API');
                   return;
                 }
 
@@ -660,7 +657,6 @@ export default function BookingWizard({
                   window.open(`${base}?text=${encodeURIComponent(wsText)}`, '_blank', 'noopener,noreferrer');
                   return;
                 }
-                console.log('[WhatsApp] Subiendo imagen a Cloudinary...');
                 let imageUrl = '';
                 try {
                   const dataUrl = await blobToDataUrl(blob);
@@ -669,7 +665,6 @@ export default function BookingWizard({
                     authUser.token,
                   );
                   imageUrl = url;
-                  console.log('[WhatsApp] Imagen subida:', imageUrl);
                 } catch (err) {
                   const msg = err instanceof Error ? err.message : 'Error desconocido';
                   console.error('[WhatsApp] Upload falló:', err);

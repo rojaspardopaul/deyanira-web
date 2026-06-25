@@ -18,7 +18,7 @@ router.get('/', publicCache(60), async (_req, res, next) => {
           staffServices: { include: { service: true } },
           schedules: true,
         },
-        orderBy: { name: 'asc' },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       })
     );
     res.json(staff);

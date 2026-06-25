@@ -12,18 +12,19 @@ export const SITE = {
   language: 'es-PE',
   twitter: '@deyanirabeauty',
   defaultDescription:
-    'Salón de belleza profesional en Lima, Perú. Maquillaje, uñas, cabello y cejas. Reserva tu cita online y compra productos de belleza con envío en Lima.',
+    'Salón de belleza profesional en Cieneguilla, Lima. Maquillaje, uñas, cabello y cejas. Reserva tu cita online o agenda a domicilio en Cieneguilla, La Molina, Pachacámac y Lima Metropolitana.',
   defaultKeywords: [
-    'salón de belleza Lima',
-    'maquillaje profesional Lima',
-    'salón de uñas Lima',
-    'extensión de cejas Lima',
+    'salón de belleza Cieneguilla',
+    'maquillaje profesional Cieneguilla',
+    'salón de uñas Cieneguilla',
     'manicure Cieneguilla',
-    'pedicure Lima',
+    'pedicure Cieneguilla',
+    'diseño de cejas Cieneguilla',
+    'peluquería Cieneguilla',
+    'salón de belleza Lima',
     'maquillaje novias Lima',
     'maquillaje quinceañeras Lima',
-    'reservar cita belleza online Lima',
-    'productos de maquillaje Perú',
+    'reservar cita belleza online',
     'Deyanira Makeup Beauty',
   ],
   geo: {
@@ -32,7 +33,7 @@ export const SITE = {
     position: '-12.1109913;-76.8182017', // lat;lng del salón (defaults schema.prisma)
     icbm: '-12.1109913, -76.8182017',
   },
-  ogImage: '/og/og-default.jpg',     // 1200×630 — generar en /public/og
+  ogImage: '/icons/icon-512.png',    // usado solo en JSON-LD; el OG social lo genera app/opengraph-image.tsx
 };
 
 type BuildMetaOpts = {
@@ -51,9 +52,11 @@ export function buildMetadata(opts: BuildMetaOpts = {}): Metadata {
   const title = opts.title;
   const description = opts.description ?? SITE.defaultDescription;
   const url = opts.path ? `${SITE.url}${opts.path}` : SITE.url;
+  // Sin imagen explícita devolvemos undefined para que Next use el OG dinámico
+  // (app/opengraph-image.tsx) en vez de un archivo estático inexistente.
   const image = opts.image
     ? (opts.image.startsWith('http') ? opts.image : `${SITE.url}${opts.image}`)
-    : `${SITE.url}${SITE.ogImage}`;
+    : undefined;
 
   return {
     title,
@@ -67,13 +70,14 @@ export function buildMetadata(opts: BuildMetaOpts = {}): Metadata {
       ? { index: false, follow: false }
       : { index: true, follow: true, googleBot: { index: true, follow: true, 'max-image-preview': 'large', 'max-snippet': -1, 'max-video-preview': -1 } },
     openGraph: {
-      type: opts.type ?? 'website',
+      // 'product' no es un tipo OG válido en Next → se mapea a 'website'
+      type: opts.type === 'article' ? 'article' : 'website',
       url,
       siteName: SITE.name,
       locale: SITE.locale,
       title: title || SITE.name,
       description,
-      images: [{ url: image, width: 1200, height: 630, alt: SITE.name }],
+      ...(image ? { images: [{ url: image, width: 1200, height: 630, alt: title || SITE.name }] } : {}),
       ...(opts.publishedTime ? { publishedTime: opts.publishedTime } : {}),
       ...(opts.modifiedTime ? { modifiedTime: opts.modifiedTime } : {}),
     },
@@ -82,7 +86,7 @@ export function buildMetadata(opts: BuildMetaOpts = {}): Metadata {
       site: SITE.twitter,
       title: title || SITE.name,
       description,
-      images: [image],
+      ...(image ? { images: [image] } : {}),
     },
     other: {
       'geo.region': SITE.geo.region,

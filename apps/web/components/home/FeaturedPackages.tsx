@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, Sparkles, Crown } from 'lucide-react';
-import { clImage } from '@/lib/cloudinary-client';
+import { focalImg } from '@/lib/cloudinary-client';
 
 // Cards EXCLUSIVOS de paquetes estrella (Novia / Quinceañera) — los más vistosos.
 // Cada uno redirige a su evento: /servicios/{slug}.
@@ -21,9 +21,7 @@ export type FeaturedPackage = {
 
 function PackageHero({ p }: { p: FeaturedPackage }) {
   const accent = p.accentColor || '#C9A030';
-  const img = p.heroImageUrl
-    ? clImage(p.heroImageUrl, { w: 900, h: 700, crop: 'fill', gravity: 'auto' }) || p.heroImageUrl
-    : '';
+  const im = p.heroImageUrl ? focalImg(p.heroImageUrl, 1000) : null;
 
   return (
     <Link
@@ -33,12 +31,13 @@ function PackageHero({ p }: { p: FeaturedPackage }) {
       style={{ boxShadow: `0 16px 46px ${accent}33`, border: `1px solid ${accent}44` }}
     >
       {/* Imagen de fondo */}
-      {img ? (
+      {im ? (
         <Image
-          src={img}
+          src={im.src}
           alt={p.name}
           fill
           sizes="(max-width: 768px) 92vw, 560px"
+          style={{ objectPosition: im.objectPosition }}
           className="object-cover transition-transform duration-[900ms] ease-out group-hover:scale-[1.07]"
         />
       ) : (

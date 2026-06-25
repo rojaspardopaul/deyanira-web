@@ -8,6 +8,8 @@ export type Service = {
   description?: string;
   categoryId?: string | null;
   category?: { id: string; name: string; icon?: string } | null;
+  catalogSlug?: string | null;
+  imageUrl?: string | null;
   [key: string]: unknown;
 };
 export type Staff = { id: string; name: string; role?: string; [key: string]: unknown };

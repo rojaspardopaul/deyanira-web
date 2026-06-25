@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { adminApi } from '@/lib/api';
-import { ChevronLeft, Plus, Pencil, Trash2, X, Save, BookOpen, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Save, BookOpen, ArrowRight } from 'lucide-react';
 import { Toast, type ToastState } from '@/components/ui/Toast';
 import { ImageUploader } from '@/components/ui/ImageUploader';
 import { confirmAction } from '@/lib/confirm';
 import { HL, Danger } from '@/components/ui/highlight';
+import ImagenesTabs from '@/components/admin/imagenes/ImagenesTabs';
 
 type CatalogRow = {
   id: string;
@@ -107,22 +108,21 @@ export default function AdminCatalogosPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
-          <div>
-            <Link href="/admin" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 mb-2">
-              <ChevronLeft className="w-4 h-4" /> Dashboard
-            </Link>
-            <h1 className="text-3xl font-display font-bold flex items-center gap-2">
-              <BookOpen className="w-7 h-7" /> Catálogos visuales
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Peinados, cortes, colores… Vincúlalos a servicios via el campo &ldquo;Catálogo asociado&rdquo; en el form de servicio.
-            </p>
-          </div>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2 mb-1">
+          <BookOpen className="w-7 h-7" /> Imágenes
+        </h1>
+        <p className="text-sm text-gray-500 mb-5">Catálogos visuales, galería de fotos y marca/portada del salón.</p>
+
+        <ImagenesTabs active="catalogos" />
+
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+          <p className="text-sm text-gray-500 max-w-xl">
+            Peinados, cortes, colores… Vincúlalos a servicios vía el campo &ldquo;Catálogo asociado&rdquo; en el form de servicio.
+          </p>
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-semibold text-sm text-white bg-amber-500 hover:bg-amber-600 shrink-0"
           >
             <Plus className="w-4 h-4" /> Nuevo catálogo
           </button>
@@ -208,7 +208,7 @@ export default function AdminCatalogosPage() {
                 onChange={(url) => setForm({ ...form, heroImageUrl: url || '' })}
                 folder="catalogos"
                 label="Imagen principal (hero)"
-                aspect="21/9"
+                slot="catalogHero"
                 onError={(msg) => setToast({ type: 'error', msg })}
               />
               <div className="flex items-center gap-4">

@@ -2,6 +2,7 @@
 // lib/api.ts (feature-first). lib/api.ts re-exporta adminAuth y adminApi.
 
 import { apiFetch, pageQuery, type HttpMethod, type RequestOptions, type Paged } from '@/shared/api/client';
+import { receiptsApi } from '@/features/receipts/api/receipts.api';
 
 // ── Auth admin (cookies HttpOnly) ─────────────────────────
 export const adminAuth = {
@@ -58,6 +59,8 @@ export function adminApi(_legacyToken?: string | null) {
       record: (id: string, data: { method?: string; paidPen?: number }) =>
         apiFetch<unknown>(`/admin/booking-payments/${encodeURIComponent(id)}/record`, mut('POST', data)),
     },
+    // Recibos de cobros/abonos (módulo receipts): crear, abonar, PDF, enviar correo.
+    receipts: receiptsApi,
     customers: {
       list: () => apiFetch<unknown[]>('/admin/customers', getReq()),
       listPaged: (opts?: { page?: number; pageSize?: number; search?: string }) =>
@@ -77,6 +80,7 @@ export function adminApi(_legacyToken?: string | null) {
       delete: (id: string) => apiFetch<unknown>(`/admin/staff/${encodeURIComponent(id)}`, mut('DELETE')),
       setSchedules: (id: string, schedules: unknown[]) =>
         apiFetch<unknown>(`/admin/staff/${encodeURIComponent(id)}/schedules`, mut('PUT', { schedules })),
+      reorder: (ids: string[]) => apiFetch<{ ok: true; count: number }>('/admin/staff/reorder', mut('PUT', { ids })),
     },
     unavailability: {
       list: (from?: string) =>
@@ -199,5 +203,111 @@ export function adminApi(_legacyToken?: string | null) {
         delete: (id: string) => apiFetch<unknown>(`/admin/accounting/other-income/${encodeURIComponent(id)}`, mut('DELETE')),
       },
     },
+    // ── Centro Financiero (módulo financial, libro mayor) ──────
+    finanzas: {
+      resumen: (from: string, to: string) =>
+        apiFetch<FinanceResumen>(`/admin/finanzas/resumen?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`, getReq()),
+      serie: (year: number) => apiFetch<FinanceSeriePoint[]>(`/admin/finanzas/serie?year=${year}`, getReq()),
+      movimientos: {
+        list: (params?: string) =>
+          apiFetch<FinancePage>(`/admin/finanzas/movimientos${params ? `?${params}` : ''}`, getReq()),
+        create: (data: unknown) => apiFetch<FinanceMovement>('/admin/finanzas/movimientos', mut('POST', data)),
+        update: (id: string, data: Partial<{ category: string | null; accountId: string | null; paymentMethod: string | null; description: string }>) =>
+          apiFetch<FinanceMovement>(`/admin/finanzas/movimientos/${encodeURIComponent(id)}`, mut('PATCH', data)),
+        anular: (id: string, motivo?: string) =>
+          apiFetch<FinanceMovement>(`/admin/finanzas/movimientos/${encodeURIComponent(id)}/anular`, mut('POST', { motivo: motivo ?? null })),
+      },
+      conciliacion: () => apiFetch<FinanceConciliacion>('/admin/finanzas/conciliacion', getReq()),
+      ia: {
+        estado: () => apiFetch<{ disponible: boolean }>('/admin/finanzas/ia/estado', getReq()),
+        texto: (prompt: string) => apiFetch<FinanceSugerencia>('/admin/finanzas/ia/texto', mut('POST', { prompt })),
+        comprobante: (file: string) => apiFetch<FinanceSugerencia>('/admin/finanzas/ia/comprobante', mut('POST', { file })),
+      },
+      cuentas: {
+        list: () => apiFetch<FinanceAccount[]>('/admin/finanzas/cuentas', getReq()),
+        create: (data: { name: string; type?: string; sortOrder?: number }) =>
+          apiFetch<FinanceAccount>('/admin/finanzas/cuentas', mut('POST', data)),
+        update: (id: string, data: Partial<{ name: string; type: string; isActive: boolean; sortOrder: number }>) =>
+          apiFetch<FinanceAccount>(`/admin/finanzas/cuentas/${encodeURIComponent(id)}`, mut('PATCH', data)),
+      },
+      vouchers: {
+        list: (movementId: string) =>
+          apiFetch<FinanceVoucher[]>(`/admin/finanzas/movimientos/${encodeURIComponent(movementId)}/vouchers`, getReq()),
+        upload: (movementId: string, file: string, fileName?: string) =>
+          apiFetch<FinanceVoucher>(`/admin/finanzas/movimientos/${encodeURIComponent(movementId)}/vouchers`, mut('POST', { file, fileName })),
+        delete: (id: string) => apiFetch<{ success: true }>(`/admin/finanzas/vouchers/${encodeURIComponent(id)}`, mut('DELETE')),
+      },
+    },
   };
+}
+
+// ── Tipos del Centro Financiero (espejo del backend) ──────────
+export interface FinanceTotales { ingresos: number; egresos: number; utilidad: number }
+export interface FinanceDesglose { key: string; label: string; total: number; count: number }
+export interface FinanceResumen {
+  periodo: { from: string; to: string };
+  hoy: FinanceTotales;
+  periodoActual: FinanceTotales & { variacion: FinanceTotales | null };
+  margen: number;
+  cajaDisponible: number;
+  adelantosPendientes: { total: number; count: number };
+  cuentasPorCobrar: { total: number; count: number };
+  ventasProductos: { total: number; count: number };
+  serviciosVendidos: { total: number; count: number };
+  clientesAtendidos: number;
+  ticketPromedio: number;
+  porCategoria: FinanceDesglose[];
+  porMetodoPago: FinanceDesglose[];
+  porTipo: FinanceDesglose[];
+}
+export interface FinanceSeriePoint { month: number; year: number; income: number; expenses: number; profit: number }
+export interface FinanceMovement {
+  id: string;
+  direction: 'in' | 'out';
+  type: string;
+  status: 'settled' | 'pending' | 'void';
+  amountPen: number;
+  category: string | null;
+  description: string;
+  occurredAt: string;
+  paymentMethod: string | null;
+  source: string;
+  appointmentId: string | null;
+  bookingPaymentId: string | null;
+  orderId: string | null;
+  customerId: string | null;
+  staffId: string | null;
+  accountId: string | null;
+  account: { id: string; name: string; type: string } | null;
+  receiptUrl: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+}
+export interface FinancePage { items: FinanceMovement[]; total: number; page: number; pageSize: number }
+export interface FinanceAccount {
+  id: string; name: string; type: string; isActive: boolean; sortOrder: number; balancePen: number; createdAt: string;
+}
+export interface FinanceVoucher {
+  id: string; movementId: string; url: string; fileType: string; fileName: string | null; publicId: string | null; createdAt: string;
+}
+export interface FinanceSugerencia {
+  tipo: string;
+  direccion: 'in' | 'out';
+  monto: number | null;
+  moneda: string;
+  descripcion: string;
+  fecha: string | null;
+  categoria: string | null;
+  metodoPago: string | null;
+  contraparte: string | null;
+  confianza: number;
+}
+export interface FinanceConciliacion {
+  sinVoucher: { count: number; movements: FinanceMovement[] };
+  sinCategoria: { count: number; movements: FinanceMovement[] };
+  adelantosPendientes: { count: number; total: number; items: { id: string; customerName: string; total: number; deposit: number; createdAt: string; bookingGroupId: string | null }[] };
+  pagosIncompletos: { count: number; total: number; items: { id: string; customerName: string; balancePen: number; receiptNumber: string | null }[] };
+  duplicados: { count: number; groups: { key: string; movements: FinanceMovement[] }[] };
+  totalPendientes: number;
 }

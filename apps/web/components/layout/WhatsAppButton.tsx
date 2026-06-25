@@ -2,12 +2,15 @@
 
 import { usePathname } from 'next/navigation';
 import { MessageCircle } from 'lucide-react';
+import { useSalonSettings } from '@/lib/useSalonSettings';
 
 export default function WhatsAppButton() {
   const pathname = usePathname();
+  const settings = useSalonSettings();
   if (pathname.startsWith('/admin')) return null;
   const isHome = pathname === '/';
-  const number = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/\D/g, '') || '';
+  // El número viene de Admin → Configuración (settings.whatsapp); la env es solo respaldo.
+  const number = (settings?.whatsapp || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || '').replace(/\D/g, '');
   const message = encodeURIComponent('¡Hola! Me gustaría información sobre sus servicios.');
   const href = `https://wa.me/${number}?text=${message}`;
 

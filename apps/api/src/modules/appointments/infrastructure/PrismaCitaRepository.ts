@@ -44,8 +44,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // service+staff incluidos: la fila resultante alimenta el DTO -> contrato HTTP legacy.
 const INCLUDE = { service: true, staff: true } as const;
 // Includes admin: el listado y la edición arrastran customer/package.eventType para la UI/correos.
+// `service.category` alimenta el color/ícono por categoría del calendario admin.
 const INCLUDE_LISTA_ADMIN = {
-  service: true,
+  service: { include: { category: { select: { id: true, name: true, slug: true, icon: true } } } },
   staff: true,
   customer: true,
   package: {

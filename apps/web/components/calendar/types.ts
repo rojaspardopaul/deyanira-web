@@ -30,7 +30,12 @@ export type Appointment = {
     trialAddonServiceId?: string | null;
     eventType?: { id: string; name: string; slug: string; icon?: string | null; accentColor?: string | null } | null;
   } | null;
-  service: { id: string; name: string; duration: number };
+  service: {
+    id: string;
+    name: string;
+    duration: number;
+    category?: { id: string; name: string; slug: string; icon?: string | null } | null;
+  };
   staff: { id: string; name: string } | null;
   customer?: { id?: string; name?: string; phone?: string; email?: string } | null;
 };

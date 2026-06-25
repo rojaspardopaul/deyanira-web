@@ -303,6 +303,8 @@ model Staff {
   role             String?
   photoUrl         String?               @map("photo_url")
   bio              String?
+  certifications   String[]              @default([]) // títulos / certificados (página Nosotros)
+  sortOrder        Int                   @default(0) @map("sort_order") // orden manual (admin)
   isActive         Boolean               @default(true) @map("is_active")
   staffServices    StaffService[]
   schedules        StaffSchedule[]
@@ -438,6 +440,76 @@ model BookingPayment {
   @@index([bookingGroupId])
   @@index([status])
   @@map("booking_payments")
+}
+
+// ─── RECIBOS (adelantos / abonos creados por el admin) ─────
+// Recibo de cualquier cobro: cliente + concepto(s) + total, con un historial de
+// pagos (abonos) que recalcula paidPen/balancePen/status en el servidor. Puede o
+// no estar ligado a una reserva (bookingGroupId/packageId son solo referencias).
+
+model Receipt {
+  id            String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptNumber String  @unique @map("receipt_number") // DMB-YYYYMMDD-###
+
+  // Snapshot del cliente (sirve para clientes sin cuenta y para el recibo)
+  customerId    String? @map("customer_id") @db.Uuid
+  customerName  String  @map("customer_name")
+  customerEmail String? @map("customer_email")
+  customerPhone String? @map("customer_phone")
+
+  title      String? // concepto general del recibo
+  totalPen   Decimal @map("total_pen") @db.Decimal(10, 2)
+  paidPen    Decimal @default(0) @map("paid_pen") @db.Decimal(10, 2)
+  balancePen Decimal @map("balance_pen") @db.Decimal(10, 2)
+
+  // pending | partial | paid | cancelled
+  status String @default("pending")
+
+  // Vínculo opcional a una reserva/paquete (referencia, no relación Prisma)
+  bookingGroupId String? @map("booking_group_id") @db.Uuid
+  packageId      String? @map("package_id") @db.Uuid
+
+  notes     String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  items    ReceiptItem[]
+  payments ReceiptPayment[]
+
+  @@index([status, createdAt])
+  @@index([customerPhone])
+  @@map("receipts")
+}
+
+model ReceiptItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId   String  @map("receipt_id") @db.Uuid
+  receipt     Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  description String
+  qty         Int     @default(1)
+  unitPen     Decimal @map("unit_pen") @db.Decimal(10, 2)
+  amountPen   Decimal @map("amount_pen") @db.Decimal(10, 2)
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  @@index([receiptId])
+  @@map("receipt_items")
+}
+
+model ReceiptPayment {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiptId     String   @map("receipt_id") @db.Uuid
+  receipt       Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  amountPen     Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  method        String   @default("cash") // cash | yape | plin | transfer | culqi
+  paidAt        DateTime @default(now()) @map("paid_at")
+  note          String?
+  proofImageUrl String?  @map("proof_image_url")
+  registeredBy  String?  @map("registered_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([receiptId, paidAt])
+  @@map("receipt_payments")
 }
 
 // ─── PRODUCTOS ────────────────────────────────────────────
@@ -605,9 +677,10 @@ model Setting {
   cancellationHours   Int      @default(24) @map("cancellation_hours")
   // Servicio a domicilio
   atHomeEnabled       Boolean  @default(false) @map("at_home_enabled")
-  atHomeBasePen       Decimal  @default(20.00) @map("at_home_base_pen") @db.Decimal(10, 2)
-  atHomeBaseKm        Int      @default(5) @map("at_home_base_km")
-  atHomeRatePen       Decimal  @default(3.00) @map("at_home_rate_pen") @db.Decimal(10, 2)
+  storeEnabled        Boolean  @default(true) @map("store_enabled") // tienda online visible
+  atHomeBasePen       Decimal  @default(120.00) @map("at_home_base_pen") @db.Decimal(10, 2)
+  atHomeBaseKm        Int      @default(15) @map("at_home_base_km")
+  atHomeRatePen       Decimal  @default(4.00) @map("at_home_rate_pen") @db.Decimal(10, 2)
   // Timer de reserva (segundos que tiene el cliente para confirmar en el paso final)
   bookingTimerSeconds Int      @default(600) @map("booking_timer_seconds")
   // Horas que se mantiene una reserva de paquete con adelanto pendiente antes de
@@ -625,6 +698,8 @@ model Setting {
   logoUrl             String?  @map("logo_url") // Logo para fondos claros (versión oscura)
   logoDarkUrl         String?  @map("logo_dark_url") // Logo para fondos oscuros (versión blanca)
   logoIconUrl         String?  @map("logo_icon_url") // Ícono cuadrado (favicon / cabecera pequeña)
+  teamPhotoUrl        String?  @map("team_photo_url") // Foto grupal del equipo (página Nosotros)
+  salonPhotoUrl       String?  @map("salon_photo_url") // Foto del salón (fondo del hero en Nosotros)
   // Slides del carrusel del home: array de { imageUrl?, videoUrl?, badge, line1, line2, bullets[], ctaText, ctaHref, gravity }
   homeSlides          Json     @default("[]") @map("home_slides")
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
@@ -769,4 +844,88 @@ model OtherIncome {
 
   @@index([date])
   @@map("other_income")
+}
+
+// ─── CENTRO FINANCIERO (ledger central) ───────────────────
+// Cuenta/caja financiera. Todo movimiento puede pertenecer a una cuenta
+// (Caja Principal, Yape, Banco). Single-tenant: sin tenantId/branchId.
+model FinancialAccount {
+  id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  type      String              @default("cash")
+  // cash | wallet | bank | card
+  isActive  Boolean             @default(true) @map("is_active")
+  sortOrder Int                 @default(0) @map("sort_order")
+  createdAt DateTime            @default(now()) @map("created_at")
+  movements FinancialMovement[]
+
+  @@map("financial_accounts")
+}
+
+// Libro mayor único (append-first). Cada fuente de dinero (cita completada,
+// adelanto pagado, pedido pagado, egreso, otro ingreso, ajuste manual) crea una
+// fila con `source` + el id de la entidad origen para trazabilidad. La captura
+// manual (Expense/OtherIncome) sigue existiendo y además proyecta un movimiento.
+model FinancialMovement {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  direction     String
+  // in | out
+  type          String
+  // ingreso | egreso | adelanto | pago_final | venta | reembolso | ajuste | transferencia | comision | impuesto
+  status        String   @default("settled")
+  // settled | pending | void
+  amountPen     Decimal  @map("amount_pen") @db.Decimal(10, 2)
+  category      String?
+  description   String
+  occurredAt    DateTime @map("occurred_at") @db.Date
+  paymentMethod String?  @map("payment_method")
+  // efectivo | transferencia | tarjeta | yape | plin | culqi
+
+  // Origen / trazabilidad (todos nullable; suele estar set solo uno)
+  source           String
+  // appointment | booking_payment | order | expense | other_income | manual
+  appointmentId    String? @map("appointment_id") @db.Uuid
+  bookingPaymentId String? @map("booking_payment_id") @db.Uuid
+  orderId          String? @map("order_id") @db.Uuid
+  expenseId        String? @map("expense_id") @db.Uuid
+  otherIncomeId    String? @map("other_income_id") @db.Uuid
+  customerId       String? @map("customer_id") @db.Uuid
+  staffId          String? @map("staff_id") @db.Uuid
+
+  accountId String?           @map("account_id") @db.Uuid
+  account   FinancialAccount? @relation(fields: [accountId], references: [id])
+
+  receiptUrl String?   @map("receipt_url")
+  createdBy  String?   @map("created_by")
+  voidedAt   DateTime? @map("voided_at")
+  voidReason String?   @map("void_reason")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([occurredAt])
+  @@index([direction, occurredAt])
+  @@index([source])
+  @@index([type])
+  @@index([appointmentId])
+  @@index([bookingPaymentId])
+  @@index([orderId])
+  @@map("financial_movements")
+
+  vouchers FinancialVoucher[]
+}
+
+// Comprobante (voucher) adjunto a un movimiento: imagen o PDF en Cloudinary.
+// Un movimiento puede tener varios (boleta + captura de Yape, etc.).
+model FinancialVoucher {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  movementId String   @map("movement_id") @db.Uuid
+  movement   FinancialMovement @relation(fields: [movementId], references: [id], onDelete: Cascade)
+  url        String
+  fileType   String   @default("image") @map("file_type") // image | pdf
+  fileName   String?  @map("file_name")
+  publicId   String?  @map("public_id") // para borrar en Cloudinary
+  uploadedBy String?  @map("uploaded_by")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([movementId])
+  @@map("financial_vouchers")
 }

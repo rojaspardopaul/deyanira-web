@@ -134,20 +134,22 @@ export default function TimeList({
   return (
     <div className="space-y-2">
       {/* Campo segmentado + icono de reloj para abrir la rueda */}
-      <div className="flex items-end justify-center gap-2">
-        <TimeField
-          value={value ?? null}
-          onCommit={handleManual}
-          hourFormat={hourFormat}
-          theme={theme}
-          invalid={!!error}
-        />
+      <div className="flex items-end gap-2 w-full">
+        <div className="flex-1 min-w-0">
+          <TimeField
+            value={value ?? null}
+            onCommit={handleManual}
+            hourFormat={hourFormat}
+            theme={theme}
+            invalid={!!error}
+          />
+        </div>
         <button
           type="button"
           onClick={() => setShowWheel(s => !s)}
           aria-label={showWheel ? 'Ocultar selector' : 'Abrir selector de hora'}
           aria-expanded={showWheel}
-          className={`flex items-center justify-center w-10 h-10 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500
+          className={`flex items-center justify-center w-10 h-10 shrink-0 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500
             ${theme === 'dark' ? 'bg-white/10 text-white border border-white/15' : 'border border-gray-200 text-gray-600'}`}
           style={showWheel ? { background: t.wheelBand, borderColor: t.wheelBandBorder } : undefined}
         >

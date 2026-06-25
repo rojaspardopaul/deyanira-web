@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import {
-  X, Plus, Check, Clock, User, Scissors, Home, Phone, Mail,
+  X, Plus, Check, Clock, User, Scissors, Phone, Mail,
   AlertCircle, Search, UserCheck, Pencil, Receipt, ExternalLink, ShieldCheck,
   ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -14,6 +14,8 @@ import { STATUS } from '../status';
 import { toYMD, clientName, aptDateStr } from '../utils/date';
 import { timeToMin, minToHHMM, fmtTime12 } from '../utils/time';
 import { eventTypeIcon, isPackageAddon } from '../utils/package';
+import { CategoryChip, AtHomeChip, CategoryGlyph } from '../blocks/AptIndicators';
+import NewReceiptModal, { type ReceiptPrefill } from '@/components/admin/receipts/NewReceiptModal';
 import type { Appointment, AptStatus, StaffMember, Slot, BookingPaymentInfo } from '../types';
 
 type AptModalProps = {
@@ -97,6 +99,8 @@ export function AptModal({
   const [groupConfirm, setGroupConfirm] = useState<'accept' | 'reject' | null>(null);
   const [groupLoading, setGroupLoading] = useState(false);
   const [groupError, setGroupError] = useState('');
+  // Crear un recibo de cobro/adelanto prellenado desde esta cita.
+  const [showReceipt, setShowReceipt] = useState(false);
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -485,6 +489,20 @@ export function AptModal({
     weekday: 'short', day: 'numeric', month: 'short',
   });
 
+  // Prefill del recibo desde la cita: para un paquete usa su nombre/precio; para
+  // una cita suelta, el servicio y su total.
+  const receiptPrefill: ReceiptPrefill = {
+    customerName: clientName(apt),
+    customerPhone: apt.guestPhone || '',
+    customerEmail: apt.guestEmail || '',
+    title: isPkgApt && pkg ? (pkg.eventType?.name ? `${pkg.eventType.name} · ${pkg.name}` : pkg.name) : apt.service.name,
+    items: isPkgApt && pkg?.pricePen != null
+      ? [{ description: pkg.name, amountPen: Number(pkg.pricePen) }]
+      : [{ description: apt.service.name, amountPen: Number(apt.totalPen) }],
+    bookingGroupId: apt.bookingGroupId || null,
+    packageId: apt.packageId || null,
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
@@ -555,25 +573,30 @@ export function AptModal({
               </div>
             ) : null}
 
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-gray-700 flex items-center gap-1.5">
-                <Scissors className="w-3.5 h-3.5 text-gray-400" />{apt.service.name}
-              </p>
-              {/* Cita de paquete: el precio es del PAQUETE (en BD el reparto por cita
-                  es arbitrario: 1ª = todo, resto 0 — nunca mostrarlo). */}
-              {isPkgApt && !isAddon ? (
-                <div className="text-right">
-                  <p className="text-base font-bold text-gray-900">{money(pkg?.pricePen ?? 0)}</p>
-                  <p className="text-[10px] text-gray-500 leading-tight">Paquete · {pkg?.name}</p>
-                </div>
-              ) : isAddon ? (
-                <div className="text-right">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-sm text-gray-700 flex items-center gap-1.5">
+                  <Scissors className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                  <span className="font-medium">{apt.service.name}</span>
+                </p>
+                {(apt.service.category || apt.atHome) && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1.5 pl-5">
+                    <CategoryChip apt={apt} />
+                    <AtHomeChip apt={apt} />
+                  </div>
+                )}
+              </div>
+              {/* Precio: una cita de paquete (no addon) NO muestra precio aquí — vive
+                  una sola vez en la tarjeta Paquete (en BD el reparto por cita es
+                  arbitrario). El addon sí muestra su precio propio. */}
+              {isAddon ? (
+                <div className="text-right shrink-0">
                   <p className="text-base font-bold text-gray-900">{money(apt.totalPen)}</p>
                   <p className="text-[10px] text-gray-500 leading-tight">Servicio adicional</p>
                 </div>
-              ) : (
-                <p className="text-base font-bold text-gray-900">{money(apt.totalPen)}</p>
-              )}
+              ) : !isPkgApt ? (
+                <p className="text-base font-bold text-gray-900 shrink-0">{money(apt.totalPen)}</p>
+              ) : null}
             </div>
             <p className="text-xs text-gray-500 mt-1 pl-5">
               {Math.max(0, timeToMin(apt.endTime) - timeToMin(apt.startTime))} min
@@ -618,9 +641,10 @@ export function AptModal({
                       return (
                         <div key={a.id} className={`px-4 py-2 flex items-center gap-2 text-xs ${isCurrent ? 'bg-amber-50/60' : ''}`}>
                           <span className="font-semibold text-gray-700 whitespace-nowrap">{fmtTime12(a.startTime)}</span>
-                          <span className="text-gray-900 font-medium truncate flex-1">
-                            {a.service.name}
-                            {isCurrent && <span className="text-[10px] text-gold-600 font-bold"> · esta cita</span>}
+                          <span className="text-gray-900 font-medium truncate flex-1 flex items-center gap-1">
+                            <CategoryGlyph apt={a} className="text-[11px]" />
+                            <span className="truncate">{a.service.name}</span>
+                            {isCurrent && <span className="text-[10px] text-gold-600 font-bold shrink-0"> · esta cita</span>}
                           </span>
                           <span className="text-gray-400 truncate max-w-[90px]">{a.staff?.name || 'Turno'}</span>
                           <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${sCfg.bgLight} ${sCfg.text} whitespace-nowrap`}>
@@ -785,14 +809,13 @@ export function AptModal({
                 <span className="text-sm text-gray-700 truncate">{apt.guestEmail}</span>
               </a>
             )}
-            {apt.atHome && (
-              <div className="flex items-center gap-2 p-2 bg-purple-50 border border-purple-100 rounded-lg">
-                <Home className="w-4 h-4 text-purple-500" />
-                <span className="text-sm text-purple-700">
-                  A domicilio{apt.atHomeDistrict ? ` · ${apt.atHomeDistrict}` : ''}
-                </span>
-              </div>
-            )}
+            {/* "A domicilio" se muestra arriba (chip junto al servicio), no se repite aquí. */}
+            <button
+              onClick={() => setShowReceipt(true)}
+              className="w-full mt-1 flex items-center justify-center gap-1.5 py-2 bg-gray-50 hover:bg-gray-100 rounded-lg text-xs font-semibold text-gray-600 transition-colors"
+            >
+              <Receipt className="w-3.5 h-3.5" /> Crear recibo
+            </button>
           </div>
 
           {/* Stylist */}
@@ -998,6 +1021,16 @@ export function AptModal({
                 onConfirm: () => { void handleGroupAction(false); },
               }}
           onClose={() => setGroupConfirm(null)}
+        />
+      )}
+
+      {/* Crear recibo prellenado desde esta cita */}
+      {showReceipt && (
+        <NewReceiptModal
+          open={showReceipt}
+          onClose={() => setShowReceipt(false)}
+          onCreated={() => { setShowReceipt(false); toast('Recibo creado'); }}
+          prefill={receiptPrefill}
         />
       )}
 
