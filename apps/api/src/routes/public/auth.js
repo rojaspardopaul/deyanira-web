@@ -10,7 +10,7 @@ const logger = require('../../lib/logger');
 const { Unauthorized, BadRequest, NotFound } = require('../../lib/errors');
 const { validate, EMAIL_RE } = require('../../lib/validate');
 const {
-  ADMIN_COOKIE, CSRF_COOKIE, isAdmin, verifyAdminToken,
+  ADMIN_COOKIE, CSRF_COOKIE, isAdmin, verifyAdminToken, extractAdminToken,
 } = require('../../middleware/auth');
 const { decrypt } = require('../../lib/crypto');
 const { verifyTotp, consumeBackupCode } = require('../../lib/mfa');
@@ -164,7 +164,8 @@ router.post('/admin/logout', (req, res) => {
 // ── GET /api/auth/admin/me ────────────────────────────────────
 router.get('/admin/me', async (req, res, next) => {
   try {
-    const token = req.cookies?.[ADMIN_COOKIE];
+    // Acepta cookie (same-site) o Bearer (cross-dominio: web y API en dominios distintos).
+    const token = extractAdminToken(req);
     if (!token) return next(Unauthorized());
     const payload = verifyAdminToken(token);
     if (!payload) return next(Unauthorized('Sesión expirada'));

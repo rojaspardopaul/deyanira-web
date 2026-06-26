@@ -144,5 +144,5 @@ function requireRole(...roles) {
 module.exports = {
   isCustomer, isAdmin, optionalCustomer, requireRole,
   ADMIN_COOKIE, CSRF_COOKIE,
-  verifyAdminToken, verifySupabaseToken,
+  verifyAdminToken, verifySupabaseToken, extractAdminToken,
 };
