@@ -224,7 +224,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (cancelled) return;
         setAdminUser(admin);
         try {
-          window.localStorage.setItem('admin_token', 'cookie-session');
+          // No sobrescribir admin_token: es el JWT Bearer real guardado al iniciar
+          // sesión (se usa para auth cross-dominio). Solo refrescamos el usuario.
           window.localStorage.setItem('admin_user', JSON.stringify(admin));
         } catch { /* ignore */ }
         if (admin.role === 'estilista') {
@@ -258,6 +259,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   async function logout() {
     try { await adminAuth.logout(); } catch { /* ignore */ }
+    try {
+      window.localStorage.removeItem('admin_token');
+      window.localStorage.removeItem('admin_user');
+    } catch { /* ignore */ }
     setAdminUser(null);
     router.replace('/admin/login');
   }

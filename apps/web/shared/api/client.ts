@@ -33,9 +33,16 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  if (admin && method !== 'GET') {
-    const csrf = readCsrfCookie();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
+  if (admin) {
+    // El JWT del admin viaja por Bearer (localStorage): la cookie HttpOnly no
+    // cruza dominios distintos (web vs API). El backend acepta cookie o Bearer y,
+    // con Bearer, no exige CSRF. Si hubiera cookie same-site, también funcionaría.
+    const adminJwt = typeof window !== 'undefined' ? window.localStorage.getItem('admin_token') : null;
+    if (adminJwt && adminJwt !== 'cookie-session') headers['Authorization'] = `Bearer ${adminJwt}`;
+    if (method !== 'GET') {
+      const csrf = readCsrfCookie();
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    }
   }
 
   const init: RequestInit = {

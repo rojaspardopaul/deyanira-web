@@ -7,7 +7,7 @@ import { receiptsApi } from '@/features/receipts/api/receipts.api';
 // ── Auth admin (cookies HttpOnly) ─────────────────────────
 export const adminAuth = {
   login: (email: string, password: string) =>
-    apiFetch<{ ok: true; admin: { id: string; name: string; email: string; role: string; staffId: string | null }; csrfToken: string }>(
+    apiFetch<{ ok: true; token: string; admin: { id: string; name: string; email: string; role: string; staffId: string | null }; csrfToken?: string }>(
       '/auth/admin/login',
       { method: 'POST', body: { email, password }, admin: true },
     ),

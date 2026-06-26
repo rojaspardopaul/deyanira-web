@@ -137,6 +137,9 @@ router.post('/admin/login', validate({ body: LoginBody }), async (req, res, next
 
     res.json({
       ok: true,
+      // Token también en el cuerpo: el panel admin lo usa como Bearer cuando la web
+      // y el API viven en dominios distintos (la cookie HttpOnly no cruza dominios).
+      token,
       admin: {
         id: admin.id,
         name: admin.name,

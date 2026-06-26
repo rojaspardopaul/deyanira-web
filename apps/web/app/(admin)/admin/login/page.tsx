@@ -31,10 +31,10 @@ function LoginInner() {
     try {
       const data = await adminAuth.login(email, password);
       const role = data.admin?.role;
-      // Retro-compat: las páginas viejas leen `admin_token` para saber
-      // si "hay sesión"; el JWT real está en la cookie HttpOnly.
+      // Guardamos el JWT para enviarlo como Bearer (auth cross-dominio: la cookie
+      // HttpOnly del API no viaja a la web cuando están en dominios distintos).
       try {
-        window.localStorage.setItem('admin_token', 'cookie-session');
+        if (data.token) window.localStorage.setItem('admin_token', data.token);
         window.localStorage.setItem('admin_user', JSON.stringify(data.admin));
       } catch { /* ignore */ }
       const dest = nextPath
