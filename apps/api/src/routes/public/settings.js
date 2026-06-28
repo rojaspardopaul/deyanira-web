@@ -21,6 +21,8 @@ const PUBLIC_FIELDS = [
   'bankName', 'bankAccount', 'bankCci', 'bankAccountHolder',
   // Legal: identificación del proveedor + páginas legales (markdown)
   'razonSocial', 'ruc', 'termsMd', 'returnsPolicyMd', 'privacyMd',
+  // Envío de productos (tienda) — tarifa por distancia + envío gratis
+  'shipEnabled', 'shipBasePen', 'shipBaseKm', 'shipPerKmPen', 'shipFreeOverPen',
 ];
 
 // GET /api/settings/public — configuración pública del salón

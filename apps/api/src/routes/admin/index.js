@@ -1054,6 +1054,8 @@ router.patch('/settings', async (req, res, next) => {
       'yapeNumber', 'yapeName', 'plinNumber',
       'bankName', 'bankAccount', 'bankCci', 'bankAccountHolder',
       'razonSocial', 'ruc', 'termsMd', 'returnsPolicyMd', 'privacyMd',
+      // Envío de productos
+      'shipEnabled', 'shipBasePen', 'shipBaseKm', 'shipPerKmPen', 'shipFreeOverPen',
     ]);
     if (data.homeSlides !== undefined && !Array.isArray(data.homeSlides)) {
       return res.status(400).json({ error: 'homeSlides debe ser un array' });
@@ -1083,6 +1085,11 @@ router.patch('/settings', async (req, res, next) => {
     if (data.atHomeBasePen != null) data.atHomeBasePen = Number(data.atHomeBasePen);
     if (data.atHomeBaseKm != null) data.atHomeBaseKm = Number(data.atHomeBaseKm);
     if (data.atHomeRatePen != null) data.atHomeRatePen = Number(data.atHomeRatePen);
+    if (data.shipEnabled != null) data.shipEnabled = Boolean(data.shipEnabled);
+    if (data.shipBasePen != null) data.shipBasePen = Number(data.shipBasePen);
+    if (data.shipBaseKm != null) data.shipBaseKm = Number(data.shipBaseKm);
+    if (data.shipPerKmPen != null) data.shipPerKmPen = Number(data.shipPerKmPen);
+    if (data.shipFreeOverPen != null) data.shipFreeOverPen = Number(data.shipFreeOverPen);
     if (data.bookingTimerSeconds != null) data.bookingTimerSeconds = Math.max(60, Number(data.bookingTimerSeconds));
     if (data.depositExpiryHours != null) data.depositExpiryHours = Math.max(1, Number(data.depositExpiryHours));
 

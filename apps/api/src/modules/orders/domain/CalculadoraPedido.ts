@@ -11,8 +11,14 @@ export interface PromoAplicable {
   readonly value: number;
 }
 
-const ENVIO_GRATIS_DESDE_PEN = 100;
-const COSTO_ENVIO_PEN = 10;
+export interface EnvioPedidoCalc {
+  /** El cliente recoge en el salón → sin costo de envío. */
+  readonly recojoEnSalon: boolean;
+  /** Costo de envío a domicilio ya resuelto por distancia (lo provee ConfiguracionEnvio). */
+  readonly costoEnvio: number;
+  /** Envío gratis cuando el subtotal alcanza este monto. */
+  readonly envioGratisDesde: number;
+}
 
 export function calcularSubtotal(lineas: LineaCalculo[]): number {
   return lineas.reduce((s, l) => s + l.pricePen * l.qty, 0);
@@ -24,9 +30,19 @@ export function calcularDescuento(subtotal: number, promo: PromoAplicable): numb
   return Math.min(bruto, subtotal);
 }
 
-/** Envío gratis sobre S/100; total nunca negativo. */
-export function calcularEnvioYTotal(subtotal: number, descuento: number): { shipping: number; total: number } {
-  const shipping = subtotal > ENVIO_GRATIS_DESDE_PEN ? 0 : COSTO_ENVIO_PEN;
+/**
+ * Envío y total. El envío es 0 si el cliente recoge en el salón o si el subtotal
+ * alcanza el umbral de envío gratis; en otro caso, el costo por distancia. Total nunca negativo.
+ */
+export function calcularEnvioYTotal(
+  subtotal: number,
+  descuento: number,
+  envio: EnvioPedidoCalc,
+): { shipping: number; total: number } {
+  let shipping = 0;
+  if (!envio.recojoEnSalon) {
+    shipping = subtotal >= envio.envioGratisDesde ? 0 : envio.costoEnvio;
+  }
   const total = Math.max(0, subtotal + shipping - descuento);
   return { shipping, total };
 }

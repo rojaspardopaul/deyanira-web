@@ -37,6 +37,7 @@ export interface PedidoNuevo {
     address: string;
     district: string;
   };
+  readonly pickupInStore: boolean;
   readonly cupon: CuponAUsar | null;
   readonly lineas: LineaPedidoNueva[];
 }

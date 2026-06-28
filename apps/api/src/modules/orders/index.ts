@@ -12,6 +12,7 @@ import { PrismaPedidoRepository } from './infrastructure/PrismaPedidoRepository'
 import { PrismaCatalogoProductos } from './infrastructure/PrismaCatalogoProductos';
 import { NotificadorPedidosEmail } from './infrastructure/NotificadorPedidosEmail';
 import { CloudinaryComprobantes } from './infrastructure/CloudinaryComprobantes';
+import { ConfiguracionEnvioPrisma } from './infrastructure/ConfiguracionEnvioPrisma';
 
 export interface ModuloPedidos {
   readonly crearPedido: CrearPedido;
@@ -25,9 +26,10 @@ export function crearModuloPedidos(): ModuloPedidos {
   const catalogo = new PrismaCatalogoProductos(prisma);
   const notificador = new NotificadorPedidosEmail();
   const almacen = new CloudinaryComprobantes();
+  const configEnvio = new ConfiguracionEnvioPrisma(prisma);
 
   return {
-    crearPedido: new CrearPedido(repo, catalogo, notificador),
+    crearPedido: new CrearPedido(repo, catalogo, notificador, configEnvio),
     listarMisPedidos: new ListarMisPedidos(repo),
     obtenerPedido: new ObtenerPedido(repo),
     subirComprobante: new SubirComprobantePedido(repo, almacen, notificador),

@@ -24,6 +24,7 @@ export interface CuerpoCrearPedido {
   shipEmail?: string | null;
   shipAddress: string;
   shipDistrict: string;
+  pickupInStore?: boolean;
   paymentMethod?: string | null;
   couponCode?: string | null;
 }
@@ -32,6 +33,7 @@ export class CrearPedidoComando {
   private constructor(
     readonly items: ItemPedido[],
     readonly ship: EnvioPedido,
+    readonly pickupInStore: boolean,
     readonly paymentMethod: string | null,
     readonly couponCode: string | null,
     readonly usuario: UsuarioPedido | null,
@@ -47,6 +49,7 @@ export class CrearPedidoComando {
         address: body.shipAddress,
         district: body.shipDistrict,
       },
+      Boolean(body.pickupInStore),
       body.paymentMethod ?? null,
       body.couponCode ?? null,
       usuario,

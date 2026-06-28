@@ -183,6 +183,29 @@ export default function AdminConfiguracionPage() {
             />
           </Section>
 
+          {/* Envío de productos (tienda) */}
+          <Section title="Envío de productos (tienda)">
+            <ToggleField
+              label="Cobrar envío por distancia"
+              description="Calcula el costo de envío de productos según el distrito (distancia desde Cieneguilla). Si lo apagas, el envío es gratis."
+              checked={settings.shipEnabled !== false}
+              onChange={toggle('shipEnabled')}
+            />
+            {settings.shipEnabled !== false && (
+              <>
+                <div className="grid grid-cols-3 gap-3 pt-1">
+                  <Field label="Tarifa base (S/)" type="number" value={String(settings.shipBasePen ?? '10')} onChange={set('shipBasePen')} placeholder="10" />
+                  <Field label="Km base incluidos" type="number" value={String(settings.shipBaseKm ?? '10')} onChange={set('shipBaseKm')} placeholder="10" />
+                  <Field label="S/ por km adicional" type="number" value={String(settings.shipPerKmPen ?? '1.5')} onChange={set('shipPerKmPen')} placeholder="1.5" />
+                </div>
+                <div className="pt-3">
+                  <Field label="Envío gratis desde (S/)" type="number" value={String(settings.shipFreeOverPen ?? '150')} onChange={set('shipFreeOverPen')} placeholder="150" />
+                  <p className="text-xs text-gray-500 mt-1">Los pedidos iguales o mayores a este monto no pagan envío. El recojo en el salón siempre es gratis.</p>
+                </div>
+              </>
+            )}
+          </Section>
+
           {/* Servicio a domicilio */}
           <Section title="Servicio a domicilio">
             <ToggleField

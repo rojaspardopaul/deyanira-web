@@ -195,7 +195,7 @@ export default function Footer() {
       <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs"
         style={{ borderTop: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.3)' }}>
         <p>© {new Date().getFullYear()} {salonSettings?.salonName as string || 'Deyanira Makeup Beauty'}. Todos los derechos reservados.</p>
-        <p style={{ color: 'rgba(255,255,255,0.25)' }}>Hecho con 💛 en Cieneguilla, Lima</p>
+        <p style={{ color: 'rgba(255,255,255,0.25)' }}>Diseño y desarrollo por Paul Rojas Pardo</p>
       </div>
     </footer>
   );

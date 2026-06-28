@@ -567,6 +567,7 @@ model Order {
   shipAddress   String?     @map("ship_address")
   shipDistrict  String?     @map("ship_district")
   shipCity      String      @default("Lima") @map("ship_city")
+  pickupInStore Boolean     @default(false) @map("pickup_in_store") // recojo en el salón (sin envío)
   couponCode    String?     @map("coupon_code")
   createdAt     DateTime    @default(now()) @map("created_at")
   items         OrderItem[]
@@ -685,6 +686,13 @@ model Setting {
   atHomeRatePen       Decimal  @default(4.00) @map("at_home_rate_pen") @db.Decimal(10, 2)
   // Distritos donde se ofrece "yo recojo a la estilista" (sin recargo). Default: sede.
   pickupDistricts     String[] @default(["Cieneguilla"]) @map("pickup_districts")
+  // Envío de productos (tienda). Tarifa por distancia desde Cieneguilla, independiente
+  // del recargo de servicio a domicilio. Envío gratis si el subtotal ≥ shipFreeOverPen.
+  shipEnabled         Boolean  @default(true) @map("ship_enabled")
+  shipBasePen         Decimal  @default(10.00) @map("ship_base_pen") @db.Decimal(10, 2)
+  shipBaseKm          Int      @default(10) @map("ship_base_km")
+  shipPerKmPen        Decimal  @default(1.50) @map("ship_per_km_pen") @db.Decimal(10, 2)
+  shipFreeOverPen     Decimal  @default(150.00) @map("ship_free_over_pen") @db.Decimal(10, 2)
   // Timer de reserva (segundos que tiene el cliente para confirmar en el paso final)
   bookingTimerSeconds Int      @default(600) @map("booking_timer_seconds")
   // Horas que se mantiene una reserva de paquete con adelanto pendiente antes de

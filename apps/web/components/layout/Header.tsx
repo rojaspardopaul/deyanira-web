@@ -4,9 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, X, ShoppingBag, User, CalendarCheck, LogOut, Settings } from 'lucide-react';
+import { Menu, X, ShoppingCart, User, CalendarCheck, LogOut, Settings } from 'lucide-react';
 import { useSalonSettings } from '@/lib/useSalonSettings';
 import { createClient } from '@/lib/supabase/client';
+import { useCart } from '@/components/shop/CartProvider';
 
 const NAV_LINKS = [
   { href: '/servicios', label: 'Servicios' },
@@ -28,6 +29,7 @@ export default function Header() {
   const router      = useRouter();
   const isHome      = pathname === '/';
   const salonSettings = useSalonSettings();
+  const { count: cartCount, openDrawer } = useCart();
   // Tienda visible salvo que esté explícitamente deshabilitada en Configuración.
   const showStore = salonSettings?.storeEnabled !== false;
   const navLinks = NAV_LINKS.filter((l) => l.href !== '/tienda' || showStore);
@@ -159,11 +161,15 @@ export default function Header() {
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-1">
             {showStore && (
-              <Link href="/tienda"
-                className="p-2 rounded-xl transition-all duration-200 text-white/60 hover:text-white hover:bg-white/8"
-                aria-label="Tienda">
-                <ShoppingBag className="w-5 h-5" />
-              </Link>
+              <button onClick={openDrawer} aria-label="Carrito de compras"
+                className="relative p-2 rounded-xl transition-all duration-200 text-white/60 hover:text-white hover:bg-white/8">
+                <ShoppingCart className="w-5 h-5" />
+                {cartCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </span>
+                )}
+              </button>
             )}
 
             {/* User avatar / login */}
@@ -233,15 +239,28 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setOpen(v => !v)}
-            className="md:hidden p-2 -mr-1 rounded-xl transition-colors text-white/80 hover:bg-white/10"
-            aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
-            aria-expanded={open}
-          >
-            {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          {/* Mobile: carrito + hamburger */}
+          <div className="md:hidden flex items-center gap-1">
+            {showStore && (
+              <button onClick={openDrawer} aria-label="Carrito de compras"
+                className="relative p-2 rounded-xl transition-colors text-white/80 hover:bg-white/10">
+                <ShoppingCart className="w-6 h-6" />
+                {cartCount > 0 && (
+                  <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-primary-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {cartCount > 9 ? '9+' : cartCount}
+                  </span>
+                )}
+              </button>
+            )}
+            <button
+              onClick={() => setOpen(v => !v)}
+              className="p-2 -mr-1 rounded-xl transition-colors text-white/80 hover:bg-white/10"
+              aria-label={open ? 'Cerrar menú' : 'Abrir menú'}
+              aria-expanded={open}
+            >
+              {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile slide-down menu */}

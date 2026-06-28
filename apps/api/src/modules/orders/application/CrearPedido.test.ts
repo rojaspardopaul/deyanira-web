@@ -5,6 +5,7 @@ import type { ContextoTenant } from '../../../shared/context/ContextoTenant';
 import type { CatalogoProductos, ProductoTienda, PromocionTienda } from '../domain/ports/CatalogoProductos';
 import type { PedidoNuevo, PedidoRepositorio } from '../domain/ports/PedidoRepositorio';
 import type { NotificadorPedidos } from '../domain/ports/NotificadorPedidos';
+import type { ConfiguracionEnvio } from '../domain/ports/ConfiguracionEnvio';
 import { CuponInvalidoError, DemasiadosPedidosPendientesError, ProductoNoDisponibleError } from '../domain/errors';
 
 const ctx: ContextoTenant = { tenantId: 'test' };
@@ -36,7 +37,10 @@ function crearDeps(o: Overrides = {}) {
     cargarPromocion: vi.fn(async () => o.promo ?? null),
   };
   const notificador: NotificadorPedidos = { pedidoPendientePago: vi.fn(), comprobanteRecibido: vi.fn() };
-  return { pedidos, catalogo, notificador, getPedido: () => ultimoPedido };
+  const configEnvio: ConfiguracionEnvio = {
+    obtener: vi.fn(async () => ({ habilitado: true, envioGratisDesde: 150, costoPara: () => 10 })),
+  };
+  return { pedidos, catalogo, notificador, configEnvio, getPedido: () => ultimoPedido };
 }
 
 const body = (over: Partial<CuerpoCrearPedido> = {}): CuerpoCrearPedido => ({
@@ -51,7 +55,7 @@ const body = (over: Partial<CuerpoCrearPedido> = {}): CuerpoCrearPedido => ({
 });
 
 function correr(deps: ReturnType<typeof crearDeps>, b: CuerpoCrearPedido, usuario: UsuarioPedido | null = null) {
-  const uc = new CrearPedido(deps.pedidos, deps.catalogo, deps.notificador);
+  const uc = new CrearPedido(deps.pedidos, deps.catalogo, deps.notificador, deps.configEnvio);
   return uc.ejecutar(ctx, CrearPedidoComando.desdeHttp(b, usuario));
 }
 

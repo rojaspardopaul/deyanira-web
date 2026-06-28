@@ -84,6 +84,7 @@ export class PrismaPedidoRepository implements PedidoRepositorio {
             shipAddress: pedido.ship.address,
             shipDistrict: pedido.ship.district,
             shipCity: 'Lima',
+            pickupInStore: pedido.pickupInStore,
             couponCode: pedido.cupon?.code ?? null,
             items: {
               create: pedido.lineas.map((l) => ({

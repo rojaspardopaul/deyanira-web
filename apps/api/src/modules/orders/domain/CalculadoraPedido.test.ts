@@ -18,13 +18,20 @@ describe('CalculadoraPedido', () => {
     expect(calcularDescuento(10, { type: 'fixed', value: 50 })).toBe(10);
   });
 
-  it('envío: gratis sobre S/100, S/10 si no', () => {
-    expect(calcularEnvioYTotal(50, 0).shipping).toBe(10);
-    expect(calcularEnvioYTotal(150, 0).shipping).toBe(0);
+  const envio = (costoEnvio: number, recojoEnSalon = false, envioGratisDesde = 100) =>
+    ({ costoEnvio, recojoEnSalon, envioGratisDesde });
+
+  it('envío: gratis al alcanzar el umbral, costo por distancia si no', () => {
+    expect(calcularEnvioYTotal(50, 0, envio(10)).shipping).toBe(10);
+    expect(calcularEnvioYTotal(150, 0, envio(10)).shipping).toBe(0);
+  });
+
+  it('recojo en salón: envío 0 aunque no alcance el umbral', () => {
+    expect(calcularEnvioYTotal(50, 0, envio(10, true)).shipping).toBe(0);
   });
 
   it('total = subtotal + envío - descuento (nunca negativo)', () => {
-    expect(calcularEnvioYTotal(150, 20).total).toBe(130);
-    expect(calcularEnvioYTotal(5, 50).total).toBe(0);
+    expect(calcularEnvioYTotal(150, 20, envio(10)).total).toBe(130);
+    expect(calcularEnvioYTotal(5, 50, envio(10)).total).toBe(0);
   });
 });

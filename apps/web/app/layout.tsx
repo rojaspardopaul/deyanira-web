@@ -9,6 +9,8 @@ import BottomNav from '@/components/layout/BottomNav';
 import FaviconUpdater from '@/components/layout/FaviconUpdater';
 import { LoadingProvider } from '@/lib/loading';
 import { SalonSettingsProvider } from '@/lib/useSalonSettings';
+import { CartProvider } from '@/components/shop/CartProvider';
+import CartDrawer from '@/components/shop/CartDrawer';
 
 import { JsonLd } from '@/components/seo/JsonLd';
 import { organizationLd, webSiteLd } from '@/lib/jsonld';
@@ -124,14 +126,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <LoadingProvider>
           <SalonSettingsProvider>
-            <FaviconUpdater />
-            <Header />
-            <main>
-              {children}
-            </main>
-            <Footer />
-            <WhatsAppButton />
-            <BottomNav />
+            <CartProvider>
+              <FaviconUpdater />
+              <Header />
+              <main>
+                {children}
+              </main>
+              <Footer />
+              <WhatsAppButton />
+              <BottomNav />
+              <CartDrawer />
+            </CartProvider>
           </SalonSettingsProvider>
         </LoadingProvider>
       </body>

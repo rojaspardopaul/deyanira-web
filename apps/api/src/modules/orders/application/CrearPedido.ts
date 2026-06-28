@@ -22,6 +22,7 @@ import type {
 } from '../domain/ports/PedidoRepositorio';
 import type { CatalogoProductos } from '../domain/ports/CatalogoProductos';
 import type { NotificadorPedidos } from '../domain/ports/NotificadorPedidos';
+import type { ConfiguracionEnvio } from '../domain/ports/ConfiguracionEnvio';
 import { CrearPedidoComando } from './dto/CrearPedidoComando';
 
 const MAX_PEDIDOS_PENDIENTES = 3;
@@ -32,6 +33,7 @@ export class CrearPedido {
     private readonly pedidos: PedidoRepositorio,
     private readonly catalogo: CatalogoProductos,
     private readonly notificador: NotificadorPedidos,
+    private readonly configEnvio: ConfiguracionEnvio,
   ) {}
 
   async ejecutar(ctx: ContextoTenant, comando: CrearPedidoComando): Promise<PedidoPersistido> {
@@ -75,8 +77,12 @@ export class CrearPedido {
       cupon = { code, promoId: promo.id, usedCount: promo.usedCount };
     }
 
-    // 4) Envío y total.
-    const { shipping, total } = calcularEnvioYTotal(subtotal, discount);
+    // 4) Envío y total (recomputado en servidor por distrito; no se confía en el cliente).
+    const confEnvio = await this.configEnvio.obtener(ctx);
+    const recojoEnSalon = comando.pickupInStore;
+    const costoEnvio = (confEnvio && !recojoEnSalon) ? confEnvio.costoPara(comando.ship.district) : 0;
+    const envioGratisDesde = confEnvio ? confEnvio.envioGratisDesde : 0;
+    const { shipping, total } = calcularEnvioYTotal(subtotal, discount, { recojoEnSalon, costoEnvio, envioGratisDesde });
 
     // 5) Persistir (transacción: stock + cupón atómicos + creación).
     const pedido = await this.pedidos.crear(ctx, {
@@ -88,6 +94,7 @@ export class CrearPedido {
       total,
       paymentMethod: comando.paymentMethod || METODO_PAGO_DEFECTO,
       ship: comando.ship,
+      pickupInStore: recojoEnSalon,
       cupon,
       lineas,
     });

@@ -21,6 +21,7 @@ export const CrearPedidoSchema = z.object({
   shipEmail: z.string().regex(EMAIL_RE, 'Email inválido').max(150).optional().nullable(),
   shipAddress: z.string().trim().min(5).max(200),
   shipDistrict: z.string().trim().min(2).max(50),
+  pickupInStore: z.boolean().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).optional(),
   couponCode: z.string().trim().min(1).max(50).optional().nullable(),
 });
