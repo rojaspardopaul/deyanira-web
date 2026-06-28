@@ -124,9 +124,24 @@ const AT_HOME_DIST_KM: Record<string, number> = {
   'Los Olivos': 38, Comas: 42, Carabayllo: 46, 'Puente Piedra': 48, Otro: 30,
 };
 
+// Tarifa de domicilio configurable desde el admin (Settings). El default es el
+// mismo fallback del backend (120/15/4) por si los settings aún no cargaron. El
+// wizard llama setAtHomeRates() al recibir la config pública para que el estimado
+// mostrado coincida con el recargo que realmente cobra el backend.
+let atHomeRates = { basePen: 120, baseKm: 15, ratePen: 4 };
+export function setAtHomeRates(r: { basePen?: unknown; baseKm?: unknown; ratePen?: unknown }) {
+  const num = (v: unknown, fallback: number) => (Number.isFinite(Number(v)) ? Number(v) : fallback);
+  atHomeRates = {
+    basePen: num(r.basePen, atHomeRates.basePen),
+    baseKm: num(r.baseKm, atHomeRates.baseKm),
+    ratePen: num(r.ratePen, atHomeRates.ratePen),
+  };
+}
+
 export function atHomeExtra(district: string) {
   const km = AT_HOME_DIST_KM[district] ?? 30;
-  return Math.round((120 + Math.max(0, km - 15) * 4) * 100) / 100;
+  const { basePen, baseKm, ratePen } = atHomeRates;
+  return Math.round((basePen + Math.max(0, km - baseKm) * ratePen) * 100) / 100;
 }
 
 export function computeDisplayEnd(

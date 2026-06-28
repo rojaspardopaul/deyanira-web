@@ -97,6 +97,7 @@ function crearDeps(o: DepsOverrides = {}) {
         : {
             habilitado: o.configDomicilio?.habilitado ?? true,
             recargoPara: () => Dinero.de(o.configDomicilio?.recargo ?? 25),
+            permiteRecojo: () => false,
           },
     ),
   };

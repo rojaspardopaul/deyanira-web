@@ -154,6 +154,7 @@ export class PrismaCitaRepository implements CitaRepositorio {
             atHomeAddress: d.domicilio.aDomicilio ? d.domicilio.direccion : null,
             atHomeDistrict: d.domicilio.aDomicilio ? d.domicilio.distrito : null,
             atHomeExtraPen: esPrimeraDelDiaPrincipal && d.domicilio.aDomicilio ? d.recargoMonto : null,
+            clientPickup: d.domicilio.aDomicilio ? Boolean(d.domicilio.recogeCliente) : false,
           },
           include: INCLUDE,
         });

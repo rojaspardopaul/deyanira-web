@@ -86,10 +86,16 @@ export class CrearReservaEnLote {
 
     // Recargo a domicilio (una vez por reserva)
     let recargo: Dinero | null = null;
+    let recogeCliente = false;
     if (comando.aDomicilio) {
       const config = await this.configDomicilio.obtener(ctx);
       if (config && !config.habilitado) throw new DomicilioNoDisponibleError('El servicio a domicilio no está disponible');
-      recargo = config ? config.recargoPara(comando.distrito || 'Otro') : Dinero.de(RECARGO_DOMICILIO_DEFECTO);
+      // "El cliente recoge a la estilista": sin recargo, pero solo en los distritos
+      // habilitados en la config (anti-tampering: no confiar en el flag del cliente).
+      recogeCliente = comando.recogeCliente && !!config && config.permiteRecojo(comando.distrito || '');
+      recargo = recogeCliente
+        ? Dinero.de(0)
+        : (config ? config.recargoPara(comando.distrito || 'Otro') : Dinero.de(RECARGO_DOMICILIO_DEFECTO));
     }
 
     // Servicios (cuando hay paquete se aceptan inactivos, p. ej. "prueba de maquillaje")
@@ -195,6 +201,7 @@ export class CrearReservaEnLote {
         aDomicilio: comando.aDomicilio,
         direccion: comando.aDomicilio ? comando.direccion : null,
         distrito: comando.aDomicilio ? comando.distrito : null,
+        recogeCliente,
       },
       recargoMonto: comando.aDomicilio && recargo ? recargo.monto : null,
       mainDate,

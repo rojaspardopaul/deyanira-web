@@ -3,8 +3,17 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { MapPin, Phone, Clock, Instagram, Facebook } from 'lucide-react';
+import { MapPin, Phone, Clock, Instagram, Facebook, Mail, BookText } from 'lucide-react';
 import { useSalonSettings } from '@/lib/useSalonSettings';
+
+// lucide-react no incluye el logo de marca de TikTok → SVG inline (simple-icons).
+function TikTokIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" className={className} style={style}>
+      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
+    </svg>
+  );
+}
 
 const LINKS = [
   ['Servicios',     '/servicios'],
@@ -64,9 +73,18 @@ export default function Footer() {
                 <Facebook className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.55)' }} />
               </a>
             )}
+            {salonSettings?.tiktokUrl && (
+              <a href={salonSettings.tiktokUrl as string} aria-label="TikTok" target="_blank" rel="noopener noreferrer"
+                className="w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 hover:scale-110"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,79,162,0.4)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.1)'; }}>
+                <TikTokIcon className="w-4 h-4" style={{ color: 'rgba(255,255,255,0.55)' }} />
+              </a>
+            )}
             {!salonSettings && (
               <>
-                {[Instagram, Facebook].map((Icon, i) => (
+                {[Instagram, Facebook, TikTokIcon].map((Icon, i) => (
                   <div key={i} className="w-9 h-9 rounded-xl animate-pulse"
                     style={{ background: 'rgba(255,255,255,0.06)' }} />
                 ))}
@@ -124,6 +142,18 @@ export default function Footer() {
                 </a>
               </li>
             )}
+            {salonSettings?.email && (
+              <li className="flex items-center gap-3">
+                <Mail className="w-4 h-4 shrink-0" style={{ color: '#D4AF37' }} />
+                <a href={`mailto:${salonSettings.email as string}`}
+                  className="text-sm transition-colors duration-200 break-all"
+                  style={{ color: 'rgba(255,255,255,0.45)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#D4AF37'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.45)'; }}>
+                  {salonSettings.email as string}
+                </a>
+              </li>
+            )}
             <li className="flex items-start gap-3">
               <Clock className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#D4AF37' }} />
               <span className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
@@ -137,14 +167,32 @@ export default function Footer() {
         </div>
       </div>
 
+      {/* Legal links */}
+      <div className="max-w-6xl mx-auto px-4 pb-2 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '1.25rem' }}>
+        {([
+          ['Términos y Condiciones', '/terminos-y-condiciones'],
+          ['Cambios y Devoluciones', '/politica-de-cambios-y-devoluciones'],
+          ['Política de Privacidad', '/politica-de-privacidad'],
+        ] as const).map(([label, href]) => (
+          <Link key={href} href={href}
+            className="transition-colors duration-200 hover:text-white"
+            style={{ color: 'rgba(255,255,255,0.45)' }}>
+            {label}
+          </Link>
+        ))}
+        <Link href="/libro-de-reclamaciones"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors"
+          style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <BookText className="w-3.5 h-3.5" /> Libro de Reclamaciones
+        </Link>
+      </div>
+
       {/* Bottom bar */}
       <div className="max-w-6xl mx-auto px-4 py-5 flex flex-col md:flex-row items-center justify-between gap-3 text-xs"
         style={{ borderTop: '1px solid rgba(255,255,255,0.07)', color: 'rgba(255,255,255,0.3)' }}>
-        <p>© {new Date().getFullYear()} Papayita - Paul Rojas Pardo. Todos los derechos reservados.</p>
-        <Link href="/politica-de-privacidad"
-          className="hover:text-white/60 transition-colors duration-200">
-          Política de privacidad
-        </Link>
+        <p>© {new Date().getFullYear()} {salonSettings?.salonName as string || 'Deyanira Makeup Beauty'}. Todos los derechos reservados.</p>
+        <p style={{ color: 'rgba(255,255,255,0.25)' }}>Hecho con 💛 en Cieneguilla, Lima</p>
       </div>
     </footer>
   );

@@ -6,3 +6,4 @@ export * from './regex';
 export * from './appointments';
 export * from './orders';
 export * from './payments';
+export * from './reclamaciones';

@@ -45,9 +45,11 @@ export class ConfiguracionDomicilioPrisma implements ConfiguracionDomicilio {
   async obtener(_ctx: ContextoTenant): Promise<ConfiguracionDomicilioSalon | null> {
     const s = await this.prisma.setting.findFirst();
     if (!s) return null;
+    const pickup = Array.isArray(s.pickupDistricts) ? s.pickupDistricts : [];
     return {
       habilitado: s.atHomeEnabled,
       recargoPara: (distrito: string) => Dinero.de(calcularRecargo(distrito, s)),
+      permiteRecojo: (distrito: string) => pickup.includes(distrito),
     };
   }
 }

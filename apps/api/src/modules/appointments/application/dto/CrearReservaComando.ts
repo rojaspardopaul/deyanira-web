@@ -15,6 +15,8 @@ export interface CuerpoCrearReserva {
   atHome?: boolean;
   atHomeAddress?: string;
   atHomeDistrict?: string;
+  /** El cliente recoge y devuelve a la estilista (sin recargo). Solo válido en distritos habilitados. */
+  clientPickup?: boolean;
 }
 
 export class CrearReservaComando {
@@ -30,6 +32,7 @@ export class CrearReservaComando {
     readonly aDomicilio: boolean,
     readonly direccion: string | null,
     readonly distrito: string | null,
+    readonly recogeCliente: boolean,
     readonly usuario: UsuarioAutenticado | null,
   ) {}
 
@@ -46,6 +49,7 @@ export class CrearReservaComando {
       Boolean(body.atHome),
       body.atHomeAddress ?? null,
       body.atHomeDistrict ?? null,
+      Boolean(body.clientPickup),
       usuario,
     );
   }

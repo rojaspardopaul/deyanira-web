@@ -17,7 +17,7 @@ const { crearRouterAdminCitas } = require('../../modules/appointments/presentati
 const { crearRouterAdminAdelantos } = require('../../modules/booking-payments/presentation/booking-payments.admin.routes');
 const { crearRouterAdminRecibos } = require('../../modules/receipts/presentation/receipts.admin.routes');
 const { crearRouterAdminFinanzas } = require('../../modules/financial/presentation/financial.admin.routes');
-const { sendOrderStatusUpdate } = require('../../lib/notifications/email');
+const { sendOrderStatusUpdate, sendReclamacionRespuesta } = require('../../lib/notifications/email');
 const { randomUUID } = require('crypto');
 
 const router = Router();
@@ -1043,7 +1043,7 @@ router.patch('/settings', async (req, res, next) => {
       'lat', 'lng', 'hoursWeekday', 'hoursSaturday', 'hoursSunday',
       'facebookUrl', 'instagramUrl', 'tiktokUrl',
       'bookingNoticeHours', 'cancellationHours',
-      'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen',
+      'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen', 'pickupDistricts',
       'storeEnabled',
       'bookingTimerSeconds',
       'bookingMinHour', 'packageMinHour',
@@ -1053,9 +1053,19 @@ router.patch('/settings', async (req, res, next) => {
       'depositExpiryHours',
       'yapeNumber', 'yapeName', 'plinNumber',
       'bankName', 'bankAccount', 'bankCci', 'bankAccountHolder',
+      'razonSocial', 'ruc', 'termsMd', 'returnsPolicyMd', 'privacyMd',
     ]);
     if (data.homeSlides !== undefined && !Array.isArray(data.homeSlides)) {
       return res.status(400).json({ error: 'homeSlides debe ser un array' });
+    }
+    if (data.pickupDistricts !== undefined) {
+      if (!Array.isArray(data.pickupDistricts)) {
+        return res.status(400).json({ error: 'pickupDistricts debe ser un array' });
+      }
+      // Saneo: strings no vacíos, sin duplicados.
+      data.pickupDistricts = [...new Set(
+        data.pickupDistricts.map((d) => String(d).trim()).filter(Boolean),
+      )];
     }
     const TIME_HHMM = /^\d{2}:\d{2}$/;
     if (data.bookingMinHour && !TIME_HHMM.test(data.bookingMinHour)) {
@@ -1227,6 +1237,45 @@ router.delete('/users/:id', isSuperAdmin, async (req, res, next) => {
     if (req.params.id === req.admin.id) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
     await prisma.admin.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── Libro de Reclamaciones (INDECOPI) ─────────────────────────
+const RECLAMO_ESTADOS = ['PENDIENTE', 'RESPONDIDO', 'CERRADO'];
+
+router.get('/reclamaciones', requireRole('admin', 'super_admin'), async (req, res, next) => {
+  try {
+    const { estado } = req.query;
+    const where = estado && RECLAMO_ESTADOS.includes(estado) ? { estado } : undefined;
+    const orderBy = { createdAt: 'desc' };
+    const pg = parsePagination(req.query);
+    if (pg.hasPage) {
+      const result = await paginate(prisma.hojaReclamacion, { where, orderBy }, pg);
+      return res.json(result);
+    }
+    const items = await prisma.hojaReclamacion.findMany({ where, orderBy, take: 500 });
+    res.json(items);
+  } catch (err) { next(err); }
+});
+
+router.patch('/reclamaciones/:id', requireRole('admin', 'super_admin'), async (req, res, next) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
+    const data = {};
+    if (typeof req.body.respuesta === 'string' && req.body.respuesta.trim()) {
+      data.respuesta = req.body.respuesta.trim().slice(0, 5000);
+      data.estado = 'RESPONDIDO';
+      data.respondidoAt = new Date();
+    }
+    if (req.body.estado && RECLAMO_ESTADOS.includes(req.body.estado)) {
+      data.estado = req.body.estado;
+    }
+    if (Object.keys(data).length === 0) return res.status(400).json({ error: 'Nada que actualizar' });
+    const reclamo = await prisma.hojaReclamacion.update({ where: { id: req.params.id }, data });
+    if (data.respuesta) {
+      sendReclamacionRespuesta({ reclamo }).catch((e) => logger.error('reclamo_resp_failed', { msg: e.message }));
+    }
+    res.json(reclamo);
   } catch (err) { next(err); }
 });
 

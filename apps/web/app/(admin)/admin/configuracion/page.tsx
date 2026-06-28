@@ -7,6 +7,8 @@ import { invalidateSalonSettingsCache } from '@/lib/useSalonSettings';
 import Link from 'next/link';
 import { ChevronLeft, Save, Check } from 'lucide-react';
 import DateTimePicker from '@/components/ui/datetime';
+import Select from '@/components/ui/Select';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 
 type Settings = Record<string, string | number | boolean | null | unknown[]>;
 
@@ -196,6 +198,43 @@ export default function AdminConfiguracionPage() {
                 <Field label="S/ por km adicional" type="number" value={String(settings.atHomeRatePen || '4')} onChange={set('atHomeRatePen')} placeholder="4" />
               </div>
             )}
+            {settings.atHomeEnabled && (() => {
+              const pickup = Array.isArray(settings.pickupDistricts) ? (settings.pickupDistricts as string[]) : [];
+              const addPickup = (d: string) => {
+                if (d && !pickup.includes(d)) setSettings(s => ({ ...s, pickupDistricts: [...pickup, d] }));
+              };
+              const removePickup = (d: string) =>
+                setSettings(s => ({ ...s, pickupDistricts: pickup.filter(x => x !== d) }));
+              return (
+                <div className="pt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Distritos con opción &ldquo;el cliente recoge a la estilista&rdquo;
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    En estos distritos el cliente podrá elegir recoger y devolver a la estilista al salón,
+                    <strong> sin recargo de movilidad</strong>. Por defecto: Cieneguilla.
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {pickup.length === 0 && <span className="text-xs text-gray-400">Ninguno configurado</span>}
+                    {pickup.map(d => (
+                      <span key={d} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 ring-1 ring-amber-200">
+                        {d}
+                        <button type="button" onClick={() => removePickup(d)} className="hover:text-amber-900 font-bold leading-none" aria-label={`Quitar ${d}`}>×</button>
+                      </span>
+                    ))}
+                  </div>
+                  <Select
+                    theme="light"
+                    value={null}
+                    placeholder="Agregar distrito…"
+                    searchable
+                    options={(LIMA_DISTRICTS as string[]).filter((d) => !pickup.includes(d))}
+                    onChange={addPickup}
+                    ariaLabel="Agregar distrito de recojo"
+                  />
+                </div>
+              );
+            })()}
           </Section>
 
           {/* Datos de pago / Adelantos */}
@@ -228,6 +267,34 @@ export default function AdminConfiguracionPage() {
             <Field label="Instagram" value={settings.instagramUrl as string || ''} onChange={set('instagramUrl')} placeholder="https://instagram.com/..." />
             <Field label="Facebook" value={settings.facebookUrl as string || ''} onChange={set('facebookUrl')} placeholder="https://facebook.com/..." />
             <Field label="TikTok" value={settings.tiktokUrl as string || ''} onChange={set('tiktokUrl')} placeholder="https://tiktok.com/@..." />
+          </Section>
+
+          <Section title="Legal (Términos, Devoluciones, Privacidad, INDECOPI)">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Razón social" value={settings.razonSocial as string || ''} onChange={set('razonSocial')} placeholder="Razón social del negocio" />
+              <Field label="RUC" value={settings.ruc as string || ''} onChange={set('ruc')} placeholder="20XXXXXXXXXX" />
+            </div>
+            <p className="text-xs text-gray-400">
+              Razón social y RUC se muestran en el Libro de Reclamaciones. Las páginas legales aceptan
+              Markdown (## subtítulos, **negrita**, - listas). Si dejas un campo vacío, se usa una plantilla
+              por defecto que puedes reemplazar.
+            </p>
+            {([
+              ['Términos y Condiciones', 'termsMd'],
+              ['Política de Cambios y Devoluciones', 'returnsPolicyMd'],
+              ['Política de Privacidad', 'privacyMd'],
+            ] as const).map(([label, key]) => (
+              <div key={key}>
+                <label className="block text-xs font-semibold text-gray-500 mb-1">{label}</label>
+                <textarea
+                  value={(settings[key] as string) || ''}
+                  onChange={(e) => setSettings(s => ({ ...s, [key]: e.target.value }))}
+                  rows={6}
+                  placeholder="(vacío = plantilla por defecto)"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+            ))}
           </Section>
         </div>
 

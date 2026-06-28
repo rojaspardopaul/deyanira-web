@@ -386,6 +386,8 @@ model Appointment {
   atHomeAddress  String?         @map("at_home_address")
   atHomeDistrict String?         @map("at_home_district")
   atHomeExtraPen Decimal?        @map("at_home_extra_pen") @db.Decimal(10, 2)
+  // El cliente recoge y devuelve a la estilista (sin recargo de movilidad).
+  clientPickup   Boolean         @default(false) @map("client_pickup")
   // Identificador estable del grupo de reserva (todas las citas creadas juntas
   // comparten este UUID). Reemplaza el agrupado frágil por packageId+date+customerKey.
   bookingGroupId String?         @map("booking_group_id") @db.Uuid
@@ -681,6 +683,8 @@ model Setting {
   atHomeBasePen       Decimal  @default(120.00) @map("at_home_base_pen") @db.Decimal(10, 2)
   atHomeBaseKm        Int      @default(15) @map("at_home_base_km")
   atHomeRatePen       Decimal  @default(4.00) @map("at_home_rate_pen") @db.Decimal(10, 2)
+  // Distritos donde se ofrece "yo recojo a la estilista" (sin recargo). Default: sede.
+  pickupDistricts     String[] @default(["Cieneguilla"]) @map("pickup_districts")
   // Timer de reserva (segundos que tiene el cliente para confirmar en el paso final)
   bookingTimerSeconds Int      @default(600) @map("booking_timer_seconds")
   // Horas que se mantiene una reserva de paquete con adelanto pendiente antes de
@@ -702,9 +706,66 @@ model Setting {
   salonPhotoUrl       String?  @map("salon_photo_url") // Foto del salón (fondo del hero en Nosotros)
   // Slides del carrusel del home: array de { imageUrl?, videoUrl?, badge, line1, line2, bullets[], ctaText, ctaHref, gravity }
   homeSlides          Json     @default("[]") @map("home_slides")
+  // Identificación legal del proveedor (Libro de Reclamaciones / INDECOPI)
+  razonSocial         String?  @map("razon_social")
+  ruc                 String?  @map("ruc")
+  // Páginas legales (markdown, editables desde el admin)
+  termsMd             String?  @map("terms_md")
+  returnsPolicyMd     String?  @map("returns_policy_md")
+  privacyMd           String?  @map("privacy_md")
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("settings")
+}
+
+// ─── LIBRO DE RECLAMACIONES (INDECOPI) ────────────────────
+// Hoja de reclamación digital integrada (no depende de formularios externos).
+
+enum TipoReclamoBien {
+  PRODUCTO
+  SERVICIO
+}
+
+enum TipoReclamo {
+  RECLAMO // Disconformidad con el producto/servicio
+  QUEJA   // Malestar respecto a la atención
+}
+
+enum EstadoReclamo {
+  PENDIENTE
+  RESPONDIDO
+  CERRADO
+}
+
+model HojaReclamacion {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  correlativo     String           @unique // p.ej. LR-2026-000123
+  // Consumidor
+  consumidorNombre   String        @map("consumidor_nombre")
+  consumidorTipoDoc  String        @map("consumidor_tipo_doc") // DNI / CE / Pasaporte / RUC
+  consumidorNumDoc   String        @map("consumidor_num_doc")
+  consumidorDomicilio String       @map("consumidor_domicilio")
+  consumidorTelefono String?       @map("consumidor_telefono")
+  consumidorEmail    String        @map("consumidor_email")
+  esMenor            Boolean       @default(false) @map("es_menor")
+  apoderadoNombre    String?       @map("apoderado_nombre")
+  // Bien contratado
+  bienTipo        TipoReclamoBien  @map("bien_tipo")
+  montoReclamado  Decimal?         @map("monto_reclamado") @db.Decimal(10, 2)
+  bienDescripcion String           @map("bien_descripcion")
+  // Detalle del reclamo/queja
+  tipo            TipoReclamo
+  detalle         String
+  pedido          String
+  // Gestión interna
+  estado          EstadoReclamo    @default(PENDIENTE)
+  respuesta       String?
+  respondidoAt    DateTime?        @map("respondido_at")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @default(now()) @updatedAt @map("updated_at")
+
+  @@index([estado, createdAt])
+  @@map("hojas_reclamacion")
 }
 
 // ─── ADMINISTRADORES ──────────────────────────────────────

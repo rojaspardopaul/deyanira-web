@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPin, Clock, MessageCircle, ArrowRight, CalendarCheck } from 'lucide-react';
+import { MapPin, Clock, MessageCircle, ArrowRight, CalendarCheck, Mail } from 'lucide-react';
 import { useSalonSettings } from '@/lib/useSalonSettings';
 
 const MAP_EMBED_URL =
@@ -67,6 +67,11 @@ export default function ContactoContent() {
             style={{ color: '#D4AF37' }}>
             Abrir en Maps <ArrowRight className="w-3 h-3" />
           </a>
+          {s?.email && (
+            <a href={`mailto:${s.email}`} className="mt-3 flex items-center gap-1.5 text-xs break-all" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: '#D4AF37' }} /> {s.email}
+            </a>
+          )}
         </div>
 
         {/* WhatsApp */}

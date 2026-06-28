@@ -14,6 +14,13 @@ declare global {
   interface Window { Culqi?: any; culqi?: () => void }
 }
 
+// Cierra el modal/overlay de Culqi. Imprescindible llamarlo tras recibir el token
+// (Culqi v4 no lo cierra solo): su overlay full-screen tapa cualquier mensaje de
+// éxito/error que mostremos en nuestra página.
+export function closeCulqi(): void {
+  try { window.Culqi?.close?.(); } catch { /* ignore */ }
+}
+
 let scriptPromise: Promise<void> | null = null;
 function loadCulqi(): Promise<void> {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));

@@ -2,11 +2,11 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
-import CulqiCheckout from '@/components/payments/CulqiCheckout';
+import CulqiCheckout, { closeCulqi } from '@/components/payments/CulqiCheckout';
 import {
-  CreditCard, Upload, CheckCircle2, Clock, ShieldCheck, Copy, Loader2, CalendarCheck,
+  CreditCard, Upload, CheckCircle2, Clock, ShieldCheck, Copy, Loader2, CalendarCheck, AlertCircle,
 } from 'lucide-react';
 
 const money = (n: number) => `S/ ${Number(n || 0).toFixed(2)}`;
@@ -15,7 +15,6 @@ type Payment = Awaited<ReturnType<typeof api.bookingPayments.get>>;
 
 function PagoInner() {
   const params = useSearchParams();
-  const router = useRouter();
   const bp = params.get('bp') || '';
 
   const [data, setData] = useState<Payment | null>(null);
@@ -51,9 +50,17 @@ function PagoInner() {
     setBusy(true); setError('');
     try {
       await api.bookingPayments.culqi(bp, { culqiToken: token, email: email || data.customerEmail || '' });
-      router.push(`/reserva/${bp}/recibo`);
+      closeCulqi();           // el overlay de Culqi no se cierra solo y taparía el mensaje
+      setDone('paid');        // pantalla de éxito clara (con CTA al recibo)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo procesar el pago');
+      closeCulqi();           // cerrar para que el error sea visible bajo el overlay
+      const err = e as { code?: string; message?: string };
+      // "Ya fue pagado" no es un error real (doble intento): el adelanto está cobrado.
+      if (err?.code === 'adelanto_ya_pagado') {
+        setDone('paid');
+        return;
+      }
+      setError(err?.message || 'No se pudo procesar el pago. Tu tarjeta no fue cobrada.');
       setBusy(false);
     }
   }
@@ -159,7 +166,13 @@ function PagoInner() {
               <TabBtn active={tab === 'transfer'} onClick={() => setTab('transfer')} icon={<Upload className="w-4 h-4" />}>Transferencia / Yape</TabBtn>
             </div>
 
-            {error && <p className="text-xs mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(220,38,38,0.12)', color: '#fca5a5' }}>{error}</p>}
+            {error && (
+              <div role="alert" className="flex items-start gap-2.5 mb-4 px-4 py-3 rounded-xl text-sm"
+                style={{ background: 'rgba(220,38,38,0.14)', border: '1px solid rgba(248,113,113,0.4)', color: '#fecaca' }}>
+                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: '#f87171' }} />
+                <span className="font-medium leading-snug">{error}</span>
+              </div>
+            )}
 
             {tab === 'card' && d.culqiPublicKey && (
               <div className="space-y-3">

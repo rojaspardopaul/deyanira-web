@@ -301,43 +301,36 @@ function statusStepper(current) {
   const ci = idx < 0 ? 0 : idx;
 
   // Badge circular robusto: tabla de UNA celda con width/height iguales (atributo
-  // + estilo) y line-height = alto, dentro de una celda con holgura para que Gmail
-  // no lo comprima en óvalo. El check usa entidad HTML (no el carácter literal).
+  // + estilo) y line-height = alto, para que Gmail no lo comprima en óvalo. El
+  // check usa entidad HTML (no el carácter literal).
   const badge = (i) => {
     const st = i < ci ? 'done' : (i === ci ? 'active' : 'todo');
     const c = T.stepper[st];
     const content = st === 'todo' ? String(i + 1) : '&#10003;';
     const border = st === 'todo' ? `border:2px solid ${T.stepper.todo.border};` : '';
     return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:0 auto;"><tr>`
-      + `<td width="40" height="40" align="center" valign="middle" bgcolor="${c.bg}" style="width:40px;min-width:40px;height:40px;line-height:40px;background:${c.bg};border-radius:50%;${border}font-family:${T.font.sans};font-size:15px;font-weight:700;color:${c.fg};mso-line-height-rule:exactly;">${content}</td>`
+      + `<td width="30" height="30" align="center" valign="middle" bgcolor="${c.bg}" style="width:30px;min-width:30px;height:30px;line-height:30px;background:${c.bg};border-radius:50%;${border}font-family:${T.font.sans};font-size:13px;font-weight:700;color:${c.fg};mso-line-height-rule:exactly;">${content}</td>`
       + `</tr></table>`;
   };
 
-  // Celda completa de un paso: círculo + etiqueta apilados en el mismo eje (sin
-  // reconciliación de columnas entre filas → nada se deforma ni se desalinea).
+  // Cada paso ocupa exactamente 1/3 del ancho (table-layout:fixed). Así se
+  // distribuye parejo y CENTRADO también en móvil (Gmail ya no lo pega a la
+  // izquierda como pasaba con celdas de ancho fijo + conectores que colapsan).
   const stepCell = (i) => {
     const st = i < ci ? 'done' : (i === ci ? 'active' : 'todo');
     const col = st === 'todo' ? T.stepper.todo.fg : T.color.cream;
     const sub = i === ci
-      ? `<div style="font-size:10px;font-weight:600;color:${T.color.primaryGlow};margin-top:2px;line-height:1.2;">¡Aquí estás!</div>`
+      ? `<div style="font-size:9px;font-weight:600;color:${T.color.primaryGlow};margin-top:2px;line-height:1.2;">¡Aquí estás!</div>`
       : '';
-    return `<td width="84" align="center" valign="top">`
+    return `<td width="33.33%" align="center" valign="top" style="padding:0 2px;">`
       + badge(i)
-      + `<div style="margin-top:8px;font-family:${T.font.sans};font-size:11px;font-weight:700;color:${col};line-height:1.3;">${esc(steps[i].label)}${sub}</div>`
+      + `<div style="margin-top:6px;font-family:${T.font.sans};font-size:10px;font-weight:700;color:${col};line-height:1.3;">${esc(steps[i].label)}${sub}</div>`
       + `</td>`;
   };
 
-  // Conector: celda flexible, alineada al centro vertical del círculo (≈20px).
-  const connector = (i) => {
-    const done = i < ci;
-    return `<td valign="top" style="padding:19px 4px 0;font-size:0;line-height:0;">`
-      + `<div style="height:2px;border-radius:2px;background:${done ? T.color.gold : 'rgba(212,175,55,0.30)'};line-height:2px;font-size:0;">&nbsp;</div>`
-      + `</td>`;
-  };
-
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 24px;table-layout:fixed;">
     <tr>
-      ${stepCell(0)}${connector(0)}${stepCell(1)}${connector(1)}${stepCell(2)}
+      ${stepCell(0)}${stepCell(1)}${stepCell(2)}
     </tr>
   </table>`;
 }
@@ -569,13 +562,16 @@ async function sendBookingRequested({ appointments, packageInfo, email, name, at
   const settings = await getEmailSettings();
   const first = appointments[0];
   const isAtHome = appointments.some(a => a.atHome);
+  const isPickup = appointments.some(a => a.clientPickup);
   const body = `
     ${statusStepper('requested')}
     ${heading('📩', packageInfo ? `Solicitud del paquete "${packageInfo.name}"` : 'Recibimos tu solicitud')}
     ${greeting(name)}
     ${bodyText(`Recibimos ${appointments.length === 1 ? 'tu reserva' : `tus ${appointments.length} reservas`} para el <strong style="color:#f6ecf0;">${esc(capFirst(fmtDate(first.date)))}</strong>. El salón la revisará y confirmará pronto.`)}
     ${bookingSummaryTable({ packageInfo, appointments, atHomeExtraPen })}
-    ${isAtHome ? alertBox('🏠 <strong>Servicio a domicilio</strong> — Te contactaremos para coordinar el horario exacto.', 'info') : ''}
+    ${isAtHome ? alertBox(isPickup
+      ? '🚗 <strong>Recoges a la estilista</strong> — Pasarás por ella al salón y la devolverás al mismo punto al terminar. Sin recargo de movilidad.'
+      : '🏠 <strong>Servicio a domicilio</strong> — Te contactaremos para coordinar el horario exacto.', 'info') : ''}
     ${goldDivider()}
     ${ctaBtn('Ver mi reserva', `${WEB_URL}/mi-cuenta/citas`)}
     ${helpBlock()}
@@ -845,7 +841,7 @@ async function sendNewBookingToSalon({ appointment }) {
     ['Total',     { html: `<strong style="color:${T.color.gold};">${esc(fmtPrice(apt.totalPen))}</strong>` }],
   ];
   if (apt.atHome && apt.atHomeAddress) {
-    rows.push(['Tipo', 'Servicio a domicilio']);
+    rows.push(['Tipo', apt.clientPickup ? '🚗 El cliente recoge a la estilista (sin recargo)' : 'Servicio a domicilio']);
     rows.push(['Dirección', `${apt.atHomeAddress}, ${apt.atHomeDistrict || ''}`]);
   }
   if (apt.notes) rows.push(['Notas', apt.notes]);
@@ -855,7 +851,9 @@ async function sendNewBookingToSalon({ appointment }) {
     ${bodyText(`Hay una nueva cita <strong style="color:#f6ecf0;">por confirmar</strong>. Ref: <strong>#${esc(shortId)}</strong>`)}
     ${infoTable(rows)}
     ${isOnDuty ? alertBox('<strong>Requiere asignación de estilista</strong> (cita de turno). Asigna desde el panel.', 'warning') : ''}
-    ${apt.atHome ? alertBox('<strong>Servicio a domicilio</strong> — Coordinar horario de llegada con el cliente.', 'info') : ''}
+    ${apt.atHome ? alertBox(apt.clientPickup
+      ? '🚗 <strong>El cliente recoge a la estilista</strong> — Pasa por ella al salón y la devuelve al terminar. Sin recargo.'
+      : '<strong>Servicio a domicilio</strong> — Coordinar horario de llegada con el cliente.', 'info') : ''}
     ${goldDivider()}
     ${ctaBtn('Revisar y confirmar', adminUrl)}
     ${waClient ? ctaBtnGhost('Escribir al cliente por WhatsApp', waClient) : ''}
@@ -1104,6 +1102,89 @@ async function sendReceiptEmail({ receipt, pdfBuffer, email, name }) {
   });
 }
 
+// ════════════════════════════════════════════════════════════
+//  LIBRO DE RECLAMACIONES (INDECOPI)
+// ════════════════════════════════════════════════════════════
+const TIPO_RECLAMO_LABEL = { RECLAMO: 'Reclamo', QUEJA: 'Queja' };
+const TIPO_BIEN_LABEL = { PRODUCTO: 'Producto', SERVICIO: 'Servicio' };
+
+function reclamoRows(r) {
+  const rows = [
+    ['N° de hoja', { html: `<strong>${esc(r.correlativo)}</strong>` }],
+    ['Tipo', TIPO_RECLAMO_LABEL[r.tipo] || r.tipo],
+    ['Consumidor', r.consumidorNombre],
+    ['Documento', `${r.consumidorTipoDoc} ${r.consumidorNumDoc}`],
+    ['Teléfono', r.consumidorTelefono || '—'],
+    ['Email', r.consumidorEmail],
+    ['Bien', `${TIPO_BIEN_LABEL[r.bienTipo] || r.bienTipo}: ${r.bienDescripcion}`],
+  ];
+  if (r.montoReclamado != null) rows.push(['Monto reclamado', fmtPrice(r.montoReclamado)]);
+  return rows;
+}
+
+// Acuse de recibo al consumidor
+async function sendReclamacionAcuse({ reclamo }) {
+  if (!canSend() || !reclamo?.consumidorEmail) return;
+  const settings = await getEmailSettings();
+  const body = `
+    ${heading('🧾', 'Recibimos tu reclamación')}
+    ${greeting(reclamo.consumidorNombre)}
+    ${bodyText(`Registramos tu ${TIPO_RECLAMO_LABEL[reclamo.tipo] || 'reclamación'} en nuestro Libro de Reclamaciones con el número <strong style="color:#f6ecf0;">${esc(reclamo.correlativo)}</strong>.`)}
+    ${infoTable(reclamoRows(reclamo))}
+    ${alertBox('Te responderemos en un plazo máximo de <strong>quince (15) días hábiles</strong>. La presentación de este reclamo no impide acudir a otras vías de solución de controversias ni es requisito previo para denunciar ante INDECOPI.', 'info')}
+    ${goldDivider()}
+    ${helpBlock()}
+  `;
+  await safeSend('reclamo_acuse', {
+    to: reclamo.consumidorEmail,
+    subject: `Reclamación ${reclamo.correlativo} recibida — ${SALON}`,
+    html: baseHtml(`Recibimos tu reclamación ${reclamo.correlativo}`, body, settings),
+  });
+}
+
+// Aviso interno al salón
+async function sendReclamacionAlSalon({ reclamo }) {
+  const adminEmail = env.SALON_ADMIN_EMAIL;
+  if (!canSend() || !adminEmail) return;
+  const settings = await getEmailSettings();
+  const rows = reclamoRows(reclamo).concat([
+    ['Domicilio', reclamo.consumidorDomicilio],
+    ['Detalle', reclamo.detalle],
+    ['Pedido del consumidor', reclamo.pedido],
+  ]);
+  const body = `
+    ${heading('🧾', 'Nueva reclamación recibida', T.color.gold)}
+    ${bodyText(`Ingresó una nueva ${TIPO_RECLAMO_LABEL[reclamo.tipo] || 'reclamación'} (<strong>${esc(reclamo.correlativo)}</strong>). Debe responderse en máx. 15 días hábiles.`)}
+    ${infoTable(rows)}
+    ${goldDivider()}
+    ${ctaBtn('Gestionar en el panel', `${WEB_URL}/admin/reclamaciones`)}
+  `;
+  await safeSend('reclamo_salon', {
+    to: adminEmail,
+    subject: `Reclamación ${reclamo.correlativo}: ${reclamo.consumidorNombre}`,
+    html: baseHtml(`Nueva reclamación ${reclamo.correlativo}`, body, settings),
+  });
+}
+
+// Respuesta del salón al consumidor
+async function sendReclamacionRespuesta({ reclamo }) {
+  if (!canSend() || !reclamo?.consumidorEmail) return;
+  const settings = await getEmailSettings();
+  const body = `
+    ${heading('✅', 'Respuesta a tu reclamación')}
+    ${greeting(reclamo.consumidorNombre)}
+    ${bodyText(`Sobre tu reclamación <strong style="color:#f6ecf0;">${esc(reclamo.correlativo)}</strong>, esta es nuestra respuesta:`)}
+    ${alertBox(esc(reclamo.respuesta || ''), 'info')}
+    ${goldDivider()}
+    ${helpBlock()}
+  `;
+  await safeSend('reclamo_respuesta', {
+    to: reclamo.consumidorEmail,
+    subject: `Respuesta a tu reclamación ${reclamo.correlativo} — ${SALON}`,
+    html: baseHtml(`Respuesta a tu reclamación ${reclamo.correlativo}`, body, settings),
+  });
+}
+
 module.exports = {
   // línea principal (stepper)
   sendAppointmentRequested,
@@ -1128,6 +1209,10 @@ module.exports = {
   sendDepositProofToSalon,
   sendOrderProofToSalon,
   sendReceiptEmail,
+  // libro de reclamaciones
+  sendReclamacionAcuse,
+  sendReclamacionAlSalon,
+  sendReclamacionRespuesta,
   // helpers exportados por si se reutilizan
   baseHtml, getEmailSettings,
   heading, greeting, bodyText, ctaBtn, ctaBtnGhost, alertBox, goldDivider,

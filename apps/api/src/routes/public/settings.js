@@ -11,7 +11,7 @@ const PUBLIC_FIELDS = [
   'lat', 'lng', 'hoursWeekday', 'hoursSaturday', 'hoursSunday',
   'facebookUrl', 'instagramUrl', 'tiktokUrl',
   'bookingNoticeHours', 'cancellationHours',
-  'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen',
+  'atHomeEnabled', 'atHomeBasePen', 'atHomeBaseKm', 'atHomeRatePen', 'pickupDistricts',
   'storeEnabled',
   'bookingTimerSeconds',
   'logoUrl', 'logoDarkUrl', 'logoIconUrl', 'teamPhotoUrl', 'salonPhotoUrl',
@@ -19,6 +19,8 @@ const PUBLIC_FIELDS = [
   // Datos de pago mostrados al cliente (transferencia/Yape/Plin)
   'yapeNumber', 'yapeName', 'plinNumber',
   'bankName', 'bankAccount', 'bankCci', 'bankAccountHolder',
+  // Legal: identificación del proveedor + páginas legales (markdown)
+  'razonSocial', 'ruc', 'termsMd', 'returnsPolicyMd', 'privacyMd',
 ];
 
 // GET /api/settings/public — configuración pública del salón

@@ -2,21 +2,47 @@
 // de navegador (lazy) para no pagar el arranque en cada recibo. El import es
 // dinámico para no cargar Chromium hasta que realmente se genere un PDF.
 
+import { existsSync } from 'node:fs';
 import type { GeneradorPDF } from '../domain/ports/GeneradorPDF';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 let browserPromise: Promise<any> | null = null;
 
+// Resuelve el binario de Chromium: primero PUPPETEER_EXECUTABLE_PATH, luego rutas
+// típicas de Alpine (varía entre versiones: chromium vs chromium-browser). En
+// local (Windows/Mac) devuelve undefined → puppeteer usa su Chromium empaquetado.
+function resolveChromium(): string | undefined {
+  const fromEnv = process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (fromEnv && existsSync(fromEnv)) return fromEnv;
+  for (const p of ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/lib/chromium/chromium']) {
+    if (existsSync(p)) return p;
+  }
+  return undefined;
+}
+
 async function getBrowser(): Promise<any> {
   if (!browserPromise) {
     const puppeteer = (await import('puppeteer')).default as any;
-    browserPromise = puppeteer.launch({
-      headless: true,
-      // En contenedor usamos el Chromium del sistema (Alpine). En local/Windows,
-      // si no está seteada la env, puppeteer usa su Chromium empaquetado.
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    const executablePath = resolveChromium();
+    browserPromise = puppeteer
+      .launch({
+        headless: true,
+        executablePath,
+        // Flags imprescindibles en contenedor: sin sandbox (corre headless como
+        // root) y sin /dev/shm (diminuto en contenedores → Chromium crashea).
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+        ],
+      })
+      .catch((e: unknown) => {
+        browserPromise = null; // permite reintentar en la próxima llamada
+        // eslint-disable-next-line no-console
+        console.error('[pdf] puppeteer.launch falló', { executablePath, msg: (e as Error).message });
+        throw e;
+      });
   }
   return browserPromise;
 }

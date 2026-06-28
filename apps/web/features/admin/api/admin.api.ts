@@ -72,6 +72,12 @@ export function adminApi(_legacyToken?: string | null) {
         apiFetch<unknown>(`/admin/customers/${encodeURIComponent(id)}`, mut('PATCH', data)),
       delete: (id: string) => apiFetch<unknown>(`/admin/customers/${encodeURIComponent(id)}`, mut('DELETE')),
     },
+    reclamaciones: {
+      list: (estado?: string) =>
+        apiFetch<Record<string, unknown>[]>(`/admin/reclamaciones${estado ? `?estado=${encodeURIComponent(estado)}` : ''}`, getReq()),
+      respond: (id: string, data: { respuesta?: string; estado?: string }) =>
+        apiFetch<unknown>(`/admin/reclamaciones/${encodeURIComponent(id)}`, mut('PATCH', data)),
+    },
     staff: {
       list: () => apiFetch<unknown[]>('/admin/staff', getReq()),
       get: (id: string) => apiFetch<unknown>(`/admin/staff/${encodeURIComponent(id)}`, getReq()),

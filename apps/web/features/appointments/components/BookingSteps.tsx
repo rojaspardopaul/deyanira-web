@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import {
   Check, Clock, ChevronLeft, ChevronDown, CalendarDays, Scissors, User,
   ShoppingBag, Sparkles,
-  MapPin, Phone, Mail, CalendarCheck, ChevronRight, Trash2, Crown, Plus, Timer, X, Info,
+  MapPin, Phone, Mail, CalendarCheck, ChevronRight, Trash2, Crown, Plus, Timer, X, Info, Car,
 } from 'lucide-react';
 import BookingCalendar from '@/components/ui/BookingCalendar';
 import DateTimePicker from '@/components/ui/datetime';
@@ -1434,6 +1434,7 @@ export function ConfirmStep({
   atHome, setAtHome, atHomeAddress, setAtHomeAddress,
   atHomeDistrict, setAtHomeDistrict,
   atHomeEnabled,
+  clientPickup, setClientPickup, pickupDistricts,
   loading, error, timerLeft, onBack, onConfirm,
   packageInfo, trialEnabled,
   modifierSelections,
@@ -1445,6 +1446,7 @@ export function ConfirmStep({
   atHomeAddress: string; setAtHomeAddress: (v: string) => void;
   atHomeDistrict: string; setAtHomeDistrict: (v: string) => void;
   atHomeEnabled: boolean;
+  clientPickup: boolean; setClientPickup: (v: boolean) => void; pickupDistricts: string[];
   loading: boolean; error: string; timerLeft: number | null; onBack: () => void; onConfirm: () => void;
   packageInfo: PackageBookable | null;
   trialEnabled: boolean;
@@ -1454,7 +1456,10 @@ export function ConfirmStep({
     setGuestInfo({ ...guestInfo, [k]: e.target.value });
 
   const services   = assignments.map(a => a.service);
-  const extra      = atHome ? atHomeExtra(atHomeDistrict) : 0;
+  // "Recojo": el cliente lleva/devuelve a la estilista (sin recargo). Solo en distritos habilitados.
+  const pickupAllowed = pickupDistricts.includes(atHomeDistrict);
+  const pickupActive  = atHome && clientPickup && pickupAllowed;
+  const extra      = atHome && !pickupActive ? atHomeExtra(atHomeDistrict) : 0;
   const trialExtra = (trialEnabled && packageInfo?.trialAddon) ? packageInfo.trialAddon.extraPricePen : 0;
   const subtotal   = totalWithPackage(services, packageInfo, modifierSelections) + trialExtra;
   const total      = subtotal + extra;
@@ -1474,7 +1479,10 @@ export function ConfirmStep({
     && (!atHome || atHomeAddress.trim()) && !loading;
 
   return (
-    <div>
+    // translateZ(0): promueve el step a su propia capa de composición. Evita el
+    // "ghost"/caja gris al expandir el bloque de domicilio en navegadores móviles
+    // (MIUI/Xiaomi) que no repintan bien tras un reflow.
+    <div style={{ transform: 'translateZ(0)' }}>
       {/* Header row: title + timer */}
       <div className="flex items-center justify-between mb-5">
         <button onClick={onBack}
@@ -1657,9 +1665,9 @@ export function ConfirmStep({
               <div className="h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
               <div className="flex justify-between text-sm">
                 <span style={{ color: 'rgba(255,255,255,0.55)' }}>
-                  🏠 Movilidad ({atHomeDistrict})
+                  {pickupActive ? `🚗 Recojo a la estilista (${atHomeDistrict})` : `🏠 Movilidad (${atHomeDistrict})`}
                 </span>
-                <span className="text-white font-medium">+S/ {extra.toFixed(2)}</span>
+                <span className="text-white font-medium">{pickupActive ? 'Sin recargo' : `+S/ ${extra.toFixed(2)}`}</span>
               </div>
             </>
           )}
@@ -1749,12 +1757,52 @@ export function ConfirmStep({
               ariaLabel="Distrito"
             />
           </div>
-          <div className="rounded-xl p-3 text-xs"
-            style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'rgba(147,197,253,0.9)' }}>
-            <MapPin className="w-3.5 h-3.5 inline mr-1.5" />
-            Recargo estimado: <span className="font-bold">S/ {atHomeExtra(atHomeDistrict).toFixed(2)}</span>
-            <span className="ml-1 opacity-70">— el costo final se confirma al reservar.</span>
-          </div>
+          {/* Opción: el cliente recoge a la estilista (sin recargo). Solo en distritos habilitados. */}
+          {pickupAllowed && (
+            <button
+              type="button"
+              onClick={() => setClientPickup(!clientPickup)}
+              aria-pressed={clientPickup}
+              className="w-full flex items-center justify-between gap-3 p-3.5 rounded-2xl transition-all duration-200"
+              style={clientPickup
+                ? { background: 'rgba(34,197,94,0.12)', border: '2px solid rgba(34,197,94,0.5)' }
+                : { background: 'rgba(255,255,255,0.04)', border: '2px solid rgba(255,255,255,0.09)' }}
+            >
+              <div className="flex items-center gap-3 text-left">
+                <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                  style={{ background: clientPickup ? 'rgba(34,197,94,0.20)' : 'rgba(255,255,255,0.06)' }}>
+                  <Car className="w-5 h-5" style={{ color: clientPickup ? '#4ade80' : 'rgba(255,255,255,0.6)' }} />
+                </span>
+                <div>
+                  <p className="font-semibold text-sm text-white">
+                    Yo recojo a la estilista <span style={{ color: '#4ade80' }}>(sin recargo)</span>
+                  </p>
+                  <p className="text-[11px] mt-0.5 leading-snug" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    Pasas por ella al salón y la devuelves al mismo punto al terminar. No se cobra movilidad.
+                  </p>
+                </div>
+              </div>
+              <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                style={clientPickup ? { background: '#22c55e', border: '2px solid #22c55e' } : { border: '2px solid rgba(255,255,255,0.25)' }}>
+                {clientPickup && <Check className="w-3 h-3 text-white" />}
+              </span>
+            </button>
+          )}
+          {pickupActive ? (
+            <div className="rounded-xl p-3 text-xs"
+              style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: 'rgba(134,239,172,0.95)' }}>
+              <Car className="w-3.5 h-3.5 inline mr-1.5" />
+              <span className="font-bold">Sin recargo de movilidad.</span>
+              <span className="ml-1 opacity-80">Recoges a la estilista en el salón y la devuelves al mismo punto.</span>
+            </div>
+          ) : (
+            <div className="rounded-xl p-3 text-xs"
+              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', color: 'rgba(147,197,253,0.9)' }}>
+              <MapPin className="w-3.5 h-3.5 inline mr-1.5" />
+              Recargo estimado: <span className="font-bold">S/ {atHomeExtra(atHomeDistrict).toFixed(2)}</span>
+              <span className="ml-1 opacity-70">— el costo final se confirma al reservar.</span>
+            </div>
+          )}
         </div>
       )}
 

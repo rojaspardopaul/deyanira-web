@@ -57,6 +57,7 @@ export const CrearReservaSchema = z
     atHome: z.boolean().optional(),
     atHomeAddress: z.string().max(200).optional(),
     atHomeDistrict: z.string().max(80).optional(),
+    clientPickup: z.boolean().optional(),
     turnstileToken: z.string().max(2048).optional(),
     website: z.string().max(100).optional(),
   })

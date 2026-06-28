@@ -133,7 +133,7 @@ export default function Select({
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1.5 w-full rounded-xl overflow-hidden shadow-xl" style={panelStyle}>
+        <div className="absolute z-50 mt-1.5 w-full rounded-xl overflow-hidden shadow-lg" style={panelStyle}>
           {canSearch && (
             <div className="p-2" style={{ borderBottom: `1px solid ${dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}` }}>
               <div className="relative">

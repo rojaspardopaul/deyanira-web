@@ -8,6 +8,9 @@ import { api } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
 import { useSalonSettings } from '@/lib/useSalonSettings';
 import { LIMA_DISTRICTS } from '@/lib/districts';
+import CulqiCheckout, { closeCulqi } from '@/components/payments/CulqiCheckout';
+
+const CULQI_PK = process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY || '';
 
 type CartItem = { id: string; slug: string; name: string; pricePen: number; image: string | null; qty: number };
 
@@ -24,6 +27,7 @@ function CheckoutContent() {
     address: '', district: 'Cieneguilla',
   });
   const [payMethod, setPayMethod] = useState<'yape' | 'culqi'>('yape');
+  const [culqiOrderId, setCulqiOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [orderId, setOrderId] = useState('');
@@ -79,6 +83,9 @@ function CheckoutContent() {
     if (!form.name || !form.phone || !form.address) {
       setError('Completa todos los campos obligatorios'); return;
     }
+    if (payMethod === 'culqi' && !form.email) {
+      setError('El correo es obligatorio para pagar con tarjeta'); return;
+    }
     setLoading(true); setError('');
     try {
       const orderData = {
@@ -99,11 +106,36 @@ function CheckoutContent() {
       const result = await api.orders.create(orderData) as Record<string, unknown>;
       setFullOrderId(result.id as string);
       setOrderId((result.id as string).slice(-6).toUpperCase());
+      if (payMethod === 'culqi') {
+        // Pedido creado (pendiente): mostramos el botón de pago con tarjeta. El
+        // carrito se limpia solo al confirmar el cargo (por si abandona el pago).
+        setCulqiOrderId(result.id as string);
+      } else {
+        localStorage.removeItem('cart');
+        window.dispatchEvent(new Event('cart-updated'));
+        setSuccess(true);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al procesar el pedido');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Pago con tarjeta (Culqi): el token llega del checkout de Culqi y se cobra el
+  // pedido ya creado vía POST /api/payments/culqi.
+  async function payOrderCard(token: string) {
+    if (!culqiOrderId) return;
+    setLoading(true); setError('');
+    try {
+      await api.payments.culqi({ orderId: culqiOrderId, culqiToken: token, email: form.email || '' });
+      closeCulqi();
       localStorage.removeItem('cart');
       window.dispatchEvent(new Event('cart-updated'));
       setSuccess(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error al procesar el pedido');
+      closeCulqi();
+      setError(e instanceof Error ? e.message : 'No se pudo procesar el pago con tarjeta');
     } finally {
       setLoading(false);
     }
@@ -256,23 +288,27 @@ function CheckoutContent() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { id: 'yape' as const, label: 'Yape / Plin', icon: '📱', desc: 'Paga al número del salón' },
-                { id: 'culqi' as const, label: 'Tarjeta', icon: '💳', desc: 'Visa / Mastercard (próximamente)' },
-              ].map(({ id, label, icon, desc }) => (
+                { id: 'culqi' as const, label: 'Tarjeta', icon: '💳', desc: CULQI_PK ? 'Visa / Mastercard' : 'Próximamente' },
+              ].map(({ id, label, icon, desc }) => {
+                const isDisabled = id === 'culqi' && !CULQI_PK;
+                return (
                 <button
                   key={id}
-                  onClick={() => setPayMethod(id)}
-                  disabled={id === 'culqi'}
+                  type="button"
+                  onClick={() => { if (!isDisabled) { setPayMethod(id); setCulqiOrderId(null); setError(''); } }}
+                  disabled={isDisabled}
                   className={`p-4 border-2 rounded-2xl text-left transition-all ${
-                    payMethod === id && id !== 'culqi'
+                    payMethod === id && !isDisabled
                       ? 'border-primary-500 bg-primary-50'
                       : 'border-gray-200 hover:border-gray-300'
-                  } ${id === 'culqi' ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  } ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <span className="text-2xl block mb-1">{icon}</span>
                   <p className="font-bold text-sm text-gray-900">{label}</p>
                   <p className="text-xs text-gray-500">{desc}</p>
                 </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -298,14 +334,31 @@ function CheckoutContent() {
 
             {error && <p className="text-red-600 text-xs mb-3">{error}</p>}
 
-            <button
-              onClick={handlePlaceOrder}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-full text-sm transition-all disabled:opacity-50 active:scale-95"
-              style={{ boxShadow: '0 4px 20px rgba(219,39,119,0.4)' }}
-            >
-              {loading ? 'Procesando...' : <>{payMethod === 'yape' ? '📱 Confirmar pedido' : '💳 Pagar con tarjeta'} <ArrowRight className="w-4 h-4" /></>}
-            </button>
+            {payMethod === 'culqi' && culqiOrderId && CULQI_PK ? (
+              <>
+                <CulqiCheckout
+                  publicKey={CULQI_PK}
+                  amountCents={Math.round(total * 100)}
+                  title="Pedido — Deyanira Makeup Beauty"
+                  email={form.email}
+                  onToken={payOrderCard}
+                  onError={(m) => setError(m)}
+                  disabled={loading}
+                  label={loading ? 'Procesando…' : 'Pagar con tarjeta'}
+                  className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-full font-bold text-sm text-white transition-all disabled:opacity-50"
+                />
+                <p className="text-center text-xs text-gray-400 mt-2">Tu pedido #{orderId} fue creado. Completa el pago para confirmarlo.</p>
+              </>
+            ) : (
+              <button
+                onClick={handlePlaceOrder}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-full text-sm transition-all disabled:opacity-50 active:scale-95"
+                style={{ boxShadow: '0 4px 20px rgba(219,39,119,0.4)' }}
+              >
+                {loading ? 'Procesando...' : <>{payMethod === 'yape' ? '📱 Confirmar pedido' : '💳 Continuar al pago'} <ArrowRight className="w-4 h-4" /></>}
+              </button>
+            )}
             <p className="text-center text-xs text-gray-400 mt-3">🔒 Pago 100% seguro</p>
           </div>
         </div>

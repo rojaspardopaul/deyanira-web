@@ -20,7 +20,7 @@ import type {
 } from '@/features/appointments/types/booking.types';
 import {
   effectivePricing, totalWithPackage,
-  generateTicketBlob, blobToDataUrl, tryNativeShareWithFile, atHomeExtra,
+  generateTicketBlob, blobToDataUrl, tryNativeShareWithFile, atHomeExtra, setAtHomeRates,
   computeDisplayEnd,
 } from '@/features/appointments/utils/booking';
 
@@ -69,6 +69,8 @@ export default function BookingWizard({
   const [atHomeAddress, setAtHomeAddress]       = useState('');
   const [atHomeDistrict, setAtHomeDistrict]     = useState('Cieneguilla');
   const [atHomeEnabled, setAtHomeEnabled]       = useState(false);
+  const [clientPickup, setClientPickup]         = useState(false);
+  const [pickupDistricts, setPickupDistricts]   = useState<string[]>(['Cieneguilla']);
   const [loading, setLoading]                   = useState(false);
   const [confirmed, setConfirmed]               = useState<Record<string, unknown> | null>(null);
   const [error, setError]                       = useState('');
@@ -124,6 +126,11 @@ export default function BookingWizard({
       .then((s) => {
         const sett = s as Record<string, unknown>;
         if (sett.atHomeEnabled) setAtHomeEnabled(true);
+        // Tarifa de domicilio desde la config admin (para que el estimado = el cobro real).
+        setAtHomeRates({ basePen: sett.atHomeBasePen, baseKm: sett.atHomeBaseKm, ratePen: sett.atHomeRatePen });
+        if (Array.isArray(sett.pickupDistricts) && sett.pickupDistricts.length) {
+          setPickupDistricts(sett.pickupDistricts as string[]);
+        }
         if (sett.bookingTimerSeconds && Number(sett.bookingTimerSeconds) > 0) {
           setBookingTimerSec(Number(sett.bookingTimerSeconds));
         }
@@ -388,6 +395,7 @@ export default function BookingWizard({
         atHome,
         atHomeAddress: atHome ? atHomeAddress : undefined,
         atHomeDistrict: atHome ? atHomeDistrict : undefined,
+        clientPickup: atHome && clientPickup && pickupDistricts.includes(atHomeDistrict),
         turnstileToken: turnstileToken || undefined,
         website: honeypot || undefined,
       }, authUser.token);
@@ -420,7 +428,7 @@ export default function BookingWizard({
     setConfirmed(null); setStep(1);
     setSelectedServices([]); setAssignments([]);
     setSelectedDate(''); setSelectedSlot(null);
-    setAtHome(false); setAtHomeAddress('');
+    setAtHome(false); setAtHomeAddress(''); setClientPickup(false);
     setTimerLeft(null);
   }
 
@@ -459,7 +467,8 @@ export default function BookingWizard({
   // ── Confirmation screen ─────────────────────────────────
   if (confirmed) {
     const trialExtra = (trialEnabled && packageInfo?.trialAddon) ? packageInfo.trialAddon.extraPricePen : 0;
-    const totalAmt = totalWithPackage(selectedServices, packageInfo, modifierSelections) + trialExtra + (atHome ? atHomeExtra(atHomeDistrict) : 0);
+    const pickupActive = atHome && clientPickup && pickupDistricts.includes(atHomeDistrict);
+    const totalAmt = totalWithPackage(selectedServices, packageInfo, modifierSelections) + trialExtra + (atHome && !pickupActive ? atHomeExtra(atHomeDistrict) : 0);
     const endTime  = selectedSlot ? computeDisplayEnd(assignments, selectedSlot.start, modifierSelections) : '';
     const hasOnDuty = assignments.some(a => a.onDuty);
 
@@ -799,6 +808,9 @@ export default function BookingWizard({
             atHomeDistrict={atHomeDistrict}
             setAtHomeDistrict={setAtHomeDistrict}
             atHomeEnabled={atHomeEnabled}
+            clientPickup={clientPickup}
+            setClientPickup={setClientPickup}
+            pickupDistricts={pickupDistricts}
             loading={loading}
             error={error}
             timerLeft={timerLeft}

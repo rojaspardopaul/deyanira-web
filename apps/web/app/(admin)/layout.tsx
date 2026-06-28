@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Calendar, Users, Scissors, Package,
   ShoppingBag, Clock, Image, DollarSign, Settings, LogOut,
-  Sparkles, Menu, X, UserCog, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ReceiptText,
+  Sparkles, Menu, X, UserCog, CalendarDays, ChevronLeft, ChevronRight, ChevronDown, ReceiptText, BookText,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { adminAuth } from '@/lib/api';
@@ -55,6 +55,7 @@ const NAV_SUPER_ADMIN: NavGroup[] = [
     { href: '/admin/recibos', label: 'Recibos', icon: ReceiptText },
   ] },
   { label: 'Sistema', items: [
+    { href: '/admin/reclamaciones', label: 'Reclamaciones', icon: BookText },
     { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
     { href: '/admin/usuarios', label: 'Usuarios', icon: UserCog },
   ] },

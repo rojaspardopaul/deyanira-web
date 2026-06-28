@@ -10,6 +10,8 @@ export interface ConfiguracionDomicilioSalon {
   readonly habilitado: boolean;
   /** Calcula el recargo a domicilio para un distrito (lógica de tarifa por km). */
   recargoPara(distrito: string): Dinero;
+  /** ¿El distrito permite que el cliente recoja a la estilista (sin recargo)? */
+  permiteRecojo(distrito: string): boolean;
 }
 
 export interface ConfiguracionDomicilio {

@@ -8,6 +8,7 @@ const productsRouter = require('./public/products');
 const galleryRouter = require('./public/gallery');
 const blogRouter = require('./public/blog');
 const settingsRouter = require('./public/settings');
+const reclamacionesRouter = require('./public/reclamaciones');
 const promotionsRouter = require('./public/promotions');
 const authRouter = require('./public/auth');
 const customersRouter = require('./public/customers');
@@ -45,6 +46,7 @@ router.use('/payments/webhook', webhookRouter);   // POST /api/payments/webhook/
 router.use('/gallery', galleryRouter);
 router.use('/blog', blogRouter);
 router.use('/settings', settingsRouter);
+router.use('/reclamaciones', reclamacionesRouter);
 router.use('/promotions', promotionsRouter);
 router.use('/customers', customersRouter);
 router.use('/bookings', bookingsRouter);

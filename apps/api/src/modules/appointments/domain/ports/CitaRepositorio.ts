@@ -41,7 +41,7 @@ export interface DatosReservaLote {
     guestPhone: string | null;
     guestEmail: string | null;
   };
-  readonly domicilio: { aDomicilio: boolean; direccion: string | null; distrito: string | null };
+  readonly domicilio: { aDomicilio: boolean; direccion: string | null; distrito: string | null; recogeCliente?: boolean };
   readonly recargoMonto: number | null;
   readonly mainDate: string;
   readonly deposito: { requerido: boolean; percent: number; pen: number; grandTotal: number } | null;
