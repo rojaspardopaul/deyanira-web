@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { MapPin, Phone, Clock, Instagram, Facebook, Mail, BookText } from 'lucide-react';
+import { MapPin, Phone, Clock, Instagram, Facebook, Mail, BookOpen } from 'lucide-react';
 import { useSalonSettings } from '@/lib/useSalonSettings';
 
 // lucide-react no incluye el logo de marca de TikTok → SVG inline (simple-icons).
@@ -181,10 +181,13 @@ export default function Footer() {
             {label}
           </Link>
         ))}
-        <Link href="/libro-de-reclamaciones"
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition-colors"
-          style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.12)' }}>
-          <BookText className="w-3.5 h-3.5" /> Libro de Reclamaciones
+        <Link href="/libro-de-reclamaciones" aria-label="Libro de Reclamaciones"
+          className="inline-flex items-center gap-2 bg-white rounded-md px-3 py-1.5 shadow-sm hover:shadow-md transition-shadow ml-auto"
+          style={{ border: '1px solid rgba(0,0,0,0.08)' }}>
+          <BookOpen className="w-7 h-7 shrink-0" strokeWidth={1.5} style={{ color: '#2f6fb0' }} />
+          <span className="font-bold leading-[1.05] text-[13px]" style={{ color: '#2f6fb0' }}>
+            Libro de<br />Reclamaciones
+          </span>
         </Link>
       </div>
 
