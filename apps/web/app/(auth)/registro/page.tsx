@@ -31,11 +31,14 @@ function RegistroContent() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError]       = useState('');
   const [emailSent, setEmailSent] = useState(false);
+  const [accepted, setAccepted]   = useState(false);
+  const [marketing, setMarketing] = useState(false);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function handleGoogle() {
+    if (!accepted) { setError('Debes aceptar los Términos y Condiciones y la Política de Privacidad.'); return; }
     setGoogleLoading(true);
     setError('');
     const supabase = createClient();
@@ -55,13 +58,14 @@ function RegistroContent() {
     e.preventDefault();
     if (form.password !== form.confirm) { setError('Las contraseñas no coinciden'); return; }
     if (form.password.length < 6) { setError('La contraseña debe tener al menos 6 caracteres'); return; }
+    if (!accepted) { setError('Debes aceptar los Términos y Condiciones y la Política de Privacidad.'); return; }
     setLoading(true);
     setError('');
     const supabase = createClient();
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
-      options: { data: { name: form.name } },
+      options: { data: { name: form.name, acceptsMarketing: marketing, termsAcceptedAt: new Date().toISOString() } },
     });
     if (signUpError) {
       setError(
@@ -179,6 +183,26 @@ function RegistroContent() {
               )}
             </div>
 
+            <div className="space-y-2.5 pt-1">
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={accepted} onChange={(e) => setAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 shrink-0" />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  He leído y acepto los{' '}
+                  <Link href="/terminos-y-condiciones" target="_blank" className="text-primary-600 hover:underline font-medium">Términos y Condiciones</Link>
+                  {' '}y la{' '}
+                  <Link href="/politica-de-privacidad" target="_blank" className="text-primary-600 hover:underline font-medium">Política de Privacidad</Link>.
+                </span>
+              </label>
+              <label className="flex items-start gap-2.5 cursor-pointer">
+                <input type="checkbox" checked={marketing} onChange={(e) => setMarketing(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 shrink-0" />
+                <span className="text-xs text-gray-600 leading-relaxed">
+                  Quiero recibir novedades y promociones por correo o WhatsApp (opcional).
+                </span>
+              </label>
+            </div>
+
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">
                 {error}
@@ -191,8 +215,8 @@ function RegistroContent() {
               </div>
             )}
 
-            <button type="submit" disabled={loading}
-              className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-full text-sm transition-all disabled:opacity-50"
+            <button type="submit" disabled={loading || !accepted}
+              className="w-full py-3 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-full text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ boxShadow: '0 4px 20px rgba(219,39,119,0.35)' }}>
               {loading ? 'Creando cuenta...' : 'Crear cuenta'}
             </button>
