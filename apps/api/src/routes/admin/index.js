@@ -985,7 +985,7 @@ router.get('/customers', async (req, res, next) => {
 
 router.post('/customers', validate({ body: S.CustomerCreate }), async (req, res, next) => {
   try {
-    const { name, phone, email } = req.body;
+    const { name, phone, email, address, district, reference } = req.body;
     const { randomUUID } = require('crypto');
     const customer = await prisma.customer.create({
       data: {
@@ -993,6 +993,9 @@ router.post('/customers', validate({ body: S.CustomerCreate }), async (req, res,
         name:  String(name).trim().slice(0, 100),
         phone: phone  ? String(phone).replace(/\D/g, '').slice(0, 20)  : null,
         email: email  ? String(email).slice(0, 100) : null,
+        address:   address   ? String(address).trim().slice(0, 200)  : null,
+        district:  district  ? String(district).trim().slice(0, 80)  : null,
+        reference: reference ? String(reference).trim().slice(0, 200) : null,
       },
       include: { _count: { select: { appointments: true, orders: true } } },
     });
@@ -1006,6 +1009,9 @@ router.patch('/customers/:id', validate({ params: S.IdParam }), async (req, res,
     if (req.body.name     !== undefined) data.name     = String(req.body.name).slice(0, 100);
     if (req.body.phone    !== undefined) data.phone    = req.body.phone    ? String(req.body.phone).replace(/\D/g, '').slice(0, 20)  : null;
     if (req.body.email    !== undefined) data.email    = req.body.email    ? String(req.body.email).slice(0, 100) : null;
+    if (req.body.address   !== undefined) data.address   = req.body.address   ? String(req.body.address).trim().slice(0, 200)  : null;
+    if (req.body.district  !== undefined) data.district  = req.body.district  ? String(req.body.district).trim().slice(0, 80)  : null;
+    if (req.body.reference !== undefined) data.reference = req.body.reference ? String(req.body.reference).trim().slice(0, 200) : null;
     if (req.body.isActive !== undefined) data.isActive = Boolean(req.body.isActive);
     if (!Object.keys(data).length) return res.json({ ok: true });
     const customer = await prisma.customer.update({
@@ -1156,7 +1162,7 @@ router.post('/users', isSuperAdmin, async (req, res, next) => {
     if (!name || !email || !password) {
       return res.status(400).json({ error: 'name, email y password son requeridos' });
     }
-    const VALID_ROLES = ['super_admin', 'admin', 'estilista'];
+    const VALID_ROLES = ['super_admin', 'admin', 'test', 'estilista'];
     if (role && !VALID_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Rol inválido' });
     }
@@ -1193,7 +1199,7 @@ router.patch('/users/:id', isSuperAdmin, async (req, res, next) => {
     const bcrypt = require('bcryptjs');
     if (!UUID_RE.test(req.params.id)) return res.status(400).json({ error: 'ID inválido' });
     const { name, email, password, role, staffId, isActive } = req.body;
-    const VALID_ROLES = ['super_admin', 'admin', 'estilista'];
+    const VALID_ROLES = ['super_admin', 'admin', 'test', 'estilista'];
     if (role && !VALID_ROLES.includes(role)) return res.status(400).json({ error: 'Rol inválido' });
 
     const data = {};

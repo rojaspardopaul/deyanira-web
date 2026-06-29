@@ -35,7 +35,10 @@ router.get('/public', publicCache(60), async (_req, res, next) => {
         select: Object.fromEntries(PUBLIC_FIELDS.map(f => [f, true])),
       })
     );
-    res.json(setting || {});
+    // Llave pública de Culqi (segura en cliente). Fuente única para todas las
+    // pantallas de pago (checkout/tienda y reservas). Viene de env, no de BD.
+    const culqiPublicKey = process.env.CULQI_PUBLIC_KEY || process.env.NEXT_PUBLIC_CULQI_PUBLIC_KEY || null;
+    res.json({ ...(setting || {}), culqiPublicKey });
   } catch (err) {
     next(err);
   }

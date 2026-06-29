@@ -148,6 +148,9 @@ export default async function TiendaPage({
               const discount = hasDiscount
                 ? Math.round((1 - Number(product.pricePen) / Number(product.comparePrice)) * 100)
                 : 0;
+              const stock = Number(product.stock) || 0;
+              const soldOut = stock <= 0;
+              const lowStock = stock > 0 && stock <= 5;
 
               return (
                 <Link
@@ -167,20 +170,31 @@ export default async function TiendaPage({
                         src={images[0]}
                         alt={product.name as string}
                         fill
-                        className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
+                        className={`object-cover group-hover:scale-110 transition-transform duration-500 ${soldOut ? 'opacity-50 grayscale' : ''}`}
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                        <span className="text-5xl">🧴</span>
+                        <span className={`text-5xl ${soldOut ? 'opacity-50 grayscale' : ''}`}>🧴</span>
                       </div>
                     )}
 
                     {/* Badges */}
                     <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-                      {hasDiscount && (
+                      {hasDiscount && !soldOut && (
                         <span className="text-[10px] font-black px-2 py-1 rounded-full text-white"
                           style={{ background: 'linear-gradient(135deg, #FF4FA2, #e6368a)' }}>
                           -{discount}%
+                        </span>
+                      )}
+                      {soldOut ? (
+                        <span className="text-[10px] font-black px-2 py-1 rounded-full text-white" style={{ background: '#6b7280' }}>
+                          Agotado
+                        </span>
+                      ) : lowStock && (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded-full"
+                          style={{ background: 'rgba(255,255,255,0.92)', color: '#b8962e', border: '1px solid rgba(212,175,55,0.4)' }}>
+                          ¡Solo quedan {stock}!
                         </span>
                       )}
                     </div>

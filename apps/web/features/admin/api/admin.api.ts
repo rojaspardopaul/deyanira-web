@@ -66,9 +66,9 @@ export function adminApi(_legacyToken?: string | null) {
       listPaged: (opts?: { page?: number; pageSize?: number; search?: string }) =>
         apiFetch<Paged<Record<string, unknown>>>(`/admin/customers${pageQuery(opts)}`, getReq()),
       search: (q: string) => apiFetch<unknown[]>(`/admin/customers?search=${encodeURIComponent(q)}`, getReq()),
-      create: (data: { name: string; phone?: string; email?: string }) =>
+      create: (data: { name: string; phone?: string; email?: string; address?: string | null; district?: string | null; reference?: string | null }) =>
         apiFetch<unknown>('/admin/customers', mut('POST', data)),
-      update: (id: string, data: { name?: string; phone?: string; email?: string; isActive?: boolean }) =>
+      update: (id: string, data: { name?: string; phone?: string; email?: string; isActive?: boolean; address?: string | null; district?: string | null; reference?: string | null }) =>
         apiFetch<unknown>(`/admin/customers/${encodeURIComponent(id)}`, mut('PATCH', data)),
       delete: (id: string) => apiFetch<unknown>(`/admin/customers/${encodeURIComponent(id)}`, mut('DELETE')),
     },

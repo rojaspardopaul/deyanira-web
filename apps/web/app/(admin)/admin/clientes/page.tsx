@@ -7,8 +7,9 @@ import { adminApi } from '@/lib/api';
 import Pagination from '@/components/ui/Pagination';
 import {
   ChevronLeft, Users, Search, Plus, Pencil, Trash2,
-  ToggleLeft, ToggleRight, X, Check, Phone, Mail, Calendar, ShoppingBag,
+  ToggleLeft, ToggleRight, X, Check, Phone, Mail, Calendar, ShoppingBag, MapPin,
 } from 'lucide-react';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 
 const PAGE_SIZE = 25;
 
@@ -17,6 +18,9 @@ type Customer = {
   name: string;
   email: string | null;
   phone: string | null;
+  address: string | null;
+  district: string | null;
+  reference: string | null;
   isActive: boolean;
   loyaltyPoints: number;
   createdAt: string;
@@ -25,7 +29,7 @@ type Customer = {
 
 type ModalMode = 'create' | 'edit' | null;
 
-const EMPTY_FORM = { name: '', email: '', phone: '' };
+const EMPTY_FORM = { name: '', email: '', phone: '', address: '', district: '', reference: '' };
 
 export default function AdminClientesPage() {
   const router = useRouter();
@@ -89,7 +93,7 @@ export default function AdminClientesPage() {
 
   function openEdit(c: Customer) {
     setSelected(c);
-    setForm({ name: c.name, email: c.email || '', phone: c.phone || '' });
+    setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', district: c.district || '', reference: c.reference || '' });
     setModalError('');
     setModal('edit');
   }
@@ -105,10 +109,15 @@ export default function AdminClientesPage() {
     setSaving(true);
     setModalError('');
     try {
+      const addressData = {
+        address: form.address.trim() || null,
+        district: form.district || null,
+        reference: form.reference.trim() || null,
+      };
       if (modal === 'create') {
-        await adminApi(token).customers.create({ name: form.name.trim(), email: form.email || undefined, phone: form.phone || undefined });
+        await adminApi(token).customers.create({ name: form.name.trim(), email: form.email || undefined, phone: form.phone || undefined, ...addressData });
       } else if (modal === 'edit' && selected) {
-        await adminApi(token).customers.update(selected.id, { name: form.name.trim(), email: form.email || undefined, phone: form.phone || undefined });
+        await adminApi(token).customers.update(selected.id, { name: form.name.trim(), email: form.email || undefined, phone: form.phone || undefined, ...addressData });
       }
       closeModal();
       await load(token, search || undefined, page);
@@ -220,6 +229,12 @@ export default function AdminClientesPage() {
                         <Phone className="w-3 h-3" />{c.phone}
                       </span>
                     )}
+                    {(c.address || c.district) && (
+                      <span className="flex items-center gap-1 text-xs text-gray-500">
+                        <MapPin className="w-3 h-3" />
+                        {[c.address, c.district].filter(Boolean).join(', ')}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -310,6 +325,30 @@ export default function AdminClientesPage() {
                 <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="987654321"
                   className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                  <MapPin className="w-3.5 h-3.5" /> Dirección
+                </label>
+                <input type="text" value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  placeholder="Av. / Calle, número"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Distrito</label>
+                  <select value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    <option value="">—</option>
+                    {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Referencia</label>
+                  <input type="text" value={form.reference} onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
+                    placeholder="Piso, interior…"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                </div>
               </div>
               {modalError && (
                 <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm">{modalError}</div>

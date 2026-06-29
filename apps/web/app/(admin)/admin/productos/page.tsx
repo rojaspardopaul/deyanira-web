@@ -1,23 +1,33 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from '@/lib/api';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft, Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import { ChevronLeft, Plus, Pencil, Trash2, X, Save, Upload, Star, Loader2 } from 'lucide-react';
 import Pagination from '@/components/ui/Pagination';
 import { confirmAction } from '@/lib/confirm';
 import { HL, Danger } from '@/components/ui/highlight';
 
 const PAGE_SIZE = 24;
+const IMG_MAX = 8 * 1024 * 1024; // 8 MB
 
 type Product = Record<string, unknown>;
 
 const EMPTY = {
   name: '', description: '', pricePen: '', comparePrice: '', stock: '', brand: '',
-  images: '', isActive: true, categoryId: '',
+  images: [] as string[], isActive: true, categoryId: '',
 };
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = (e) => res(e.target?.result as string);
+    r.onerror = () => rej(new Error('No se pudo leer el archivo'));
+    r.readAsDataURL(file);
+  });
+}
 
 export default function AdminProductosPage() {
   const router = useRouter();
@@ -67,7 +77,7 @@ export default function AdminProductosPage() {
       comparePrice: String(p.comparePrice || ''),
       stock: String(p.stock || ''),
       brand: p.brand as string || '',
-      images: ((p.images as string[]) || []).join('\n'),
+      images: (p.images as string[]) || [],
       isActive: p.isActive as boolean ?? true,
       categoryId: p.categoryId as string || '',
     });
@@ -86,7 +96,7 @@ export default function AdminProductosPage() {
       comparePrice: form.comparePrice ? parseFloat(form.comparePrice) : null,
       stock: parseInt(form.stock) || 0,
       brand: form.brand.trim(),
-      images: form.images.split('\n').map(s => s.trim()).filter(Boolean),
+      images: form.images.filter(Boolean),
       isActive: form.isActive,
       categoryId: form.categoryId || null,
     };
@@ -123,6 +133,9 @@ export default function AdminProductosPage() {
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const setImages = useCallback((updater: string[] | ((prev: string[]) => string[])) =>
+    setForm(f => ({ ...f, images: typeof updater === 'function' ? updater(f.images) : updater })), []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -227,7 +240,7 @@ export default function AdminProductosPage() {
                   {categories.map((c) => <option key={c.id as string} value={c.id as string}>{c.name as string}</option>)}
                 </select>
               </div>
-              <Field label="URLs de imágenes (una por línea)" value={form.images} onChange={set('images')} textarea />
+              <ImageManager images={form.images} setImages={setImages} />
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="checkbox" checked={form.isActive} onChange={(e) => setForm(f => ({ ...f, isActive: e.target.checked }))}
                   className="w-4 h-4 accent-primary-600" />
@@ -260,6 +273,106 @@ function Field({ label, value, onChange, type = 'text', textarea = false }: {
         ? <textarea value={value} onChange={onChange} rows={3} className={cls} />
         : <input type={type} value={value} onChange={onChange} className={cls} />
       }
+    </div>
+  );
+}
+
+function ImageManager({ images, setImages }: {
+  images: string[];
+  setImages: (updater: string[] | ((prev: string[]) => string[])) => void;
+}) {
+  const [dragOver, setDragOver] = useState(false);
+  const [busy, setBusy] = useState(0);
+  const [err, setErr] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const uploadFiles = useCallback(async (files: FileList | File[]) => {
+    const token = localStorage.getItem('admin_token') || '';
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!arr.length) { setErr('Solo se permiten imágenes'); return; }
+    setErr('');
+    for (const file of arr) {
+      if (file.size > IMG_MAX) { setErr(`"${file.name}" supera 8 MB`); continue; }
+      setBusy(b => b + 1);
+      try {
+        const base64 = await fileToBase64(file);
+        const up = await adminApi(token).upload(base64, 'productos') as { url: string };
+        if (up?.url) setImages(prev => [...prev, up.url]);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : 'Error al subir la imagen');
+      } finally {
+        setBusy(b => b - 1);
+      }
+    }
+  }, [setImages]);
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files?.length) void uploadFiles(e.dataTransfer.files);
+  }
+
+  const makePrimary = (idx: number) => setImages(prev => {
+    if (idx <= 0 || idx >= prev.length) return prev;
+    const next = [...prev];
+    const [x] = next.splice(idx, 1);
+    next.unshift(x);
+    return next;
+  });
+  const remove = (idx: number) => setImages(prev => prev.filter((_, i) => i !== idx));
+
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-gray-600 mb-1">Imágenes</label>
+
+      {images.length > 0 && (
+        <div className="grid grid-cols-3 gap-2 mb-2">
+          {images.map((url, i) => (
+            <div key={url + i}
+              className={`relative group aspect-square rounded-xl overflow-hidden border ${i === 0 ? 'border-primary-500 ring-1 ring-primary-500' : 'border-gray-200'}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={url} alt={`Imagen ${i + 1}`} className="w-full h-full object-cover" />
+              {i === 0 && (
+                <span className="absolute top-1 left-1 bg-primary-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                  <Star className="w-2.5 h-2.5 fill-current" /> Principal
+                </span>
+              )}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100">
+                {i !== 0 && (
+                  <button type="button" onClick={() => makePrimary(i)} title="Marcar como principal"
+                    className="bg-white text-gray-800 rounded-full p-1.5 hover:bg-primary-600 hover:text-white transition-colors">
+                    <Star className="w-3.5 h-3.5" />
+                  </button>
+                )}
+                <button type="button" onClick={() => remove(i)} title="Quitar"
+                  className="bg-white text-red-600 rounded-full p-1.5 hover:bg-red-600 hover:text-white transition-colors">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={`cursor-pointer rounded-xl border-2 border-dashed flex flex-col items-center justify-center py-5 px-4 text-center transition-colors ${dragOver ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}>
+        {busy > 0 ? (
+          <span className="flex items-center gap-2 text-sm text-gray-500"><Loader2 className="w-4 h-4 animate-spin" /> Subiendo {busy} imagen(es)…</span>
+        ) : (
+          <>
+            <Upload className="w-6 h-6 text-gray-400 mb-1" />
+            <p className="text-sm font-medium text-gray-600">Arrastra imágenes aquí o haz clic para adjuntar</p>
+            <p className="text-xs text-gray-400 mt-0.5">JPG, PNG o WebP · máx. 8 MB · la primera es la principal</p>
+          </>
+        )}
+        <input ref={inputRef} type="file" accept="image/*" multiple className="hidden"
+          onChange={(e) => { if (e.target.files?.length) void uploadFiles(e.target.files); e.target.value = ''; }} />
+      </div>
+      {err && <p className="text-red-600 text-xs mt-1">{err}</p>}
     </div>
   );
 }

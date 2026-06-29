@@ -33,9 +33,14 @@ export async function middleware(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (pathname.startsWith('/mi-cuenta') && !user) {
+  // Rutas que exigen cuenta de cliente (sesión Supabase). El checkout requiere
+  // estar logueado: así tomamos los datos de la cuenta y asociamos el pedido.
+  const protectedPaths = ['/mi-cuenta', '/checkout'];
+  const needsAuth = protectedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+
+  if (needsAuth && !user) {
     const url = new URL('/login', request.url);
-    url.searchParams.set('redirect', pathname);
+    url.searchParams.set('redirect', pathname + request.nextUrl.search);
     return NextResponse.redirect(url);
   }
 
@@ -45,5 +50,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/mi-cuenta/:path*',
+    '/checkout',
+    '/checkout/:path*',
   ],
 };

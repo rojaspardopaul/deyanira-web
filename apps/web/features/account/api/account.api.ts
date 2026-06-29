@@ -5,8 +5,11 @@ import { apiFetch, LIVE } from '@/shared/api/client';
 
 export const customersApi = {
   me: (token: string) =>
-    apiFetch<{ id: string; name: string; phone: string | null }>('/customers/me', { token, ...LIVE }),
-  updateMe: (data: { name?: string; phone?: string }, token: string) =>
+    apiFetch<{ id: string; name: string; phone: string | null; address: string | null; district: string | null; reference: string | null }>('/customers/me', { token, ...LIVE }),
+  updateMe: (
+    data: { name?: string; phone?: string; address?: string | null; district?: string | null; reference?: string | null },
+    token: string,
+  ) =>
     apiFetch<unknown>('/customers/me', { method: 'PATCH', body: data, token }),
 };
 

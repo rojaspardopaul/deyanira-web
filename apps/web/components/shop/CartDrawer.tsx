@@ -82,6 +82,11 @@ export default function CartDrawer() {
                         <Plus className="w-3 h-3 text-gray-600" />
                       </button>
                     </div>
+                    {item.stock != null && (
+                      <p className={`text-[11px] mt-1 ${item.qty >= item.stock ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+                        {item.qty >= item.stock ? `Máximo disponible: ${item.stock}` : `${item.stock} disponibles`}
+                      </p>
+                    )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="font-bold text-sm text-gray-900">{money(item.pricePen * item.qty)}</p>
@@ -104,7 +109,7 @@ export default function CartDrawer() {
               <Link href="/checkout" onClick={closeDrawer}
                 className="flex items-center justify-center gap-2 w-full py-3.5 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-full text-sm transition-all active:scale-[0.98]"
                 style={{ boxShadow: '0 4px 20px rgba(219,39,119,0.35)' }}>
-                Ir al checkout <ArrowRight className="w-4 h-4" />
+                Verificar compra <ArrowRight className="w-4 h-4" />
               </Link>
               <Link href="/carrito" onClick={closeDrawer}
                 className="block text-center text-sm text-gray-500 hover:text-gray-800 font-medium">

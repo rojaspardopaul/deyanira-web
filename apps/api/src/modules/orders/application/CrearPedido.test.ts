@@ -77,7 +77,7 @@ describe('CrearPedido', () => {
   });
 
   it('demasiados pedidos pendientes (cliente)', async () => {
-    const deps = crearDeps({ pendientes: 3 });
+    const deps = crearDeps({ pendientes: 10 });
     await expect(correr(deps, body(), { id: 'u1' })).rejects.toBeInstanceOf(DemasiadosPedidosPendientesError);
   });
 

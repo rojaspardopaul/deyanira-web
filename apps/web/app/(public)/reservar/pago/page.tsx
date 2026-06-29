@@ -4,11 +4,13 @@ import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api } from '@/lib/api';
+import { createClient } from '@/lib/supabase/client';
 import CulqiCheckout, { closeCulqi } from '@/components/payments/CulqiCheckout';
 import {
   CreditCard, Upload, CheckCircle2, Clock, ShieldCheck, Copy, Loader2, CalendarCheck, AlertCircle,
 } from 'lucide-react';
 
+const TEST_CUSTOMER_EMAIL = (process.env.NEXT_PUBLIC_TEST_CUSTOMER_EMAIL || 'test.customer@deyanira.pe').toLowerCase();
 const money = (n: number) => `S/ ${Number(n || 0).toFixed(2)}`;
 
 type Payment = Awaited<ReturnType<typeof api.bookingPayments.get>>;
@@ -22,6 +24,7 @@ function PagoInner() {
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'card' | 'transfer'>('card');
   const [email, setEmail] = useState('');
+  const [currentUserEmail, setCurrentUserEmail] = useState('');
   const [busy, setBusy] = useState(false);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [proofMethod, setProofMethod] = useState<'yape' | 'plin' | 'transfer'>('yape');
@@ -34,10 +37,22 @@ function PagoInner() {
       const d = await api.bookingPayments.get(bp);
       setData(d);
       setEmail(d.customerEmail || '');
+      let userEmail = '';
+      try {
+        const supabase = createClient();
+        const sessionResponse = await supabase.auth.getSession();
+        const sessionUser = sessionResponse.data.session?.user;
+        const fallbackUserResponse = await supabase.auth.getUser();
+        const user = sessionUser || fallbackUserResponse.data.user;
+        userEmail = user?.email || '';
+        setCurrentUserEmail(userEmail);
+      } catch {
+        setCurrentUserEmail('');
+      }
       if (d.status === 'paid') setDone('paid');
       else if (d.status === 'awaiting_verification') setDone('awaiting');
-      // Sin tarjeta configurada → forzar transferencia
-      if (!d.culqiPublicKey) setTab('transfer');
+      // Sin tarjeta configurada o usuario no autorizado → forzar transferencia
+      if (!d.culqiPublicKey || userEmail.toLowerCase() !== TEST_CUSTOMER_EMAIL) setTab('transfer');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo cargar la reserva');
     } finally { setLoading(false); }
@@ -100,6 +115,8 @@ function PagoInner() {
 
   const d = data!;
   const salon = (d.salon || {}) as Record<string, string>;
+  const normalizedEnteredEmail = email.trim().toLowerCase();
+  const canUseCard = Boolean(d.culqiPublicKey) && (currentUserEmail.toLowerCase() === TEST_CUSTOMER_EMAIL || normalizedEnteredEmail === TEST_CUSTOMER_EMAIL);
 
   // Pantallas de estado final
   if (done === 'paid' || d.status === 'paid') {
@@ -160,7 +177,7 @@ function PagoInner() {
           {/* Métodos de pago */}
           <div className="md:col-span-3 rounded-2xl p-5" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div className="flex gap-2 mb-5">
-              {d.culqiPublicKey && (
+              {canUseCard && (
                 <TabBtn active={tab === 'card'} onClick={() => setTab('card')} icon={<CreditCard className="w-4 h-4" />}>Tarjeta</TabBtn>
               )}
               <TabBtn active={tab === 'transfer'} onClick={() => setTab('transfer')} icon={<Upload className="w-4 h-4" />}>Transferencia / Yape</TabBtn>
@@ -174,7 +191,7 @@ function PagoInner() {
               </div>
             )}
 
-            {tab === 'card' && d.culqiPublicKey && (
+            {tab === 'card' && canUseCard && (
               <div className="space-y-3">
                 <label className="block text-xs font-semibold mb-1" style={{ color: 'rgba(255,255,255,0.6)' }}>Email para el recibo</label>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tucorreo@email.com" className="input-dark" />
@@ -182,11 +199,11 @@ function PagoInner() {
                   Se cobrará <strong style={{ color: '#fff' }}>{money(d.depositPen)}</strong> a tu tarjeta.
                 </p>
                 <CulqiCheckout
-                  publicKey={d.culqiPublicKey}
+                  publicKey={d.culqiPublicKey || ''}
                   amountCents={Math.round(d.depositPen * 100)}
                   title={d.package?.name || 'Reserva'}
                   email={email}
-                  disabled={busy || !email}
+                  disabled={busy || !email || !canUseCard}
                   onToken={payCard}
                   onError={(m) => setError(m)}
                   label={busy ? 'Procesando…' : `Pagar ${money(d.depositPen)}`}

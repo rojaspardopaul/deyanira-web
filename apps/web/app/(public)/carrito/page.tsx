@@ -106,6 +106,11 @@ export default function CarritoPage() {
                     <Plus className="w-3 h-3 text-gray-600" />
                   </button>
                 </div>
+                {item.stock != null && (
+                  <p className={`text-[11px] mt-1.5 ${item.qty >= item.stock ? 'text-amber-600 font-medium' : 'text-gray-400'}`}>
+                    {item.qty >= item.stock ? `Máximo disponible: ${item.stock}` : `${item.stock} disponibles`}
+                  </p>
+                )}
               </div>
               <div className="text-right shrink-0">
                 <p className="font-bold text-gray-900 text-sm">{money(item.pricePen * item.qty)}</p>

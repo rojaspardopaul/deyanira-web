@@ -346,6 +346,10 @@ model Customer {
   phone         String?
   isActive      Boolean       @default(true) @map("is_active")
   loyaltyPoints Int           @default(0) @map("loyalty_points")
+  // Dirección por defecto del cliente (autocompleta el checkout / reservas a domicilio)
+  address       String?       // calle / número
+  district      String?       // distrito de Lima (ver lib/districts.ts)
+  reference     String?       // referencia / piso / interior
   createdAt       DateTime         @default(now()) @map("created_at")
   appointments    Appointment[]
   orders          Order[]

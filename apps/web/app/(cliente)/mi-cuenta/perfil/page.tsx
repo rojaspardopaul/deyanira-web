@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, User, Phone, Lock, Eye, EyeOff, Check, AlertCircle } from 'lucide-react';
+import { ChevronLeft, User, Phone, Lock, Eye, EyeOff, Check, AlertCircle, MapPin } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api';
+import { LIMA_DISTRICTS } from '@/lib/districts';
 
 type Status = { type: 'success' | 'error'; msg: string } | null;
 
@@ -16,6 +17,9 @@ export default function PerfilPage() {
   const [name, setName]   = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [address, setAddress]     = useState('');
+  const [district, setDistrict]   = useState('');
+  const [reference, setReference] = useState('');
   const [isGoogle, setIsGoogle] = useState(false);
   const [token, setToken] = useState('');
   const [loading, setLoading] = useState(true);
@@ -50,6 +54,9 @@ export default function PerfilPage() {
           const customer = await api.customers.me(tk);
           setName(customer.name || derivedName);
           setPhone(customer.phone || '');
+          setAddress(customer.address || '');
+          setDistrict(customer.district || '');
+          setReference(customer.reference || '');
         } catch {
           setName(derivedName);
         }
@@ -64,7 +71,13 @@ export default function PerfilPage() {
     setSavingProfile(true);
     setProfileStatus(null);
     try {
-      await api.customers.updateMe({ name: name.trim(), phone: phone || undefined }, token);
+      await api.customers.updateMe({
+        name: name.trim(),
+        phone: phone || undefined,
+        address: address.trim() || null,
+        district: district || null,
+        reference: reference.trim() || null,
+      }, token);
       setProfileStatus({ type: 'success', msg: 'Perfil actualizado correctamente' });
     } catch {
       setProfileStatus({ type: 'error', msg: 'Error al guardar los cambios' });
@@ -149,6 +162,29 @@ export default function PerfilPage() {
               </label>
               <input type="tel" value={phone} onChange={e => setPhone(e.target.value)}
                 placeholder="987654321"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5" /> Dirección
+              </label>
+              <input type="text" value={address} onChange={e => setAddress(e.target.value)}
+                placeholder="Av. / Calle, número"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+              <p className="text-xs text-gray-400 mt-1">La usaremos para autocompletar tus envíos y reservas a domicilio.</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Distrito</label>
+              <select value={district} onChange={e => setDistrict(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                <option value="">Selecciona tu distrito</option>
+                {LIMA_DISTRICTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Referencia <span className="text-gray-400 font-normal">(opcional)</span></label>
+              <input type="text" value={reference} onChange={e => setReference(e.target.value)}
+                placeholder="Piso, interior, color de fachada…"
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
             </div>
             <div>

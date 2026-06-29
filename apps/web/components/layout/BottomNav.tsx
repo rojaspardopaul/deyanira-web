@@ -23,7 +23,9 @@ const ITEMS: NavItem[] = [
   { href: '/mi-cuenta', label: 'Cuenta',    icon: User },
 ];
 
-const HIDDEN_ON = ['/admin', '/login', '/registro'];
+// El checkout tiene su propia barra de acción fija (total + pagar); el nav global
+// sobra y, al ser ambos fixed bottom-0, se encimaban en móvil.
+const HIDDEN_ON = ['/admin', '/login', '/registro', '/checkout'];
 
 export default function BottomNav() {
   const pathname = usePathname();

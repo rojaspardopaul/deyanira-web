@@ -25,7 +25,9 @@ import type { NotificadorPedidos } from '../domain/ports/NotificadorPedidos';
 import type { ConfiguracionEnvio } from '../domain/ports/ConfiguracionEnvio';
 import { CrearPedidoComando } from './dto/CrearPedidoComando';
 
-const MAX_PEDIDOS_PENDIENTES = 3;
+// Máximo de pedidos PENDIENTES de pago en las últimas 24 h (anti-abuso). Los
+// cancelados/pagados/procesados NO cuentan: el repositorio filtra status 'pending'.
+const MAX_PEDIDOS_PENDIENTES = 10;
 const METODO_PAGO_DEFECTO = 'culqi';
 
 export class CrearPedido {

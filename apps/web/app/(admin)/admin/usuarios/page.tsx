@@ -24,6 +24,7 @@ type ModalMode = 'create' | 'edit' | null;
 const ROLE_CONFIG = {
   super_admin: { label: 'Super Admin', bg: 'bg-purple-100 text-purple-700', icon: Shield },
   admin:       { label: 'Admin',       bg: 'bg-blue-100 text-blue-700',    icon: User     },
+  test:        { label: 'Test',        bg: 'bg-cyan-100 text-cyan-700',    icon: User     },
   estilista:   { label: 'Estilista',   bg: 'bg-amber-100 text-gold-600',    icon: Scissors },
 };
 
@@ -150,6 +151,7 @@ export default function AdminUsuariosPage() {
               <p className="text-[11px] text-gray-500 leading-relaxed">
                 {role === 'super_admin' && 'Control total. Crea y gestiona usuarios y roles.'}
                 {role === 'admin' && 'Gestión completa del salón, sin gestión de usuarios.'}
+                {role === 'test' && 'Acceso de prueba con permisos limitados para validar flujos.'}
                 {role === 'estilista' && 'Solo ve su propio calendario, citas y horarios.'}
               </p>
             </div>
@@ -256,12 +258,14 @@ export default function AdminUsuariosPage() {
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-gold-400 bg-white">
                   <option value="admin">Admin</option>
+                  <option value="test">Test</option>
                   <option value="estilista">Estilista</option>
                   <option value="super_admin">Super Admin</option>
                 </select>
                 <p className="text-[11px] text-gray-400 mt-1">
                   {form.role === 'super_admin' && 'Control total del sistema, incluyendo gestión de usuarios.'}
                   {form.role === 'admin' && 'Gestión completa del salón. No puede crear usuarios.'}
+                  {form.role === 'test' && 'Rol de prueba para validar flujos sin permisos de administración completa.'}
                   {form.role === 'estilista' && 'Solo accede a su calendario, citas y horarios propios.'}
                 </p>
               </div>

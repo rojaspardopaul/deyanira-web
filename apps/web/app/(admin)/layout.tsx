@@ -78,6 +78,7 @@ const NAV_ESTILISTA: NavGroup[] = [
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
   admin: 'Admin',
+  test: 'Test',
   estilista: 'Estilista',
 };
 

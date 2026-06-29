@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
-import { ChevronLeft, ShoppingCart, Clock, CheckCircle } from 'lucide-react';
+import { ChevronLeft, CheckCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import AddToCartButton from '@/components/tienda/AddToCartButton';
+import ProductGallery from '@/components/tienda/ProductGallery';
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -64,36 +64,7 @@ export default async function ProductDetailPage({ params }: Props) {
         <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
 
           {/* Imágenes */}
-          <div>
-            <div className="aspect-square bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 relative">
-              {images[0] ? (
-                <Image
-                  src={images[0]}
-                  alt={product.name as string}
-                  fill
-                  className="object-cover"
-                  priority
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-8xl">🧴</div>
-              )}
-              {hasDiscount && (
-                <span className="absolute top-3 left-3 bg-red-500 text-white text-xs font-black px-3 py-1.5 rounded-full">
-                  -{discountPct}% OFF
-                </span>
-              )}
-            </div>
-            {/* Miniaturas adicionales */}
-            {images.length > 1 && (
-              <div className="flex gap-2 mt-3 overflow-x-auto no-scrollbar">
-                {images.slice(1).map((img, i) => (
-                  <div key={i} className="w-16 h-16 shrink-0 rounded-lg overflow-hidden border-2 border-gray-200">
-                    <Image src={img} alt={`${product.name} ${i + 2}`} width={64} height={64} className="object-cover w-full h-full" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ProductGallery images={images} name={String(product.name ?? '')} discountPct={hasDiscount ? discountPct : 0} />
 
           {/* Info del producto */}
           <div className="flex flex-col">
@@ -142,12 +113,6 @@ export default async function ProductDetailPage({ params }: Props) {
             {/* CTA */}
             <div className="space-y-3 mt-auto">
               <AddToCartButton product={product} />
-              <Link
-                href="/reservar"
-                className="flex items-center justify-center gap-2 w-full py-3 border-2 border-primary-200 text-primary-600 font-semibold rounded-full hover:bg-primary-50 transition-colors text-sm"
-              >
-                ✦ O reserva una cita con este servicio
-              </Link>
             </div>
 
             {/* Badges de confianza */}
