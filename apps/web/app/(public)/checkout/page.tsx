@@ -1,9 +1,9 @@
 'use client';
 
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Check, ArrowRight, Truck, Store, ShieldCheck, CreditCard } from 'lucide-react';
+import { ChevronLeft, Check, ArrowRight, Truck, Store, ShieldCheck, CreditCard, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { createClient } from '@/lib/supabase/client';
 import { useSalonSettings } from '@/lib/useSalonSettings';
@@ -43,6 +43,7 @@ function CheckoutContent() {
   const [proofBusy, setProofBusy] = useState(false);
   const [proofDone, setProofDone] = useState(false);
   const [proofError, setProofError] = useState('');
+  const processingRef = useRef(false);   // cobro con tarjeta en curso (evita doble procesamiento)
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -219,6 +220,11 @@ function CheckoutContent() {
   // Tarjeta: con el token de Culqi creamos+cobramos. Si el cobro falla NO se
   // confirma el pedido (queda sin pagar y el cliente puede reintentar).
   async function onCardToken(token: string) {
+    // Anti-reentrada: si el cliente alcanzó a generar dos tokens (doble clic en
+    // "Pagar" antes de que el modal cerrara), ignoramos el segundo para no cobrar
+    // dos veces ni mostrar un error tras un pago ya aprobado.
+    if (processingRef.current) return;
+    processingRef.current = true;
     setLoading(true); setError('');
     try {
       const id = await ensureCardOrder();
@@ -231,6 +237,7 @@ function CheckoutContent() {
       setError(e instanceof Error ? e.message : 'No se pudo procesar el pago. No se realizó ningún cargo, intenta de nuevo.');
     } finally {
       setLoading(false);
+      processingRef.current = false;
     }
   }
 
@@ -382,6 +389,18 @@ function CheckoutContent() {
   // ---------- Checkout por pasos ----------
   return (
     <div className="min-h-screen bg-gray-50 pt-16 pb-28 md:pb-10">
+      {/* Overlay bloqueante mientras se procesa (sobre todo el cobro con tarjeta: el
+          modal de Culqi ya cerró, así que este loading es el feedback del cliente). */}
+      {loading && (
+        <div className="fixed inset-0 z-[60] bg-white/70 backdrop-blur-sm flex items-center justify-center">
+          <div className="bg-white rounded-2xl px-6 py-5 shadow-xl border border-gray-100 flex items-center gap-3">
+            <Loader2 className="w-5 h-5 animate-spin text-primary-600" />
+            <span className="text-sm font-semibold text-gray-800">
+              {payMethod === 'culqi' ? 'Procesando tu pago…' : 'Registrando tu pedido…'}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="bg-white border-b border-gray-100 px-4 py-4">
         <div className="max-w-4xl mx-auto flex items-center gap-3">
           <Link href="/carrito" className="text-gray-500 hover:text-primary-600 flex items-center gap-1 text-sm">

@@ -76,7 +76,14 @@ export function useCulqi({ publicKey, amountCents, title, email, onToken, onErro
     window.culqi = function () {
       const C = window.Culqi;
       if (C?.token?.id) {
-        onTokenRef.current(C.token.id);
+        const tokenId = C.token.id;
+        // Cerramos el modal de Culqi de inmediato: ya tenemos el token y el
+        // formulario cumplió su función. Si esperamos al round-trip del backend,
+        // el modal sigue abierto con su botón "Pagar" activo y el cliente puede
+        // volver a pulsarlo (genera un segundo token y confunde). Cerrar aquí deja
+        // que la página muestre su propio loading mientras se cobra.
+        closeCulqi();
+        onTokenRef.current(tokenId);
       } else if (C?.error) {
         onErrorRef.current?.(C.error.user_message || 'No se pudo procesar la tarjeta');
       }
