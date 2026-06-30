@@ -565,13 +565,38 @@ router.get('/products', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// Normaliza un texto a slug: sin acentos, minúsculas, no-alfanumérico → guion.
+function slugifyBase(s) {
+  return String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')   // quita acentos (marcas combinantes)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')                          // separadores → guion
+    .replace(/^-+|-+$/g, '')                              // recorta guiones extremos
+    .slice(0, 60) || 'producto';
+}
+
+// Devuelve un slug único para Product (slug es @unique): si choca, añade -2, -3, …
+async function uniqueProductSlug(base) {
+  let slug = base;
+  let n = 1;
+  // eslint-disable-next-line no-await-in-loop
+  while (await prisma.product.findUnique({ where: { slug }, select: { id: true } })) {
+    n += 1;
+    slug = `${base}-${n}`;
+  }
+  return slug;
+}
+
 router.post('/products', validate({ body: S.ProductCreate }), async (req, res, next) => {
   try {
     const data = pick(req.body, [
       'name', 'slug', 'description', 'categoryId', 'brand',
       'pricePen', 'comparePrice', 'stock', 'images', 'isActive',
     ]);
-    // name/slug/pricePen/images validados por Zod (S.ProductCreate).
+    // name/pricePen/images validados por Zod (S.ProductCreate). El slug es opcional:
+    // si no llega (o llega vacío) se genera del nombre, garantizando unicidad.
+    const slugSeed = (data.slug && String(data.slug).trim()) || data.name;
+    data.slug = await uniqueProductSlug(slugifyBase(slugSeed));
     data.pricePen = Number(data.pricePen);
     if (data.stock != null) data.stock = Math.max(0, Number(data.stock));
     if (data.comparePrice != null) data.comparePrice = Number(data.comparePrice);

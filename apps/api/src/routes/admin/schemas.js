@@ -42,7 +42,8 @@ const CategoryCreate = z.object({
 // ── Productos ──────────────────────────────────────────────────
 const ProductCreate = z.object({
   name: z.string().trim().min(1, 'name requerido'),
-  slug: z.string().trim().min(1, 'slug requerido'),
+  // El slug se genera en el backend a partir del nombre si no se envía.
+  slug: z.string().trim().min(1).optional(),
   pricePen: z.coerce.number().min(0, 'pricePen inválido'),
   images: z.array(z.string()).optional(),
 }).passthrough();
